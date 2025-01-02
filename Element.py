@@ -54,9 +54,11 @@ class Voltmeter(PortElement):
         super().__init__(name, port_a, port_b)
 
 class ExternalSwitch(PortElement):
-    def __init__(self, name, port_a, port_b, initial_switch_state:bool):
+    def __init__(self, name, port_a, port_b, initial_switch_state:bool, switch_frequency:float, duty_cycle:float):
         super().__init__(name, port_a, port_b)
         self.initial_switch_state = initial_switch_state
+        self.switch_frequency = switch_frequency
+        self.duty_cycle = duty_cycle
 class Diode(PortElement):
     def __init__(self, name, port_a, port_b, initial_switch_state:bool):
         super().__init__(name, port_a, port_b)
@@ -105,3 +107,9 @@ class DependentSource(NonPortElement):
     def voltage_current_relationship(self,F_labels:list[str]):
         pass
     
+    
+    
+
+
+
+
