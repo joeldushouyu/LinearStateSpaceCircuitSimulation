@@ -1,5 +1,5 @@
 from Element import (
-    Element,
+    Element, ExternalSwitch, Diode
 )
 from typing import Tuple
 
@@ -111,22 +111,22 @@ def calculate_dependent_state_vars(M0: Matrix, x_hat_labels:list[str]):
 
 def retrieveSystemMatrix(
     M: Matrix,
-    s_labels: list[str],
-    y_labels: list[str],
-    x_hat_labels: list[str],
-    x_labels: list[str],
-    y_zero_labels: list[str],
-    s_zero_labels: list[str],
+    s_labels_size:int,
+    y_labels_size:int,
+    x_hat_labels_size:int,
+    x_labels_size:int,
+    y_zero_labels_size: int,
+    s_zero_labels_size: int,
 ) -> Tuple[Matrix]:
-    y_col_offset = len(s_labels)
-    x_hat_col_offset = len(s_labels) + y_col_offset
-    x_col_offset = x_hat_col_offset + len(x_hat_labels)
-    zero_offset = x_col_offset + len(x_labels)
-    u_col_offset = zero_offset + len(y_zero_labels) + len(s_zero_labels)
+    y_col_offset = s_labels_size
+    x_hat_col_offset = y_labels_size + y_col_offset
+    x_col_offset = x_hat_col_offset + x_hat_labels_size
+    zero_offset = x_col_offset + x_labels_size
+    u_col_offset = zero_offset + y_zero_labels_size + s_zero_labels_size
 
     s_row_offset = 0
-    y_row_offset = len(s_labels)
-    x_row_offset = y_row_offset + len(y_labels)
+    y_row_offset = s_labels_size
+    x_row_offset = y_row_offset + y_labels_size
     s_dxdt = -M[s_row_offset:y_row_offset, x_hat_col_offset:x_col_offset]
     Sx = -M[s_row_offset:y_row_offset, x_col_offset:zero_offset]
     Su = -M[s_row_offset:y_row_offset, u_col_offset:]
@@ -144,8 +144,8 @@ def retrieveSystemMatrix(
 
 
 
-def determine_dependent_state_vars(M0: Matrix, A:Matrix, B:Matrix, x_hat_labels:list[str]):
-    
+def determine_dependent_state_vars(M0: Matrix, A:Matrix, B:Matrix, network_matrix, sw_lab:str):
+    # sw_lab is volt/current label of the external switch that cause it
     indenepdent_state_vars_labels = []
     dependent_state_vars_labels = []
     
@@ -158,11 +158,11 @@ def determine_dependent_state_vars(M0: Matrix, A:Matrix, B:Matrix, x_hat_labels:
     for i in range(cols):
         is_independent = j  < len(pivots)  and pivots[j] == i
         if is_independent:
-            indenepdent_state_vars_labels.append( x_hat_labels[i] )  
+            indenepdent_state_vars_labels.append( network_matrix.x_hat_labels[i] )  
             independent_state_vars_cols.append(i)
             j += 1
         else:
-            dependent_state_vars_labels.append(x_hat_labels[i])
+            dependent_state_vars_labels.append(network_matrix.x_hat_labels[i])
             dependent_state_vars_cols.append(i)
     
     
@@ -180,14 +180,35 @@ def determine_dependent_state_vars(M0: Matrix, A:Matrix, B:Matrix, x_hat_labels:
     Bd = Matrix( zero_count, B.cols, [0]*(zero_count *B.cols) )  # B.cols is the number of input variable
     
     
-    
+
     for i in range(zero_count):
         
         row = zero_rows[i]
-        
+        forced_diode_switches = []
         # see if the rows of A is empty but B is not empty
         if A[row,:].is_zero_matrix and not B[row,:].is_zero_matrix:
-            pass  # TODO: network inconsistent
+            
+            # network_matrix.print_M_matrix()
+           
+            # find nonzero labels of this row in the network.M matrix
+            row_num_in_m = row + network_matrix.s_labels_size+ network_matrix.y_label_size
+            
+            row_in_m = network_matrix.M[row_num_in_m, :]
+            offset = network_matrix.s_labels_size + network_matrix.y_label_size + network_matrix.x_hat_label_size
+        
+        
+            for i in range( offset,   row_in_m.cols):
+                if row_in_m[i] != 0:
+                    lab = network_matrix.m_column_labels[i]
+                    ele = network_matrix.m_column_labels_to_obj_map[lab]
+                    if isinstance(ele, Diode):
+                        forced_diode_switches.append(lab)
+                    elif isinstance(ele, ExternalSwitch):
+                        assert ele.element_current_name == sw_lab or ele.element_voltage_name == sw_lab
+                    else:
+                        pass
+            
+                        
         else:
             for j in range(dependent_count):
                 col = dependent_state_vars_cols[j]
@@ -198,26 +219,22 @@ def determine_dependent_state_vars(M0: Matrix, A:Matrix, B:Matrix, x_hat_labels:
             
             for j in range(B.cols):
                 Bd[i,j] = B[row, j]
-                
+        
 
-    Add_inv = Add_inv.inv()
+            Add_inv = Add_inv.inv()
     
-    return Add_inv, Adi, Bd, indenepdent_state_vars_labels, independent_state_vars_cols, dependent_state_vars_labels, dependent_state_vars_cols
+    return  forced_diode_switches, Add_inv, Adi, Bd, indenepdent_state_vars_labels, independent_state_vars_cols, dependent_state_vars_labels, dependent_state_vars_cols
 
 
 
 # @njit(parallel=True)
 def backwardEulerIntegration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, u:  np.ndarray, time_t:float):
-    # pade approximation of y=0    
-    p = 1
-    q= 1
-    a = np.float32( 0)
+    p = 0
+    q = 1
+    a = np.float32(0)
     b = np.float32(-1/2)
     time_t = np.float32(time_t)
-    # e_at_part = (  eye(A.shape[0]) + A*time_t*a ) *  (  eye(A.shape[0])  + A*time_t*b )**-1
-    # integ_part = time_t*(1*a-1*b)* (   eye(A.shape[0])  + A*time_t*b )**-1 
     eye_a =  np.eye(A.shape[0], dtype=np.float32)
-      
     
     e_at_part =    (  eye_a+  A*time_t*a )@    np.linalg.inv( eye_a +A*time_t*b  )    
     
@@ -232,7 +249,6 @@ def backwardEulerIntegration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, 
     p2 =  integ_part@ B @ u 
     res = p1+p2
     return  res 
-
 
 
 # @njit(parallel=True)

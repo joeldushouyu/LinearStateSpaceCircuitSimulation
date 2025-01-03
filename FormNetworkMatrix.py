@@ -7,7 +7,7 @@ from Element import (
     ExternalSwitch,
     Diode,
     Resistor,
-    DependentSource,
+    DependentElement,
     VoltageCurrentSource,
     Voltmeter,
     Ammeter,
@@ -60,7 +60,9 @@ class NetworkMatrix:
         #     if isinstance(ele, ExternalSwitch):
         #         self.external_switch_labels.append(lab)
 
-
+    def print_M_matrix(self ):
+        print_matrix(self.M, self.m_column_labels, ["" for x in range(self.M.shape[0])])
+        
     @cached_property
     def external_switch_labels(self):
         return [     lab for lab in self.s_labels if isinstance(self.m_column_labels_to_obj_map[lab], ExternalSwitch)      ]
@@ -112,12 +114,16 @@ def reorder_matrix_by_colum_label(
     m_temp = matrix[:, :]
     assert len(new_col_name) == len(ele_name_col_map)
 
-    for i in range(len(new_col_name)):
-        new_ele_name = new_col_name[i]
 
-        matrix[:, i] = m_temp[:, ele_name_col_map[new_ele_name]]
+        
+    for col in range(len(new_col_name)):
+        if col == 4:
+            p = 20
+        new_ele_name = new_col_name[col]
 
-        ele_name_col_map[new_ele_name] = i
+        matrix[:, col] = m_temp[:, ele_name_col_map[new_ele_name]]
+
+        ele_name_col_map[new_ele_name] = col
 
 
 def read_netlis_description(
@@ -149,6 +155,17 @@ def read_netlis_description(
                 if labels[0][1] == "M":
                     ele = Voltmeter(labels[0], node_a, node_b)
                     meter_list.append(ele)
+                elif len(labels[0]) > 4 and labels[0][0:4] == "VCVS":
+                    factor_val = float(labels[3])
+                    factor_symbol = sp.symbols( labels[0] + "_factor" )
+                    ele = DependentElement( labels[0], node_a, node_b,labels[4] ,factor_val, factor_symbol,"VCVS" )
+                    
+                    symbollic_to_value_map[factor_symbol] = factor_val
+                elif len(labels[0]) > 4 and labels[0][0:4] == "VCIS":
+                    factor_val = float(labels[3])
+                    factor_symbol = sp.symbols(labels[0] + "_factor")
+                    ele = DependentElement(labels[0], node_a, node_a, labels[4], factor_val, factor_symbol, "VCIS")
+                    symbollic_to_value_map[factor_symbol]  = factor_val
                 else:
                     ele = VoltageCurrentSource(
                         labels[0],
@@ -159,6 +176,19 @@ def read_netlis_description(
                         True,
                     )
                     source_list.append(ele)
+            case "I":
+                if len(labels[0]) > 4 and labels[0][0:4] == "ICVS":
+                    factor_val = float(labels[3])
+                    factor_symbol = sp.symbols( labels[0] + "_factor" )
+                    ele = DependentElement(labels[0], node_a, node_b, labels[4], factor_val,factor_symbol, "ICVS")
+                    symbollic_to_value_map[factor_symbol] = factor_val
+                elif len(labels[0]) > 4 and labels[0][0:4] == "ICIS":
+                    factor_val = float(labels[3])
+                    factor_symbol = sp.symbols(labels[0] + "_factor")
+                    ele = DependentElement(labels[0], node_a, node_b, labels[4], factor_val, factor_symbol, "ICIS")
+                    symbollic_to_value_map[factor_symbol] = factor_val
+                else:
+                    raise ValueError("Unknown element")
             case "L":
                 inductor_symbol = sp.symbols(labels[0])
                 inductor_val = float(labels[3])
@@ -236,7 +266,8 @@ def gen_incident_matrix(
 
     column_names = update_column_labels(ele_name_col_map)
     row_names = update_row_labels(node_name_row_map)
-    # print_matrix(A_matrix=A_matrix, column_names=column_names, row_names=row_names)
+    print("Incident mateix before reogranize")
+    print_matrix(A_matrix=A_matrix, column_names=column_names, row_names=row_names)
 
     # do rref to get the pivot columns of A
     _, pivots = A_matrix.rref()
@@ -261,8 +292,8 @@ def gen_incident_matrix(
             A_matrix[:, cur_element_col] = A_matrix[:, new_element_col]
             A_matrix[:, new_element_col] = temp
 
-    column_names = update_column_labels(ele_name_col_map)
-    row_names = update_row_labels(node_name_row_map)
+            column_names = update_column_labels(ele_name_col_map)
+            row_names = update_row_labels(node_name_row_map)
     # print_matrix(A_matrix=A_matrix, column_names=column_names, row_names=row_names)
     # reorganize a matrix to a, z, y, b form
     # a is the port in tree, z is nonport in tree
@@ -285,13 +316,19 @@ def gen_incident_matrix(
         else:
             cotree_nonport.append(ele_name)
 
+    
     reorder_matrix_by_colum_label(
         A_matrix,
         tree_port + tree_nonport + cotree_nonport + cotree_port,
         ele_name_col_map,
     )
-
-    # print_matrix(A_matrix=A_matrix, column_names=column_names, row_names=row_names)
+    # update column_names
+    column_names = update_column_labels(ele_name_col_map)
+    
+    assert all(x==y for x,y in zip(  column_names, tree_port+tree_nonport+cotree_nonport+cotree_port  ))
+    
+    print("Incident mateix after reogranize")
+    print_matrix(A_matrix=A_matrix, column_names=column_names, row_names=row_names)
     return A_matrix, tree_port, cotree_port, tree_nonport, cotree_nonport
 
 
@@ -394,10 +431,10 @@ def system_realization(netList: list[list[str]]):
     row_in_F = []
     for z_ele_name in tree_nonport:
         ele: NonPortElement = ele_name_obj_map[z_ele_name]
-        row_in_F.append(ele.voltage_current_relationship(F_labels))
+        row_in_F.append(ele.voltage_current_relationship(F_labels,ele_name_obj_map))
     for y_ele_name in cotree_nonport:
         ele: NonPortElement = ele_name_obj_map[y_ele_name]
-        row_in_F.append(ele.voltage_current_relationship(F_labels))
+        row_in_F.append(ele.voltage_current_relationship(F_labels,ele_name_obj_map))
 
     F_lower_matrix = sp.Matrix(row_in_F)
 
@@ -405,25 +442,25 @@ def system_realization(netList: list[list[str]]):
 
     F_iz = F_lower_matrix[:, 0:z]
 
-    start_ind = len(F_iz)
+    start_ind = F_iz.cols
     F_vy = F_lower_matrix[:, start_ind : start_ind + y]
 
-    start_ind += len(F_vy)
+    start_ind += F_vy.cols
     F_iy = F_lower_matrix[:, start_ind : start_ind + y]
 
-    start_ind += len(F_iy)
+    start_ind += F_iy.cols
     F_vz = F_lower_matrix[:, start_ind : start_ind + z]
 
-    start_ind += len(F_vz)
+    start_ind += F_vz.cols
     F_ia = F_lower_matrix[:, start_ind : start_ind + a]
 
-    start_ind += len(F_ia)
+    start_ind += F_ia.cols
     F_vb = F_lower_matrix[:, start_ind : start_ind + b]
 
-    start_ind += len(F_vb)
+    start_ind += F_vb.cols
     F_ib = F_lower_matrix[:, start_ind : start_ind + b]
 
-    start_ind += len(F_ib)
+    start_ind += F_ib.cols
     F_va = F_lower_matrix[:, start_ind:]
 
     F_iy_hat = F_iy - F_iz * D_zy
@@ -604,20 +641,42 @@ def system_realization(netList: list[list[str]]):
 
     assert M.rank() == M.shape[0]
 
+    print("M before reduced")
+    print_matrix(M, reordered_m_labels, ["" for x in range(M.shape[0])])
+    
+    print("M before reduced with real value")
+    print_matrix(M.subs(symbollic_to_value_map), reordered_m_labels, ["" for x in range(M.shape[0])])
     # now, remove the w, utilted columns from the matrix
     redundant_columns_size = len(w + u_tilt)
     M = M[redundant_columns_size:, redundant_columns_size:]
     reordered_m_labels = reordered_m_labels[redundant_columns_size:]
     print_matrix(M, reordered_m_labels, ["" for x in range(M.shape[0])])
 
+    M = M.subs(symbollic_to_value_map)
+    net =  NetworkMatrix(
+        M=M,
+        m_column_labels=reordered_m_labels,
+        m_colmn_labels_to_obj_map=reordered_m_lable_obj_mapping,
+        symbolic_to_value_map=symbollic_to_value_map,
+        s_label_size= len(s),
+        y_label_size=len(y),
+        x_hat_label_size=len(x_hat),
+        x_label_size=len(x),
+        s_zero_label_size=len(s_zero),
+        y_zero_label_size=len(y_zero),
+        u_label_size=len(u)
+
+    )
+    
+
     s_dxdt, Sx, Su, C1, C, D, M0, A, B = retrieveSystemMatrix(
         M=M,
-        s_labels=s,
-        y_labels=y,
-        x_hat_labels=x_hat,
-        x_labels=x,
-        y_zero_labels=y_zero,
-        s_zero_labels=s_zero,
+        s_labels_size=net.s_labels_size,
+        y_labels_size=net.y_label_size,
+        x_hat_labels_size=net.x_hat_label_size,
+        x_labels_size=net.x_label_size,
+        y_zero_labels_size=net.y_zero_label_size,
+        s_zero_labels_size=net.s_zero_label_size,
     )
     print("s_dxdt")
     pprint(s_dxdt)
@@ -642,22 +701,13 @@ def system_realization(netList: list[list[str]]):
     print("B")
     pprint(B)
 
-    net =  NetworkMatrix(
-        M=M,
-        m_column_labels=reordered_m_labels,
-        m_colmn_labels_to_obj_map=reordered_m_lable_obj_mapping,
-        symbolic_to_value_map=symbollic_to_value_map,
-        s_label_size= len(s),
-        y_label_size=len(y),
-        x_hat_label_size=len(x_hat),
-        x_label_size=len(x),
-        s_zero_label_size=len(s_zero),
-        y_zero_label_size=len(y_zero),
-        u_label_size=len(u)
 
-    )
     
+    _, pivot = net.M.rref()
     
+    for i in range(len(pivot)):
+        if pivot[i] != i:
+            raise ValueError("Error in the network matrix")
     return net    
     
 

@@ -80,7 +80,7 @@ class NonPortElement(Element):
     def __init__(self, name:str, port_a: Node, port_b: Node):
         super().__init__(name, port_a, port_b)
         self.is_port_element = False
-    def voltage_current_relationship(self,F_labels:list[str]):
+    def voltage_current_relationship(self,F_labels:list[str], element_name_obj_map:dict[str, Element]):
         pass
 class Resistor(NonPortElement):
     
@@ -88,7 +88,7 @@ class Resistor(NonPortElement):
         super().__init__(name, port_a, port_b)
         self.resistance = resistance 
         self.resistance_symbol = resistance_symbol
-    def voltage_current_relationship(self,F_labels:list[str]):
+    def voltage_current_relationship(self,F_labels:list[str], element_name_obj_map:dict[str, Element]):
         # find index of 
         v_ind = F_labels.index(self.element_voltage_name)
         current_ind = F_labels.index(self.element_current_name)
@@ -97,16 +97,66 @@ class Resistor(NonPortElement):
         zeros[v_ind] = 1
         zeros[current_ind] = -self.resistance_symbol
         return zeros
-# voltage depedent voltage source, current dependent voltage source
-class DependentSource(NonPortElement):
-    def __init__(self, name, port_a, port_b, dependent_source:str, dependent_factor:float, is_dependent_voltage_source:bool):
-        super().__init__(name, port_a, port_b)
-        self.dependent_source = dependent_source
-        self.dependent_factor = dependent_factor    
-        self.is_dependent_voltage_source = is_dependent_voltage_source
-    def voltage_current_relationship(self,F_labels:list[str]):
-        pass
     
+# dependent label dependents on the either output of Voltmeter or Ammeter
+# voltage depedent voltage source, current dependent voltage source
+class DependentElement(NonPortElement):
+    def __init__(self, name, port_a, port_b, meter_name:str, dependent_factor:float, dependent_symbol:Symbol, type_str:str):
+        super().__init__(name, port_a, port_b)
+        self.meter_name = meter_name
+        self.dependent_factor = dependent_factor    
+        self.dependent_symbol = dependent_symbol
+        
+        if type_str == "VCVS":
+            self.type = 0
+        elif type_str == "VCIS":
+            self.type = 1
+        elif type_str == "ICVS":
+            self.type = 2
+        elif type_str == "ICIS":
+            self.type = 3
+        else:
+            raise ValueError("Unknown dependent type")
+        
+    def voltage_current_relationship(self,F_labels:list[str], element_name_obj_map:dict[str, Element]):
+        
+        # find index of dependent voltage and the dependent factor
+        if self.type == 0:
+            # voltage dependent voltage source
+            input_ele = element_name_obj_map[self.meter_name]
+            assert isinstance(input_ele, Voltmeter)
+            independent_source_ind = F_labels.index( input_ele.element_voltage_name )
+            
+            module_output_ind = F_labels.index(self.element_voltage_name)
+            
+
+        elif self.type == 1:
+            # voltage dependent current source
+            input_ele = element_name_obj_map[self.meter_name]
+            
+            assert isinstance(input_ele, Voltmeter)
+            independent_source_ind = F_labels.index( input_ele.element_voltage_name)
+            module_output_ind = F_labels.index(self.element_current_name)
+        elif self.type == 2:
+            # current dependent voltage source
+            input_ele = element_name_obj_map[self.meter_name]
+            assert isinstance(input_ele, Ammeter)
+            independent_source_ind = F_labels.index(input_ele.element_current_name)
+            module_output_ind = F_labels.index(self.element_voltage_name)
+        else:
+            assert self.type == 3
+            # current dependent current source
+            input_ele = element_name_obj_map[self.meter_name]
+            assert isinstance(input_ele, Ammeter)
+            independent_source_ind = F_labels.index(input_ele.element_current_name)
+            module_output_ind = F_labels.index(self.element_current_name)
+            
+        zeros = [0] * len(F_labels)
+        zeros[module_output_ind] = 1
+        zeros[independent_source_ind] = -self.dependent_symbol
+        return zeros
+            
+            
     
     
 

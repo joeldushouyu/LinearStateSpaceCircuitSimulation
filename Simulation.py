@@ -17,6 +17,9 @@ import numpy as np
 import numpy.typing as npt
 from functools import total_ordering
 import matplotlib.pyplot as plt
+import matplotlib.ticker as plt_ticker
+from matplotlib.widgets import CheckButtons
+from visualize import on_pick
 @total_ordering
 class SimulationModule:
     def __init__(self):
@@ -332,7 +335,7 @@ class StateSpaceSimulationModule(SimulationModule):
         eigen_value_dict = temp.eigenvals()
         
         
-        min_eig = min(  [x.subs(self.network_matrix.symbolic_to_value_map) for x  in eigen_value_dict.keys()])
+        min_eig = min(  [  sp.re(x.subs(self.network_matrix.symbolic_to_value_map)) for x  in eigen_value_dict.keys()])
         
         if min_eig <= -2:
             self.integration_strategy = "BackwardEuler"
@@ -350,12 +353,12 @@ class StateSpaceSimulationModule(SimulationModule):
             
             
             M=self.network_matrix.M,
-            s_labels=self.network_matrix.s_labels,
-            y_labels=self.network_matrix.y_labels,
-            x_hat_labels=self.network_matrix.x_hat_labels,
-            x_labels=self.network_matrix.x_labels,
-            y_zero_labels=self.network_matrix.y_zero_labels,
-            s_zero_labels=self.network_matrix.s_labels
+            s_labels_size=self.network_matrix.s_labels_size,
+            y_labels_size=self.network_matrix.y_label_size,
+            x_hat_labels_size=self.network_matrix.x_hat_label_size,
+            x_labels_size=self.network_matrix.x_label_size,
+            y_zero_labels_size=self.network_matrix.y_zero_label_size,
+            s_zero_labels_size=self.network_matrix.s_zero_label_size
          )
         
         
@@ -388,7 +391,7 @@ class StateSpaceSimulationModule(SimulationModule):
             ind = i
             self.switch_label_index_map[ele.element_current_name] = ind
             self.switch_label_index_map[ele.element_voltage_name] = ind
-            self.switch_index_label_map[ind] = (ele.element_voltage_name, ele.element_voltage_name)
+            self.switch_index_label_map[ind] = (ele.element_voltage_name, ele.element_current_name)
             if isinstance(ele, Diode):
 
                 self.switch_state[ind]  =ele.initial_switch_state
@@ -457,9 +460,17 @@ class StateSpaceSimulationModule(SimulationModule):
             
 
 
-    def calc_impulse_response(self):
+    def calc_impulse_response(self, sw_volt_lab:str):
         
-        Add_inv, Adi, Bd, ind_state_lab, ind_state_cols, dep_state_lab, dep_state_cols = determine_dependent_state_vars(self.M0, self.A, self.B, self.network_matrix.x_hat_labels)
+        forced_triggered_diodes, Add_inv, Adi, Bd, ind_state_lab, ind_state_cols, dep_state_lab, dep_state_cols = determine_dependent_state_vars(self.M0, self.A, self.B,self.network_matrix,sw_volt_lab)
+        
+        
+        if len(forced_triggered_diodes) > 0:
+            for lab in forced_triggered_diodes:
+                ind = self.switch_label_index_map[lab]
+                self.switch_state[ind] = ~self.switch_state[ind]
+                self.swap_col_and_update(lab)
+            return
         
         x_ind = Matrix(  len(ind_state_cols), 1, [0]*len(ind_state_cols) )
        
@@ -471,13 +482,13 @@ class StateSpaceSimulationModule(SimulationModule):
             
         
         x_dep = -Add_inv*(Adi*x_ind+Bd*self.u)
-        
+        x_dep.subs(self.network_matrix.symbolic_to_value_map)
+         
         for i in range(len(dep_state_cols )):
             col = dep_state_cols[i]
             x_state_imp[col] = x_dep[i]
 
-        x_dep.subs(self.network_matrix.symbolic_to_value_map)
-         
+
         #impulse = self.S_dxdt*(x_state_imp - self.x_cur)
         impulse = np.matmul( self._S_dxdt, (x_state_imp - self.x_cur), dtype=np.float32   )
         # check to see any diode's has a impulse
@@ -487,11 +498,11 @@ class StateSpaceSimulationModule(SimulationModule):
             #imp = impulse[i,0].subs(self.network_matrix.symbolic_to_value_map)
             imp = impulse[i,0]
             if imp > 0:
-                assert  self.switch_state[i] == False
+                # assert  self.switch_state[i] == False
                 self.switch_state[i] = True
                 self.swap_col_and_update(volt_lab)
             elif imp < 0:
-                assert self.switch_state[i] == True
+                # assert self.switch_state[i] == True
                 self.switch_state[i] = False
                 self.swap_col_and_update(volt_lab)
             else:
@@ -518,29 +529,74 @@ class StateSpaceSimulationModule(SimulationModule):
             else:
                 pass
 
-    def plot_output_graph(self):
-        
-        time_np_array =np.array(self.time_t)
+
+
+    def plot_output_graph(self, ax1_y_ticks=None, ax2_y_ticks=None):
+        time_np_array = np.array(self.time_t)
         y_output_np_array = np.array(self.y_output).squeeze()
         fig = plt.figure()
         
-        # two subplot, 1 for current and 1 for voltage
-        ax1 =  fig.add_subplot(211)
+        # Create subplots for current and voltage
+        ax1 = fig.add_subplot(211)
         ax2 = fig.add_subplot(212)
+
+        line_map = {}  # To store line objects and their data
         
-        
-        for i  in range(self.network_matrix.y_label_size):
+        for i in range(self.network_matrix.y_label_size):
             lab = self.network_matrix.y_labels[i]
             ele = self.network_matrix.m_column_labels_to_obj_map[lab]
             if isinstance(ele, Voltmeter):
-                ax1.plot( time_np_array, y_output_np_array[:, i], label=f"{ele.name}" )
+                line, = ax1.plot(time_np_array, y_output_np_array[:, i], label=f"{ele.name}")
             else:
-                ax2.plot( time_np_array, y_output_np_array[:, i], label=f"{ele.name}" )
+                line, = ax2.plot(time_np_array, y_output_np_array[:, i], label=f"{ele.name}")
+            line_map[line] = (time_np_array, y_output_np_array[:, i])
+        
         ax1.grid()
         ax2.grid()
         ax1.legend()
         ax2.legend()
+        
+        if ax1_y_ticks is not None:
+            ax1.yaxis.set_major_locator(plt_ticker.MultipleLocator(ax1_y_ticks))
+        if ax2_y_ticks is not None:
+            ax2.yaxis.set_major_locator(plt_ticker.MultipleLocator(ax2_y_ticks))
+        
+        # Event handler for mouse clicks
+        def on_pick(event):
+            line = event.artist
+            xdata, ydata = line_map[line]
+            ind = event.ind[0]  # Get the index of the selected point
+            x, y = xdata[ind], ydata[ind]
+            print(f"Selected point: x={x}, y={y}")
+            # Optionally, add a marker or annotation at the clicked point
+            ax = line.axes
+            ax.annotate(f'({x:.2f}, {y:.2f})', xy=(x, y), xytext=(10, 10),
+                        textcoords='offset points', arrowprops=dict(arrowstyle='->'))
+            fig.canvas.draw_idle()
+
+        # Connect the event to the plot
+        fig.canvas.mpl_connect('pick_event', on_pick)
+
+        # Enable picking on all lines
+        for line in line_map:
+            line.set_picker(True)
+
+        # Add interactive checkboxes
+        labels = [line.get_label() for line in line_map.keys()]
+        visibility = [line.get_visible() for line in line_map.keys()]
+        check_ax = fig.add_axes([0.8, 0.4, 0.15, 0.4])  # Position for checkboxes
+        check = CheckButtons(check_ax, labels, visibility)
+
+        def toggle_visibility(label):
+            for line in line_map:
+                if line.get_label() == label:
+                    line.set_visible(not line.get_visible())
+            fig.canvas.draw_idle()
+        
+        check.on_clicked(toggle_visibility)
+
         plt.show()
+
     def iteration(self):
         # the iteration process
         
@@ -551,25 +607,26 @@ class StateSpaceSimulationModule(SimulationModule):
         # record u and switch labe
         
 
-        
+        trig = False
+        # for now, assume only one switch change in one time period
         for i in range(len(self.switch_triggered)):
-            trig = self.switch_triggered[i]
-            if trig:
+            if self.switch_triggered[i] :
+                assert trig  == False
                 # print(self.cur_system_time)
                 # means this switch istriggered
                 sw_volt_lab, sw_I_lab = self.switch_index_label_map[i]
                 self.swap_col_and_update(sw_volt_lab)
-                
-                if self.M0.rank() < self.M_size:
-                     self.calc_impulse_response()
-                else:
-                    # The nonimpulse part
-                    self.calc_nonimpulse_response()
-                
-                self.M_size = self.M0.rank()
+            
+            
+        if self.M0.rank() < self.M_size:
+            self.calc_impulse_response(sw_volt_lab=sw_volt_lab)
+
+            # The nonimpulse part
+        self.calc_nonimpulse_response()      
+        self.M_size = self.M0.rank()
+
         
 
-                
         if self.integration_strategy == "Trapezoidal":
             self.x_cur = trapezoidalIntegration( self.x_cur, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency )
         else:

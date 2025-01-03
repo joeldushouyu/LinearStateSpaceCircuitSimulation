@@ -121,7 +121,8 @@ class MessageManager:
     
     def publish_message(self, message_level:int):
         #TODO: need to have lock in multithread
-        
+        if message_level not in self.message_leve_size.keys():
+            return 
         for i in range(self.message_leve_size[message_level]):
             message_level, message = self.message_queue.get()
             message._notify()

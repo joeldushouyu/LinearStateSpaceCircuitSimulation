@@ -29,7 +29,7 @@ netList = [
     "AM1, N4, N2",
 ]
 
-
+# boost network
 switch_frequency = 50e3
 netList = [
     "Vin, N1, 0, 6, 0",
@@ -41,6 +41,108 @@ netList = [
     "VM1-VR, N3,0",
     "AM1-IR, N4, N2",
 ]
+
+
+#buck network
+netList = [
+    
+    "Vin, N1, 0, 12, 0",
+    f"S1, N1, N2-AM, ON, {switch_frequency}, 0.3",  #note, the switch frequency is 10 hz only
+    "L1, N2, NA, 125e-06",
+    "D1, 0, N2, OFF",
+    "C1, N3, 0, 4e-06",
+    "R1, N3, N3-Resistor, 2.5",
+    "VM1-VR, N3, 0",
+    "AM1-IL, NA, N3",
+    "VM2-Vin, N1, 0",
+    "AM2-MOSFET, N2-AM, N2",
+    "AM3-Resistor, N3-Resistor, 0",
+]
+
+
+# transformer modeling
+turning_ratio = 1/2
+netList = [
+    "Vin, N1, 0, 12, 2000",
+    "C1, N1, N2, 10e-6",
+    "AM1-I1, N2, N3",
+    f"VCVS-1, N3, 0, {turning_ratio}, VM1-V1",
+    f"ICIS-1, 0, N4, {turning_ratio}, AM1-I1",  # note the direction
+    "VM1-V1, N4, 0",
+    "R1, N4, 0, 100",
+    
+]
+
+
+
+# # full-wave rectifier circuit
+switch_frequency = 1000
+netList = [
+    
+    "Vin, N1, N4, 100, 1000",
+    "L1, N1, N5, 125e-6",
+
+    "D1, N2, N3, ON",
+    "D2, 0, N4, ON",
+    "D3, 0, N2, OFF",
+    "R1, N3, 0, 1e3",
+    "VM1-R1, N3, 0",
+    "AM1-L, N5, N2",
+    "D4, N4, N3, OFF",
+]
+
+
+switch_frequency = 1000
+# simplified half-bridge, capactiro,resistor parallel circuit
+netList = [
+    
+    "Vin, N1, 0, 20, 1000",
+    "AM1-L, N1, Nt",
+    "Rt, Nt, N2, 0.01",
+    "D1, N2, N3, ON",
+    "D3, 0, N2, OFF",
+    "R1, N3, 0, 10e3",
+    "C1, N3, 0, 10e-6",
+    "VM1-R1, N3, 0",
+    "VM2-R1, Nt, N2",
+]
+
+
+ratio = 2
+source_freq= 10e3
+switch_frequency = source_freq
+netList = [
+    
+    f"Vin, N1, 0, 20, {source_freq}",
+    "R1, N1, N2, 5",
+    "VM-v1, N2, 0",
+    "AM-I1, N2, N3",
+    f"ICIS-1, 0, N3, {ratio}, AM-I2", # note the direction
+    f"ICIS-2, 0, N3, {ratio}, AM-I3",
+    f"VCVS-1, N4, 0, {ratio}, VM-v1",
+    "VM-V2, N4, 0",
+    "AM-I2, N6, N4",
+    f"VCVS-2, 0, N5, {ratio}, VM-v1",
+    "VM-V3, 0, N5",
+    "AM-I3, N5, N7",
+    
+    "D1, N6, N8, ON",
+    "D2, N7, N8, OFF",
+
+    
+    # "D1, N6, N8-t, ON",
+    # "D2, N7, N8-t, OFF",
+    # "Rt, N8-t, N8, 0.001",
+    "C1, N8, 0, 100e-6",
+    "R2, N8, 0, 10e3",
+    "VM-out, N8, 0"
+    
+
+
+]
+
+
+
 
 
 
@@ -96,7 +198,7 @@ switch_oversample_message = OversamplingMessage(message_manager=message_manager)
 
 # okay, now create each individual simulation modules
 
-iteration_frequency = switch_frequency*20
+iteration_frequency = switch_frequency*50
 state_space_module = StateSpaceSimulationModule(network_matrix=network_matrix, iteration_frequency= iteration_frequency) #TODO: change later
 oversample_module =SwitchOversampleModule( network_matrix=network_matrix, sample_frequency=iteration_frequency, oversample_message=switch_oversample_message)
 
@@ -143,9 +245,9 @@ oversample_module.oversample_message.attach(state_space_module)
 
 system_clock_module.update_list_of_node_module(   [state_space_module, oversample_module]  + voltage_current_modules + external_switch_modules)
 
-system_clock_module.start_simuation(0.002)
+system_clock_module.start_simuation(0.02)
 
-state_space_module.plot_output_graph()
+state_space_module.plot_output_graph( )
 # cProfile.run('system_clock_module.start_simuation(0.002)'  )
 
 # time_t_np_array = np.array(state_space_module.time_t)
