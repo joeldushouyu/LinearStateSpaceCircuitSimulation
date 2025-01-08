@@ -1,7 +1,7 @@
 from FormNetworkMatrix import system_realization, NetworkMatrix, ExternalSwitch
 from SimulationMessage import MessageManager, VoltageCurrentMessage, OversamplingMessage, SwitchMessage, SystemTimeMessage
 from Simulation import VoltageCurrentSimulationModule, SystemClockSimulationModule, SwitchSimulationModule, SwitchOversampleModule, StateSpaceSimulationModule
-from util import swapTwoColumn, retrieveSystemMatrix, determine_dependent_state_vars
+from util import swapTwoColumn, retrieveSystemMatrix, determine_dependent_state_vars,parameter_for_two_wind_transformer,parameter_for_two_wind_from_book
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -30,6 +30,7 @@ netList = [
 ]
 
 # boost network
+end_sim_t = 0.005
 switch_frequency = 50e3
 netList = [
     "Vin, N1, 0, 6, 0",
@@ -43,11 +44,12 @@ netList = [
 ]
 
 
-#buck network
+# buck network
+end_sim_t = 0.001
 netList = [
     
     "Vin, N1, 0, 12, 0",
-    f"S1, N1, N2-AM, ON, {switch_frequency}, 0.3",  #note, the switch frequency is 10 hz only
+    f"S1, N1, N2-AM, ON, {switch_frequency}, 0.5",  #note, the switch frequency is 10 hz only
     "L1, N2, NA, 125e-06",
     "D1, 0, N2, OFF",
     "C1, N3, 0, 4e-06",
@@ -60,23 +62,24 @@ netList = [
 ]
 
 
-# transformer modeling
-turning_ratio = 1/2
+
+# RC filter demo
+# demonstrate if Resistor in cotree-nonport case
+
 netList = [
-    "Vin, N1, 0, 12, 2000",
-    "C1, N1, N2, 10e-6",
-    "AM1-I1, N2, N3",
-    f"VCVS-1, N3, 0, {turning_ratio}, VM1-V1",
-    f"ICIS-1, 0, N4, {turning_ratio}, AM1-I1",  # note the direction
-    "VM1-V1, N4, 0",
-    "R1, N4, 0, 100",
+    f"Vin, N1, 0, 10, {switch_frequency}",
+    "R1, N1, N2, 10",
+    "C1, N2, 0, 100e-6",
+    "AM1, N2, N2-R",
+    "R2, N2-R, 0, 1e3",
+    "VM1, N2, 0",
     
 ]
 
 
-
 # # full-wave rectifier circuit
 switch_frequency = 1000
+end_sim_t = 0.005
 netList = [
     
     "Vin, N1, N4, 100, 1000",
@@ -90,9 +93,8 @@ netList = [
     "AM1-L, N5, N2",
     "D4, N4, N3, OFF",
 ]
-
-
 switch_frequency = 1000
+end_sim_t = 0.005
 # simplified half-bridge, capactiro,resistor parallel circuit
 netList = [
     
@@ -108,38 +110,22 @@ netList = [
 ]
 
 
-ratio = 2
-source_freq= 10e3
-switch_frequency = source_freq
+
+
+# basic transformer
+switch_frequency = 60
+end_sim_t = 0.1
 netList = [
     
-    f"Vin, N1, 0, 20, {source_freq}",
-    "R1, N1, N2, 5",
-    "VM-v1, N2, 0",
-    "AM-I1, N2, N3",
-    f"ICIS-1, 0, N3, {ratio}, AM-I2", # note the direction
-    f"ICIS-2, 0, N3, {ratio}, AM-I3",
-    f"VCVS-1, N4, 0, {ratio}, VM-v1",
-    "VM-V2, N4, 0",
-    "AM-I2, N6, N4",
-    f"VCVS-2, 0, N5, {ratio}, VM-v1",
-    "VM-V3, 0, N5",
-    "AM-I3, N5, N7",
-    
-    "D1, N6, N8, ON",
-    "D2, N7, N8, OFF",
-
-    
-    # "D1, N6, N8-t, ON",
-    # "D2, N7, N8-t, OFF",
-    # "Rt, N8-t, N8, 0.001",
-    "C1, N8, 0, 100e-6",
-    "R2, N8, 0, 10e3",
-    "VM-out, N8, 0"
-    
-
-
+    f"Vin, N1, 0, 40, {switch_frequency}",
+    "R1, N1, N2, 10",
+    "Lp, N2, 0, 400e-6, [Ls], [0.99]",
+    "Ls, N3, 0, 800e-6, [Lp], [0.99]",  # note the current direction of LS
+    "AMs, N3, N4",
+    "Ro, N4, 0, 1e3",
+    "VMout, N4, 0",
 ]
+
 
 
 
@@ -198,7 +184,7 @@ switch_oversample_message = OversamplingMessage(message_manager=message_manager)
 
 # okay, now create each individual simulation modules
 
-iteration_frequency = switch_frequency*50
+iteration_frequency =  switch_frequency*25 
 state_space_module = StateSpaceSimulationModule(network_matrix=network_matrix, iteration_frequency= iteration_frequency) #TODO: change later
 oversample_module =SwitchOversampleModule( network_matrix=network_matrix, sample_frequency=iteration_frequency, oversample_message=switch_oversample_message)
 
@@ -245,9 +231,20 @@ oversample_module.oversample_message.attach(state_space_module)
 
 system_clock_module.update_list_of_node_module(   [state_space_module, oversample_module]  + voltage_current_modules + external_switch_modules)
 
-system_clock_module.start_simuation(0.02)
+system_clock_module.start_simuation(end_sim_t)
 
+
+
+
+# state_space_module.plot_switch_graph()
 state_space_module.plot_output_graph( )
+
+# fig1.show()
+
+# plt.show()
+
+
+
 # cProfile.run('system_clock_module.start_simuation(0.002)'  )
 
 # time_t_np_array = np.array(state_space_module.time_t)

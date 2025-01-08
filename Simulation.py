@@ -19,7 +19,8 @@ from functools import total_ordering
 import matplotlib.pyplot as plt
 import matplotlib.ticker as plt_ticker
 from matplotlib.widgets import CheckButtons
-from visualize import on_pick
+from visualize import on_pick, toggle_visibility
+from matplotlib.widgets import CheckButtons
 @total_ordering
 class SimulationModule:
     def __init__(self):
@@ -163,7 +164,11 @@ class SwitchSimulationModule(SimulationModule):
             self.switch.duty_cycle * period
         )  # Duration of the "high" state in one period
 
-        return time_in_period < high_duration
+        val =  time_in_period < high_duration
+        if self.switch.pwm_value_at_each_new_cycle:
+            return val
+        else:
+            return not val
 
 
     def update(self, message):
@@ -227,7 +232,7 @@ class SwitchOversampleModule(SimulationModule):
                 index = self.switch_state_dict[message.switch_voltage_label]
                 if self.cur_system_time  ==  0:
                     # initialize stage
-                    self.switch_states_receive[index] = [message.is_switch_on()]
+                    self.switch_states_receive[index] = message.is_switch_on()
                     # self.switch_state_send[index] = [message.is_switch_on()]
                 else:
                     # normal stage
@@ -299,6 +304,8 @@ class StateSpaceSimulationModule(SimulationModule):
         self.S_dxdt:None|Matrix = None
         self.Sx:None|Matrix = None
         self.Su:None|Matrix = None
+        self.C_SW:None|Matrix = None
+        self.D_SW:None|Matrix = None
         self.M_size = 0
         self.M_pivots:None| Tuple=None
         self.integration_strategy:str=""
@@ -310,6 +317,8 @@ class StateSpaceSimulationModule(SimulationModule):
         self._S_dxdt:None|np.array = None
         self._Sx:None|np.array = None
         self._Su:None|np.array = None
+        self._C_SW:None|np.array=None
+        self._D_SW:None|np.array=None
         self.initialize_data()
     
         
@@ -325,13 +334,13 @@ class StateSpaceSimulationModule(SimulationModule):
         self.u_output:list[list[float]] = []
         
         
-   
+        self.fig_count = 1
     def choose_intergation_strategy(self):
         # numerical oscillation (not system oscillation) will always occur for any real eigenvalue < 0
         
         # use trapezoidal  by default
         # use backward euler if real eigenvalue < -2 
-        temp = self.A * (1/self.iteration_frequency)
+        temp = self.A.subs(self.network_matrix.symbolic_to_value_map) * (1/self.iteration_frequency)
         eigen_value_dict = temp.eigenvals()
         
         
@@ -349,7 +358,7 @@ class StateSpaceSimulationModule(SimulationModule):
                         self.network_matrix.m_column_labels_to_obj_map, label_to_Swap)
             
         self.network_matrix.M, self.M_pivots = self.network_matrix.M.rref()
-        self.S_dxdt, self.Sx, self.Su, pivots, self.C, self.D, self.M0, self.A, self.B = retrieveSystemMatrix(
+        self.S_dxdt, self.Sx, self.Su, pivots, self.C, self.D, self.M0, self.A, self.B, self.C_SW, self.D_SW = retrieveSystemMatrix(
             
             
             M=self.network_matrix.M,
@@ -358,7 +367,11 @@ class StateSpaceSimulationModule(SimulationModule):
             x_hat_labels_size=self.network_matrix.x_hat_label_size,
             x_labels_size=self.network_matrix.x_label_size,
             y_zero_labels_size=self.network_matrix.y_zero_label_size,
-            s_zero_labels_size=self.network_matrix.s_zero_label_size
+            s_zero_labels_size=self.network_matrix.s_zero_label_size,
+            capacitor_size=self.network_matrix.capacitor_size,
+            inductor_size=self.network_matrix.inductor_size,
+            voltage_source_size=self.network_matrix.voltage_source_size,
+            current_source_size=self.network_matrix.current_source_Size
          )
         
         
@@ -369,8 +382,13 @@ class StateSpaceSimulationModule(SimulationModule):
         self._S_dxdt = sp.matrix2numpy(self.S_dxdt.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
         self._Sx = sp.matrix2numpy(self.Sx.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
         self._Su = sp.matrix2numpy(self.Su.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
+        self._C_SW = sp.matrix2numpy(self.C_SW.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
+        self._D_SW = sp.matrix2numpy(self.D_SW.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
 
-    
+
+        
+        
+        
         
     def initialize_data(self):
         
@@ -528,20 +546,90 @@ class StateSpaceSimulationModule(SimulationModule):
                 self.swap_col_and_update(volt_lab)
             else:
                 pass
+    def plot_switch_graph(self):
+        time_np_array = np.array(self.time_t)
+        switch_state_np_array = np.array(self.switch_state_output)
+        switch_triggered_np_array = np.array(self.switch_triggered_output)
+        fig, _ = plt.subplots(self.fig_count)
+        self.fig_count+=1
 
+        # Create subplots for triggered signals and state signals
+        ax1 = fig.add_subplot(211)  # Signal indicating switch triggered
+        ax2 = fig.add_subplot(212)  # Signal of each switch state
 
+        # Line maps for triggered and state signals
+        line_map_triggered = {}
+        line_map_state = {}
 
+        for i in range(self.network_matrix.s_labels_size):  # Assuming `s_labels_size` is correct
+            lab = self.network_matrix.s_labels[i]
+            ele = self.network_matrix.m_column_labels_to_obj_map[lab]
+            if isinstance(ele, ExternalSwitch):
+                # Plot triggered signals
+                line_triggered, = ax1.plot(
+                    time_np_array, switch_triggered_np_array[:, i],
+                    label=f"{ele.name} Triggered"
+                )
+                line_map_triggered[line_triggered] = (time_np_array, switch_triggered_np_array[:, i])
+
+                # Plot state signals
+                line_state, = ax2.plot(
+                    time_np_array, switch_state_np_array[:, i],
+                    label=f"{ele.name} State"
+                )
+                line_map_state[line_state] = (time_np_array, switch_state_np_array[:, i])
+
+        # Add grids and legends
+        ax1.grid()
+        ax2.grid()
+        ax1.legend()
+        ax2.legend()
+
+        # Connect pick events to handle clicks on lines
+        fig.canvas.mpl_connect('pick_event', lambda event: on_pick(event, [line_map_triggered, line_map_state], fig))
+
+        # Enable picking on all lines
+        for line in line_map_triggered:
+            line.set_picker(True)
+        for line in line_map_state:
+            line.set_picker(True)
+
+        # Add interactive checkboxes for triggered signals
+        labels_triggered = [line.get_label() for line in line_map_triggered.keys()]
+        visibility_triggered = [line.get_visible() for line in line_map_triggered.keys()]
+        check_ax_triggered = fig.add_axes([0.9, 0.6, 0.15, 0.3])  # Position for checkboxes
+        check_triggered = CheckButtons(check_ax_triggered, labels_triggered, visibility_triggered)
+
+        check_triggered.on_clicked(lambda label: toggle_visibility(label, [line_map_triggered], fig))
+
+        # Add interactive checkboxes for state signals
+        labels_state = [line.get_label() for line in line_map_state.keys()]
+        visibility_state = [line.get_visible() for line in line_map_state.keys()]
+        check_ax_state = fig.add_axes([0.9, 0.2, 0.15, 0.3])  # Position for checkboxes
+        check_state = CheckButtons(check_ax_state, labels_state, visibility_state)
+
+        check_state.on_clicked(lambda label: toggle_visibility(label, [line_map_state], fig))
+
+        plt.show()
+        # return fig
+
+        
+                    
+            
     def plot_output_graph(self, ax1_y_ticks=None, ax2_y_ticks=None):
         time_np_array = np.array(self.time_t)
         y_output_np_array = np.array(self.y_output).squeeze()
-        fig = plt.figure()
-        
+        fig, _ = plt.subplots(self.fig_count)
+        self.fig_count+=1
+
+
         # Create subplots for current and voltage
         ax1 = fig.add_subplot(211)
         ax2 = fig.add_subplot(212)
 
-        line_map = {}  # To store line objects and their data
-        
+        # Line map for all signals
+        line_map = {}
+
         for i in range(self.network_matrix.y_label_size):
             lab = self.network_matrix.y_labels[i]
             ele = self.network_matrix.m_column_labels_to_obj_map[lab]
@@ -550,32 +638,21 @@ class StateSpaceSimulationModule(SimulationModule):
             else:
                 line, = ax2.plot(time_np_array, y_output_np_array[:, i], label=f"{ele.name}")
             line_map[line] = (time_np_array, y_output_np_array[:, i])
-        
+
+        # Add grids and legends
         ax1.grid()
         ax2.grid()
         ax1.legend()
         ax2.legend()
-        
-        if ax1_y_ticks is not None:
-            ax1.yaxis.set_major_locator(plt_ticker.MultipleLocator(ax1_y_ticks))
-        if ax2_y_ticks is not None:
-            ax2.yaxis.set_major_locator(plt_ticker.MultipleLocator(ax2_y_ticks))
-        
-        # Event handler for mouse clicks
-        def on_pick(event):
-            line = event.artist
-            xdata, ydata = line_map[line]
-            ind = event.ind[0]  # Get the index of the selected point
-            x, y = xdata[ind], ydata[ind]
-            print(f"Selected point: x={x}, y={y}")
-            # Optionally, add a marker or annotation at the clicked point
-            ax = line.axes
-            ax.annotate(f'({x:.2f}, {y:.2f})', xy=(x, y), xytext=(10, 10),
-                        textcoords='offset points', arrowprops=dict(arrowstyle='->'))
-            fig.canvas.draw_idle()
 
-        # Connect the event to the plot
-        fig.canvas.mpl_connect('pick_event', on_pick)
+        # Set custom y-axis ticks if provided
+        if ax1_y_ticks is not None:
+            ax1.yaxis.set_major_locator(plt.MultipleLocator(ax1_y_ticks))
+        if ax2_y_ticks is not None:
+            ax2.yaxis.set_major_locator(plt.MultipleLocator(ax2_y_ticks))
+
+        # Connect pick events to handle clicks on lines
+        fig.canvas.mpl_connect('pick_event', lambda event: on_pick(event, [line_map], fig))
 
         # Enable picking on all lines
         for line in line_map:
@@ -584,19 +661,21 @@ class StateSpaceSimulationModule(SimulationModule):
         # Add interactive checkboxes
         labels = [line.get_label() for line in line_map.keys()]
         visibility = [line.get_visible() for line in line_map.keys()]
-        check_ax = fig.add_axes([0.8, 0.4, 0.15, 0.4])  # Position for checkboxes
+        check_ax = fig.add_axes([0.9, 0.4, 0.15, 0.4])  # Position for checkboxes
         check = CheckButtons(check_ax, labels, visibility)
 
-        def toggle_visibility(label):
-            for line in line_map:
-                if line.get_label() == label:
-                    line.set_visible(not line.get_visible())
-            fig.canvas.draw_idle()
-        
-        check.on_clicked(toggle_visibility)
+        check.on_clicked(lambda label: toggle_visibility(label, [line_map], fig))
 
         plt.show()
+        # return fig
 
+
+
+    def update_x_cur(self):
+        if self.integration_strategy == "Trapezoidal":
+            self.x_cur = trapezoidalIntegration( self.x_cur, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency )
+        else:
+            self.x_cur = backwardEulerIntegration(self.x_cur, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency)
     def iteration(self):
         # the iteration process
         
@@ -640,8 +719,8 @@ class StateSpaceSimulationModule(SimulationModule):
         self.time_t.append(self.cur_system_time)
         
         self.u_output.append(  self.u.tolist())
-        self.switch_state_output.append (  cur_switch_state  )
-        self.switch_triggered_output.append( cur_switch_trigger)
+        self.switch_state_output.append (  cur_switch_state.tolist()  )
+        self.switch_triggered_output.append( cur_switch_trigger.tolist())
         
         self.y_output.append(self.y_cur.tolist())
         

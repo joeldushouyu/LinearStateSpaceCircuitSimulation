@@ -54,9 +54,10 @@ class Voltmeter(PortElement):
         super().__init__(name, port_a, port_b)
 
 class ExternalSwitch(PortElement):
-    def __init__(self, name, port_a, port_b, initial_switch_state:bool, switch_frequency:float, duty_cycle:float):
+    def __init__(self, name, port_a, port_b, pwm_value_at_each_new_cycle:bool, switch_frequency:float, duty_cycle:float):
         super().__init__(name, port_a, port_b)
-        self.initial_switch_state = initial_switch_state
+        self.pwm_value_at_each_new_cycle = pwm_value_at_each_new_cycle  # true if pwm wave from hight to low for each cycle, false other wise
+        self.initial_switch_state = self.pwm_value_at_each_new_cycle # assume at start of switch cycle at t = 0
         self.switch_frequency = switch_frequency
         self.duty_cycle = duty_cycle
 class Diode(PortElement):
@@ -65,8 +66,18 @@ class Diode(PortElement):
         self.initial_switch_state = initial_switch_state
 
 class Inductor(PortElement):
-    def __init__(self, name, port_a, port_b, inductance:float, inductor_symbol:Symbol):
+    def __init__(self, name, port_a, port_b, inductance:float, inductor_symbol:Symbol, mutual_inductor_names:list[str]|None=None, K_factors:list[Symbol]|None = None):
         super().__init__(name, port_a, port_b)
+        if mutual_inductor_names is not None:
+            assert K_factors is not None
+            assert len(mutual_inductor_names) == len(K_factors)
+            self.mutual_inductor_names = mutual_inductor_names
+            self.K_factors = K_factors 
+        else:
+            self.mutual_inductor_names = []
+            self.K_factors   = []
+
+        
         self.inductance = inductance
         self.inductor_symbol = inductor_symbol
 

@@ -15,14 +15,14 @@ from Element import (
     NonPortElement,
 )
 from typing import Tuple
-from functools import cached_property
+from functools import cached_property, cmp_to_key
 # any example of boost
 import numpy as np
 import sympy as sp
 from sympy import Matrix, pi, pprint, Symbol, eye, zeros
 
-from util import print_matrix, swapTwoColumn, retrieveSystemMatrix
-
+from util import print_matrix, swapTwoColumn, retrieveSystemMatrix, transfer_func_and_poles
+import ast
 
 class NetworkMatrix:
     def __init__(
@@ -37,8 +37,20 @@ class NetworkMatrix:
         x_label_size:int,
         s_zero_label_size:int,
         y_zero_label_size:int,
-        u_label_size:int
+        u_label_size:int,
+        capactior_size:int,
+        inductor_size:int,
+        voltage_source_size:int,
+        current_source_size:int
     ):
+        
+        assert capactior_size+inductor_size == x_hat_label_size == x_label_size
+        assert voltage_source_size+current_source_size == u_label_size 
+        self.capacitor_size = capactior_size
+        self.inductor_size = inductor_size
+        self.voltage_source_size = voltage_source_size
+        self.current_source_Size = current_source_size
+        
         self.M = M
         self.m_column_labels = m_column_labels
         self.m_column_labels_to_obj_map = m_colmn_labels_to_obj_map
@@ -192,7 +204,29 @@ def read_netlis_description(
             case "L":
                 inductor_symbol = sp.symbols(labels[0])
                 inductor_val = float(labels[3])
-                ele = Inductor(labels[0], node_a, node_b, inductor_val, inductor_symbol)
+                
+                
+                mutual_inductor_symbols = None
+                mutual_k = None
+                if len(labels) > 4:
+                    mutual_inductor_symbols =labels[4].strip("[]").split(",")
+                    mutual_k_str = [float(x) for x in labels[5].strip("[]").split(",")]
+                    mutual_k = []
+                    for ind in range(len(mutual_inductor_symbols)):
+                        
+                        
+                        mutual_ind_sy = mutual_inductor_symbols[ind]
+                        mutual_sym = f"K-{labels[0]}-{mutual_ind_sy}" if labels[0] <=mutual_ind_sy else f"K-{mutual_ind_sy}-{labels[0]}"
+                        
+                        K_sym = sp.symbols(mutual_sym )
+                        if K_sym not in symbollic_to_value_map:
+                            symbollic_to_value_map[K_sym] = float(mutual_k_str[ind])
+                        else:
+                            assert symbollic_to_value_map[K_sym] == float(mutual_k_str[ind])
+                        mutual_k.append(K_sym)
+                    
+                    
+                ele = Inductor(labels[0], node_a, node_b, inductor_val, inductor_symbol, mutual_inductor_names=mutual_inductor_symbols, K_factors=mutual_k)
                 symbollic_to_value_map[inductor_symbol] = inductor_val
                 inductor_capacitor_list.append(ele)
             case "C":
@@ -208,12 +242,12 @@ def read_netlis_description(
                 ele = Diode(labels[0], node_a, node_b, initial_state)
                 switch_list.append(ele)
             case "S":
-                initial_state = True if labels[3] == "ON" else False
+                pwm_val_at_beginning_of_each_cycle = True if labels[3] == "ON" else False
                 ele = ExternalSwitch(
                     labels[0],
                     node_a,
                     node_b,
-                    initial_state,
+                    pwm_val_at_beginning_of_each_cycle,
                     float(labels[4]),
                     float(labels[5]),
                 )
@@ -575,68 +609,196 @@ def system_realization(netList: list[list[str]]):
     # the order is w, u_tilt, s, y, x_hat, x, 0, u
     # w is all nonport element [iy, vz]
     w = iy_labels + vz_labels
-    u_tilt = [
-        ele.element_current_name if ele.is_voltage_source else ele.element_voltage_name
-        for ele in source_list
-    ]
-    s = [
-        ele.element_current_name
-        if ele.initial_switch_state
-        else ele.element_voltage_name
-        for ele in switch_list
-    ]
-    y = [
-        ele.element_current_name
-        if isinstance(ele, Ammeter)
-        else ele.element_voltage_name
-        for ele in meter_list
-    ]
-    x_hat = [
-        ele.element_current_name
-        if isinstance(ele, Capacitor)
-        else ele.element_voltage_name
-        for ele in inductor_capacitor_list
-    ]
-    x = [
-        ele.element_voltage_name
-        if isinstance(ele, Capacitor)
-        else ele.element_current_name
-        for ele in inductor_capacitor_list
-    ]
+    # u_tilt = [
+    #     ele.element_current_name if ele.is_voltage_source else ele.element_voltage_name
+    #     for ele in source_list
+    # ]
+    # s = [
+    #     ele.element_current_name
+    #     if ele.initial_switch_state
+    #     else ele.element_voltage_name
+    #     for ele in switch_list
+    # ]
+    # y = [
+    #     ele.element_current_name
+    #     if isinstance(ele, Ammeter)
+    #     else ele.element_voltage_name
+    #     for ele in meter_list
+    # ]
+    # x_hat = [
+    #     ele.element_current_name
+    #     if isinstance(ele, Capacitor)
+    #     else ele.element_voltage_name
+    #     for ele in inductor_capacitor_list
+    # ]
+    # x = [
+    #     ele.element_voltage_name
+    #     if isinstance(ele, Capacitor)
+    #     else ele.element_current_name
+    #     for ele in inductor_capacitor_list
+    # ]
 
-    y_zero = [
-        ele.element_current_name
-        if isinstance(ele, Voltmeter)
-        else ele.element_voltage_name
-        for ele in meter_list
-    ]
-    s_zero = [
-        ele.element_current_name
-        if not ele.initial_switch_state
-        else ele.element_voltage_name
-        for ele in switch_list
-    ]
-    u = [
-        ele.element_voltage_name if ele.is_voltage_source else ele.element_current_name
-        for ele in source_list
-    ]
+    # y_zero = [
+    #     ele.element_current_name
+    #     if isinstance(ele, Voltmeter)
+    #     else ele.element_voltage_name
+    #     for ele in meter_list
+    # ]
+    # s_zero = [
+    #     ele.element_current_name
+    #     if not ele.initial_switch_state
+    #     else ele.element_voltage_name
+    #     for ele in switch_list
+    # ]
+    # u = [
+    #     ele.element_voltage_name if ele.is_voltage_source else ele.element_current_name
+    #     for ele in source_list
+    # ]
+    
+    def sort_for_u(item1:VoltageCurrentSource, item2:VoltageCurrentSource): # current source first
+        if item1.is_voltage_source == False and item2.is_voltage_source:
+            return -1
+        elif item1.is_voltage_source and item2.is_voltage_source == False:
+            return 1
+        else:
+            return 0
+    def sort_for_meter(item1:Element, item2:Element):  # voltmeter first
+        if isinstance(item1,Voltmeter) and isinstance(item2, Ammeter):
+            return -1
+        elif isinstance(item1, Ammeter) and isinstance(item2, Voltmeter):
+            return 1
+        else:
+            return 0
+    def sort_for_switch(item1:Element, item2:Element):  # switch first, then diode
+        if isinstance(item1, ExternalSwitch) and isinstance(item2, Diode):
+            return -1
+        elif isinstance(item1, Diode ) and isinstance(item2, ExternalSwitch):
+            return 1
+        else:
+            return 0
+    def sort_for_capacitor_inductor(item1:Element, item2:Element):
+        if isinstance(item1, Inductor) and isinstance(item2, Capacitor):
+            return -1
+        elif isinstance(item1, Capacitor) and isinstance(item2, Inductor):
+            return 1
+        else:
+            return 0
+    # generate util, u
+    u_tilt = []
+    u = []
+    y = []
+    y_zero = []
+    s = []
+    s_zero = []
+    x_hat = []
+    x = []
+    source_list.sort(key=cmp_to_key(sort_for_u))
+    meter_list.sort(key = cmp_to_key(sort_for_meter))
+    switch_list.sort(key=cmp_to_key(sort_for_switch))
+    inductor_capacitor_list.sort(key=cmp_to_key(sort_for_capacitor_inductor))
+    #u: current source, then voltage source
+    #x: inductor, then capacitor
+    
+    for ele in source_list:
+        if  not ele.is_voltage_source:  # current source
+            u_tilt.append( ele.element_voltage_name)
+            u.append(ele.element_current_name)
+        else:  # voltage source
+            u_tilt.append( ele.element_current_name)
+            u.append(ele.element_voltage_name)
+    
+    for ele in meter_list:
+        if isinstance(ele, Voltmeter):
+            y.append(ele.element_voltage_name)
+            y_zero.append( ele.element_current_name)
+        else:  # Ammeter
+            y.append(ele.element_current_name)
+            y_zero.append(ele.element_voltage_name)
+    
+    for ele in switch_list:
+        if ele.initial_switch_state:
+            s.append(ele.element_current_name)
+            s_zero.append(ele.element_voltage_name)
+        else:
+            s.append(ele.element_voltage_name)
+            s_zero.append(ele.element_current_name)
+    
+    for ele in inductor_capacitor_list:
+        if isinstance(ele, Inductor):
+            x_hat.append(ele.element_voltage_name)
+            x.append(ele.element_current_name)
+        else:
+            x_hat.append(ele.element_current_name)
+            x.append(ele.element_voltage_name)
+    
+
+    
+
 
     reordered_m_labels = w + u_tilt + s + y + x_hat + x + s_zero + y_zero + u
     reordered_m_lable_obj_mapping = {}
+    capacitor_count = 0
+    inductor_count = 0
+    voltage_source_count = 0
+    current_source_count = 0
     for key, value in ele_name_obj_map.items():
         reordered_m_lable_obj_mapping[value.element_voltage_name] = value
         reordered_m_lable_obj_mapping[value.element_current_name] = value
+        
+        if isinstance(value, Capacitor):
+            capacitor_count += 1
+        elif isinstance(value, Inductor):
+            inductor_count += 1
+        elif isinstance(value,VoltageCurrentSource):
+            if value.is_voltage_source:
+                voltage_source_count += 1
+            else:
+                current_source_count += 1
+        
     reorder_matrix_by_colum_label(M, reordered_m_labels, m_labels_mapping)
 
+    
+    # do any rref on M matrix
+    M, pivots = M.rref()
+    
+    # ensure pivots are in consective order
+    for i in range(len(pivots)):
+        assert i == pivots[i]
+
+
     # multiple L/C to result in correct x_hat. Since ic = C*dv/dt
+    #page 349 of Chua, section 4
     offset = len(w + u_tilt + s + y)
-    for i in range(offset, offset + len(x_hat)):
-        ele = inductor_capacitor_list[i - offset]
+    
+    for i in range(offset, offset+len(x_hat)):
+        label = x_hat[i-offset]
+        ele = reordered_m_lable_obj_mapping[label]
 
         if isinstance(ele, Capacitor):
-            M[:, i] *= ele.capacitor_symbol
+            M[i,i] *= ele.capacitor_symbol
         else:
-            M[:, i] *= ele.inductor_symbol
+            assert isinstance(ele, Inductor)
+            M[i,i] *= ele.inductor_symbol 
+            
+            for index, mutual_element_lab in enumerate(ele.mutual_inductor_names):
+                mutual_inductor_ele = ele_name_obj_map[mutual_element_lab]
+                
+                col_index = offset  + x_hat.index(mutual_inductor_ele.element_voltage_name)
+                
+                k_value =  ele.K_factors[index]
+                M[i, col_index] = k_value *  sp.sqrt( ele.inductor_symbol *  mutual_inductor_ele.inductor_symbol )
+
+    
+    # j = 0
+    # for i in range(offset, offset + len(x_hat)):
+    #     lab = x_hat[j]
+    #     ele = reordered_m_lable_obj_mapping[lab]
+
+    #     if isinstance(ele, Capacitor):
+    #         M[:, i] *= ele.capacitor_symbol
+    #     else:
+    #         M[:, i] *= ele.inductor_symbol
+    #     j += 1
     M, pivot = M.rref()
 
     assert M.rank() == M.shape[0]
@@ -644,15 +806,19 @@ def system_realization(netList: list[list[str]]):
     print("M before reduced")
     print_matrix(M, reordered_m_labels, ["" for x in range(M.shape[0])])
     
-    print("M before reduced with real value")
-    print_matrix(M.subs(symbollic_to_value_map), reordered_m_labels, ["" for x in range(M.shape[0])])
+    # print("M before reduced with real value")
+    # print_matrix(M.subs(symbollic_to_value_map), reordered_m_labels, ["" for x in range(M.shape[0])])
     # now, remove the w, utilted columns from the matrix
     redundant_columns_size = len(w + u_tilt)
     M = M[redundant_columns_size:, redundant_columns_size:]
     reordered_m_labels = reordered_m_labels[redundant_columns_size:]
     print_matrix(M, reordered_m_labels, ["" for x in range(M.shape[0])])
 
-    M = M.subs(symbollic_to_value_map)
+
+
+
+
+    #M = M.subs(symbollic_to_value_map)
     net =  NetworkMatrix(
         M=M,
         m_column_labels=reordered_m_labels,
@@ -664,12 +830,16 @@ def system_realization(netList: list[list[str]]):
         x_label_size=len(x),
         s_zero_label_size=len(s_zero),
         y_zero_label_size=len(y_zero),
-        u_label_size=len(u)
+        u_label_size=len(u),
+        capactior_size=capacitor_count,
+        inductor_size=inductor_count,
+        voltage_source_size=voltage_source_count,
+        current_source_size=current_source_count
 
     )
     
 
-    s_dxdt, Sx, Su, C1, C, D, M0, A, B = retrieveSystemMatrix(
+    s_dxdt, Sx, Su, C1, C, D, M0, A, B, C_SW, D_SW = retrieveSystemMatrix(
         M=M,
         s_labels_size=net.s_labels_size,
         y_labels_size=net.y_label_size,
@@ -677,6 +847,11 @@ def system_realization(netList: list[list[str]]):
         x_labels_size=net.x_label_size,
         y_zero_labels_size=net.y_zero_label_size,
         s_zero_labels_size=net.s_zero_label_size,
+        capacitor_size= net.capacitor_size,
+        inductor_size=net.inductor_size,
+        voltage_source_size=net.voltage_source_size,
+        current_source_size=net.current_source_Size
+        
     )
     print("s_dxdt")
     pprint(s_dxdt)
@@ -701,13 +876,42 @@ def system_realization(netList: list[list[str]]):
     print("B")
     pprint(B)
 
-
+    print("C_SW")
+    pprint(C_SW)
     
+    print("D_SW")
+    pprint(D_SW)
+
     _, pivot = net.M.rref()
     
     for i in range(len(pivot)):
         if pivot[i] != i:
             raise ValueError("Error in the network matrix")
+        
+        
+    # check transfer func and stability
+    A_iter= A.subs(symbollic_to_value_map)
+    B_iter = B.subs(symbollic_to_value_map)
+    C_iter = C.subs(symbollic_to_value_map)
+    D_iter = D.subs(symbollic_to_value_map)
+    
+
+    
+    print("A with subs")
+    pprint(A)
+    transfer_func, poles, pole_roots = transfer_func_and_poles(A, B, C, D, symbolic_value_map=symbollic_to_value_map)
+    print("Transfer function :")
+    pprint(transfer_func)
+    print("DET SI-A  POLES")
+    pprint(sp.simplify(poles))
+    print("Poles of system")
+    print(pole_roots)
+    
+    print("Eigen values of A")  # should be less than 1 for discrete system, or less than 0 for    
+    pprint(A.eigenvals())
+    print("value of eigen values of A")
+    tmp = A.subs(symbollic_to_value_map)
+    print(tmp.eigenvals())
     return net    
     
 
