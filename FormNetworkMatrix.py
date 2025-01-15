@@ -21,15 +21,16 @@ import numpy as np
 import sympy as sp
 from sympy import Matrix, pi, pprint, Symbol, eye, zeros
 
-from util import print_matrix, swapTwoColumn, retrieveSystemMatrix, transfer_func_and_poles
+from util import print_matrix, write_matrix_info,  swapTwoColumn, retrieveSystemMatrix, transfer_func_and_poles, print_matrix_for_matlab_format
 import ast
-
+import re
 class NetworkMatrix:
     def __init__(
         self,
-        M: Matrix,
+        M_topology:Matrix,
         m_column_labels: list[str],
         m_colmn_labels_to_obj_map: dict[str, Element],
+        element_name_obj_map:dict[str, Element],
         symbolic_to_value_map:dict[str, float],
         s_label_size:int,
         y_label_size:int,
@@ -41,8 +42,19 @@ class NetworkMatrix:
         capactior_size:int,
         inductor_size:int,
         voltage_source_size:int,
-        current_source_size:int
+        current_source_size:int,
+        redundant_size:int,
+        simpilfied = True
     ):
+        
+        if simpilfied:
+            M_topology = M_topology[redundant_size:, redundant_size:]
+            m_column_labels[redundant_size:]
+            self.simplified = True
+            self.redundant_size = 0
+        else:
+            self.redundant_size = redundant_size
+            self.simplified = False
         
         assert capactior_size+inductor_size == x_hat_label_size == x_label_size
         assert voltage_source_size+current_source_size == u_label_size 
@@ -51,11 +63,20 @@ class NetworkMatrix:
         self.voltage_source_size = voltage_source_size
         self.current_source_Size = current_source_size
         
-        self.M = M
+        
+        # M_topology describe the topology relation between matrix
+        # M is the matrix after apply mutual inductance effect between inductors
+        self.M ,  self.M_toplolgy_pivots = M_topology.rref()
+        self.M_topology = M_topology[:,:]
+        self.M, self.M_pivots = self.M.rref()
+        
+  
+        
         self.m_column_labels = m_column_labels
         self.m_column_labels_to_obj_map = m_colmn_labels_to_obj_map
         self.symbolic_to_value_map = symbolic_to_value_map
-
+        self.element_name_obj_map = element_name_obj_map
+        
         self.s_labels_size = s_label_size
         self.y_label_size = y_label_size
         self.x_hat_label_size = x_hat_label_size
@@ -71,6 +92,55 @@ class NetworkMatrix:
         #     ele = self.m_column_labels_to_obj_map[lab]
         #     if isinstance(ele, ExternalSwitch):
         #         self.external_switch_labels.append(lab)
+    def apply_mutual_inductance_effect(self, sub_value=True):
+
+        # x_hat_col_offset = self.s_labels_size+ self.y_label_size  + self.redundant_size
+        
+        # for x_hat_index,  x_hat_lab in enumerate( self.m_column_labels[x_hat_col_offset: x_hat_col_offset+self.x_hat_label_size]):
+            
+        #     if x_hat_index +x_hat_col_offset  not in self.M_toplolgy_pivots:
+        #         continue # means is dependent matrix
+        #     ele = self.m_column_labels_to_obj_map[x_hat_lab]
+        #     if isinstance(ele, Inductor):
+        #         for mutual_index, mutual_element_name in enumerate(ele.mutual_inductor_names):
+        #             mutual_inductor_ele = self.element_name_obj_map[mutual_element_name]  
+        #             k_value = ele.K_factors[mutual_index]
+                    
+        #             mutual_inductor_col = self.m_column_labels.index( mutual_inductor_ele.element_voltage_name)
+        #             inductor_row =  self.M_toplolgy_pivots.index( x_hat_index +x_hat_col_offset) # by def, pivot's column is the first nonzero in the row
+                    
+        #             assert mutual_inductor_col < x_hat_col_offset + self.x_hat_label_size
+        #             assert inductor_row < x_hat_col_offset + self.x_hat_label_size
+                    
+        #             # rescale by 1/ele.inductor_symbol, because ele.inductor_symbol is already in the M_topolgy matrix
+        #             # after doing rref, the col of x_hat of inductor = 1, means the whole role is already scaled bye
+        #             # 1/ele.inductance already
+        #             if mutual_inductor_col in self.M_toplolgy_pivots :
+        #                 self.M[inductor_row, mutual_inductor_col ] =  k_value * sp.sqrt(ele.inductor_symbol * mutual_inductor_ele.inductor_symbol)
+                    
+        #             inductor_col = self.m_column_labels.index( ele.element_voltage_name)
+        #             self.M[inductor_row, inductor_col] = ele.inductor_symbol
+        #     elif isinstance(ele, Capacitor):
+        #         capacitor_col = self.m_column_labels.index( ele.element_current_name)
+        #         capacitor_row =  self.M_toplolgy_pivots.index( x_hat_index +x_hat_col_offset) # by def, pivot's column is the first nonzero in the row
+        #         self.M[capacitor_row, capacitor_col] = ele.capacitor_symbol
+        if sub_value:
+    
+            self.M, self.M_pivots = self.M.rref()
+
+
+
+            self.M = self.M.subs(self.symbolic_to_value_map)
+        
+    def update_M_matrix(self, labels_to_swap:str, sub_value = True):
+        
+        
+        swapTwoColumn(self.M_topology, self.m_column_labels, self.m_column_labels_to_obj_map, labels_to_swap )
+        self.M_topology = self.M_topology.subs(self.symbolic_to_value_map)
+        self.M, self.M_toplolgy_pivots = self.M_topology.rref(iszerofunc=lambda x:abs(x)<10**-10)
+        self.M = self.M_topology[:,:].copy()
+        self.apply_mutual_inductance_effect(sub_value)
+        
 
     def print_M_matrix(self ):
         print_matrix(self.M, self.m_column_labels, ["" for x in range(self.M.shape[0])])
@@ -80,33 +150,35 @@ class NetworkMatrix:
         return [     lab for lab in self.s_labels if isinstance(self.m_column_labels_to_obj_map[lab], ExternalSwitch)      ]
     @cached_property
     def s_labels(self):
-        return self.m_column_labels[: self.s_labels_size]
+        
+
+        return self.m_column_labels[ self.redundant_size : self.s_labels_size + self.redundant_size]
 
     @cached_property
     def y_labels(self):
-        offset =  self.s_labels_size
+        offset = self.redundant_size + self.s_labels_size
         return self.m_column_labels[offset: offset+ self.y_label_size]
 
     @cached_property
     def x_hat_labels(self):
-        offset = self.s_labels_size+ self.y_label_size
+        offset = self.redundant_size+ self.s_labels_size+ self.y_label_size
         return self.m_column_labels[offset: offset+ self.x_hat_label_size]
     @cached_property
     def x_labels(self):
-        offset = self.s_labels_size+ self.y_label_size + self.x_hat_label_size
+        offset = self.redundant_size+self.s_labels_size+ self.y_label_size + self.x_hat_label_size
         return self.m_column_labels[offset: offset + self.x_label_size]
     @cached_property
     def s_zero_labels(self):
-        offset = self.s_labels_size+ self.y_label_size + self.x_hat_label_size + self.x_label_size
+        offset = self.redundant_size + self.s_labels_size+ self.y_label_size + self.x_hat_label_size + self.x_label_size
         return self.m_column_labels[offset: offset+  self.s_zero_label_size]
     @cached_property
     def y_zero_labels(self):
-        offset = self.s_labels_size+ self.y_label_size + self.x_hat_label_size + self.x_label_size + self.s_zero_label_size
+        offset = self.redundant_size + self.s_labels_size+ self.y_label_size + self.x_hat_label_size + self.x_label_size + self.s_zero_label_size
         
         return self.m_column_labels[offset: offset + self.y_zero_label_size]
     @cached_property
     def u_labels(self):
-        offset = self.s_labels_size+ self.y_label_size + self.x_hat_label_size + self.x_label_size + self.s_zero_label_size + self.y_zero_label_size
+        offset = self.redundant_size + self.s_labels_size+ self.y_label_size + self.x_hat_label_size + self.x_label_size + self.s_zero_label_size + self.y_zero_label_size
         return self.m_column_labels[offset: ]
 def update_column_labels(element_col_map: dict[str, int]) -> list[str]:
     sorted_ele_col = [
@@ -124,7 +196,7 @@ def reorder_matrix_by_colum_label(
     matrix: Matrix, new_col_name: list[str], ele_name_col_map: dict[str, int]
 ) -> Matrix:
     m_temp = matrix[:, :]
-    assert len(new_col_name) == len(ele_name_col_map)
+    # assert len(new_col_name) == len(ele_name_col_map)
 
 
         
@@ -152,8 +224,12 @@ def read_netlis_description(
 ):
     for i in range(len(netList)):
         desc = netList[i]
-        labels = [s.strip() for s in desc.split(",")]
+        # labels = [s.strip() for s in desc.split(",")]
+        # Regular expression to match elements
+        pattern = r'\[.*?\]|[^,\s]+'
 
+        # Use re.findall to extract elements
+        labels = re.findall(pattern, desc)
         if labels[1] not in node_name_obj_map:
             node_name_obj_map[labels[1]] = Node(labels[1])
         node_a = node_name_obj_map[labels[1]]
@@ -209,7 +285,7 @@ def read_netlis_description(
                 mutual_inductor_symbols = None
                 mutual_k = None
                 if len(labels) > 4:
-                    mutual_inductor_symbols =labels[4].strip("[]").split(",")
+                    mutual_inductor_symbols =labels[4].strip("[]").replace(" ","").split(",")
                     mutual_k_str = [float(x) for x in labels[5].strip("[]").split(",")]
                     mutual_k = []
                     for ind in range(len(mutual_inductor_symbols)):
@@ -374,7 +450,7 @@ def system_realization(netList: list[list[str]]):
     ele_name_col_map: dict[str, int] = {}
 
     symbollic_to_value_map: dict[Symbol:float] = {}
-
+    symbolic_str_to_var_map:dict[str, Symbol] = {}
     switch_list: list[ExternalSwitch | Diode] = []
     source_list: list[VoltageCurrentSource] = []
     inductor_capacitor_list: list[Inductor | Capacitor] = []
@@ -609,52 +685,6 @@ def system_realization(netList: list[list[str]]):
     # the order is w, u_tilt, s, y, x_hat, x, 0, u
     # w is all nonport element [iy, vz]
     w = iy_labels + vz_labels
-    # u_tilt = [
-    #     ele.element_current_name if ele.is_voltage_source else ele.element_voltage_name
-    #     for ele in source_list
-    # ]
-    # s = [
-    #     ele.element_current_name
-    #     if ele.initial_switch_state
-    #     else ele.element_voltage_name
-    #     for ele in switch_list
-    # ]
-    # y = [
-    #     ele.element_current_name
-    #     if isinstance(ele, Ammeter)
-    #     else ele.element_voltage_name
-    #     for ele in meter_list
-    # ]
-    # x_hat = [
-    #     ele.element_current_name
-    #     if isinstance(ele, Capacitor)
-    #     else ele.element_voltage_name
-    #     for ele in inductor_capacitor_list
-    # ]
-    # x = [
-    #     ele.element_voltage_name
-    #     if isinstance(ele, Capacitor)
-    #     else ele.element_current_name
-    #     for ele in inductor_capacitor_list
-    # ]
-
-    # y_zero = [
-    #     ele.element_current_name
-    #     if isinstance(ele, Voltmeter)
-    #     else ele.element_voltage_name
-    #     for ele in meter_list
-    # ]
-    # s_zero = [
-    #     ele.element_current_name
-    #     if not ele.initial_switch_state
-    #     else ele.element_voltage_name
-    #     for ele in switch_list
-    # ]
-    # u = [
-    #     ele.element_voltage_name if ele.is_voltage_source else ele.element_current_name
-    #     for ele in source_list
-    # ]
-    
     def sort_for_u(item1:VoltageCurrentSource, item2:VoltageCurrentSource): # current source first
         if item1.is_voltage_source == False and item2.is_voltage_source:
             return -1
@@ -734,7 +764,6 @@ def system_realization(netList: list[list[str]]):
 
     
 
-
     reordered_m_labels = w + u_tilt + s + y + x_hat + x + s_zero + y_zero + u
     reordered_m_lable_obj_mapping = {}
     capacitor_count = 0
@@ -757,10 +786,12 @@ def system_realization(netList: list[list[str]]):
         
     reorder_matrix_by_colum_label(M, reordered_m_labels, m_labels_mapping)
 
+
+
     
     # do any rref on M matrix
     M, pivots = M.rref()
-    
+    print(pivots)
     # ensure pivots are in consective order
     for i in range(len(pivots)):
         assert i == pivots[i]
@@ -775,10 +806,12 @@ def system_realization(netList: list[list[str]]):
         ele = reordered_m_lable_obj_mapping[label]
 
         if isinstance(ele, Capacitor):
-            M[i,i] *= ele.capacitor_symbol
+            #M[i,i] *= ele.capacitor_symbol
+            M[i,i] = ele.capacitor_symbol
         else:
             assert isinstance(ele, Inductor)
-            M[i,i] *= ele.inductor_symbol 
+            # #M[i,i] *= ele.inductor_symbol 
+            M[i,i] = ele.inductor_symbol 
             
             for index, mutual_element_lab in enumerate(ele.mutual_inductor_names):
                 mutual_inductor_ele = ele_name_obj_map[mutual_element_lab]
@@ -789,40 +822,79 @@ def system_realization(netList: list[list[str]]):
                 M[i, col_index] = k_value *  sp.sqrt( ele.inductor_symbol *  mutual_inductor_ele.inductor_symbol )
 
     
-    # j = 0
-    # for i in range(offset, offset + len(x_hat)):
-    #     lab = x_hat[j]
-    #     ele = reordered_m_lable_obj_mapping[lab]
+    #M = M.subs(symbollic_to_value_map)
+    # # # debug
+    # M, pivots = M.rref()
+    # redundant_columns_size = len(w + u_tilt)
+    # M = M[redundant_columns_size:, redundant_columns_size:]
+    # reordered_m_labels = reordered_m_labels[redundant_columns_size:]
+    # print_matrix(M, reordered_m_labels, ["" for x in range(M.shape[0])])
 
-    #     if isinstance(ele, Capacitor):
-    #         M[:, i] *= ele.capacitor_symbol
-    #     else:
-    #         M[:, i] *= ele.inductor_symbol
-    #     j += 1
-    M, pivot = M.rref()
+    # swapTwoColumn(M, reordered_m_labels, reordered_m_lable_obj_mapping, "V_D1")
+    # # swapTwoColumn(M, reordered_m_labels, reordered_m_lable_obj_mapping, "V_D2")
+    # # k = M.subs(symbollic_to_value_map)
+    # # k[5,6] = 0
+    # # # k[6,6] = 0
+    # # k[6,5] = 0
+    # # k[6,7] = 0
+    # # k[7,6] = 0
+    
+    
+    # M_t, p = M.rref()
+    
+    
 
-    assert M.rank() == M.shape[0]
+    # M_t[:, 6] *=0.000280014285349873
+    # M_t[:, 7] *=  0.000280014285349873
+    # M_t, p = M_t.rref()
+    k = 200
+    # swapTwoColumn(M, reordered_m_labels, reordered_m_lable_obj_mapping, "V_D1")
+    # M, _ = M.rref()
 
-    print("M before reduced")
+    
+    # # # M = M.subs(symbollic_to_value_map)
+    # M, pivot = M.rref()
+
+    # assert M.rank() == M.shape[0]
+
+
     print_matrix(M, reordered_m_labels, ["" for x in range(M.shape[0])])
     
-    # print("M before reduced with real value")
+    # # print("M before reduced with real value")
     # print_matrix(M.subs(symbollic_to_value_map), reordered_m_labels, ["" for x in range(M.shape[0])])
     # now, remove the w, utilted columns from the matrix
-    redundant_columns_size = len(w + u_tilt)
-    M = M[redundant_columns_size:, redundant_columns_size:]
-    reordered_m_labels = reordered_m_labels[redundant_columns_size:]
+    # redundant_columns_size = len(w + u_tilt)
+    
+    
+    # M = M[redundant_columns_size:, redundant_columns_size:]
+    # reordered_m_labels = reordered_m_labels[redundant_columns_size:]
+    
+    
+    
     print_matrix(M, reordered_m_labels, ["" for x in range(M.shape[0])])
 
+    
 
 
-
-
-    #M = M.subs(symbollic_to_value_map)
+    
+    # # also try to swap two columns to get into false, true state
+    # temp = M[:, 5]
+    # M[:, 5] = M[:, 7].copy()
+    # M[:,7] = temp
+    
+    # k = reordered_m_labels[5]
+    # reordered_m_labels[5] = reordered_m_labels[7]
+    # reordered_m_labels[7] = k
+    
+    M, pivot = M.rref()
+    
+    
+    # M = M.subs(symbollic_to_value_map)
     net =  NetworkMatrix(
-        M=M,
+        M_topology=M[:,:],
         m_column_labels=reordered_m_labels,
         m_colmn_labels_to_obj_map=reordered_m_lable_obj_mapping,
+        element_name_obj_map=ele_name_obj_map,
         symbolic_to_value_map=symbollic_to_value_map,
         s_label_size= len(s),
         y_label_size=len(y),
@@ -834,13 +906,18 @@ def system_realization(netList: list[list[str]]):
         capactior_size=capacitor_count,
         inductor_size=inductor_count,
         voltage_source_size=voltage_source_count,
-        current_source_size=current_source_count
+        current_source_size=current_source_count,
+        redundant_size= len(w+u_tilt),
+        simpilfied=False
 
     )
-    
+    # net.M_topology, _ = net.M_topology.rref()
+    net.apply_mutual_inductance_effect()  # do it for the first time
 
-    s_dxdt, Sx, Su, C1, C, D, M0, A, B, C_SW, D_SW = retrieveSystemMatrix(
-        M=M,
+    s_dxdt, Sx, Su, C1, C, D, M0, A, B, C_SW, D_SW, inconsistent_labels = retrieveSystemMatrix(
+        M=net.M,
+        m_labels=net.m_column_labels,
+        m_pivots=net.M_pivots,
         s_labels_size=net.s_labels_size,
         y_labels_size=net.y_label_size,
         x_hat_labels_size=net.x_hat_label_size,
@@ -850,9 +927,12 @@ def system_realization(netList: list[list[str]]):
         capacitor_size= net.capacitor_size,
         inductor_size=net.inductor_size,
         voltage_source_size=net.voltage_source_size,
-        current_source_size=net.current_source_Size
+        current_source_size=net.current_source_Size,
+        redundant_offset=net.redundant_size
         
     )
+    with open("test.txt","w") as f:
+        print_matrix(net.M, net.m_column_labels, ["" for x in range(net.M.shape[0])], file=f)
     print("s_dxdt")
     pprint(s_dxdt)
 
@@ -889,29 +969,82 @@ def system_realization(netList: list[list[str]]):
             raise ValueError("Error in the network matrix")
         
         
-    # check transfer func and stability
+    # # check transfer func and stability
     A_iter= A.subs(symbollic_to_value_map)
     B_iter = B.subs(symbollic_to_value_map)
     C_iter = C.subs(symbollic_to_value_map)
     D_iter = D.subs(symbollic_to_value_map)
     
+    # # Print matrices in MATLAB format
+    # print("\nA = [")
+    # print(np.array2string(np.array(A_iter).astype(float), separator=', ', precision=8).replace('[', '').replace(']', ''))
+    # print("];")
 
+    # print("\nB = [")
+    # print(np.array2string(np.array(B_iter).astype(float), separator=', ', precision=8).replace('[', '').replace(']', ''))
+    # print("];")
+
+    # print("\nC = [")
+    # print(np.array2string(np.array(C_iter).astype(float), separator=', ', precision=8).replace('[', '').replace(']', ''))
+    # print("];")
+
+    # print("\nD = [")
+    # print(np.array2string(np.array(D_iter).astype(float), separator=', ', precision=8).replace('[', '').replace(']', ''))
+    # print("];")
+    
+    
+    
     
     print("A with subs")
     pprint(A)
-    transfer_func, poles, pole_roots = transfer_func_and_poles(A, B, C, D, symbolic_value_map=symbollic_to_value_map)
-    print("Transfer function :")
-    pprint(transfer_func)
-    print("DET SI-A  POLES")
-    pprint(sp.simplify(poles))
-    print("Poles of system")
-    print(pole_roots)
+    # transfer_func, poles, pole_roots = transfer_func_and_poles(A, B, C, D, symbolic_value_map=symbollic_to_value_map)
+    # print("Transfer function :")
+    # pprint(transfer_func)
+    # print("DET SI-A  POLES")
+    # pprint(sp.simplify(poles))
+    # print("Poles of system")
+    # print(pole_roots)
     
     print("Eigen values of A")  # should be less than 1 for discrete system, or less than 0 for    
-    pprint(A.eigenvals())
-    print("value of eigen values of A")
-    tmp = A.subs(symbollic_to_value_map)
-    print(tmp.eigenvals())
+    pprint(A_iter.eigenvals())
+    
+    # check if any negative eigen values
+    # Check if any eigenvalue has a positive real part
+    for eigenval in A_iter.eigenvals():
+        if eigenval.as_real_imag()[0] > 0:  # Check real part of eigenvalue
+            warning_msg = "Warning: System is unstable! Found eigenvalue with positive real part."
+            print(warning_msg)
+            # raise ValueError(warning_msg)
+    
+    # print("value of eigen values of A")
+    # tmp = A.subs(symbollic_to_value_map)
+    # print(tmp.eigenvals())
+    
+    # write_matrix_info(net=net)
+    
+    
+    
+    # test of swap
+    # false, true
+    # net.update_M_matrix("V_D1")
+    # net.update_M_matrix("V_D2")
+    # s_dxdt, Sx, Su, C1, C, D, M0, A, B, C_SW, D_SW, inconsistent_labels = retrieveSystemMatrix(
+    #     M=net.M,
+    #     m_labels=net.m_column_labels,
+    #     m_pivots=net.M_pivots,
+    #     s_labels_size=net.s_labels_size,
+    #     y_labels_size=net.y_label_size,
+    #     x_hat_labels_size=net.x_hat_label_size,
+    #     x_labels_size=net.x_label_size,
+    #     y_zero_labels_size=net.y_zero_label_size,
+    #     s_zero_labels_size=net.s_zero_label_size,
+    #     capacitor_size= net.capacitor_size,
+    #     inductor_size=net.inductor_size,
+    #     voltage_source_size=net.voltage_source_size,
+    #     current_source_size=net.current_source_Size,
+    #     redundant_offset=net.redundant_size
+        
+    # )
     return net    
     
 
