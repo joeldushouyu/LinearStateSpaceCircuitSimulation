@@ -25,6 +25,8 @@ import matplotlib.ticker as plt_ticker
 from matplotlib.widgets import CheckButtons
 from visualize import on_pick, toggle_visibility
 from matplotlib.widgets import CheckButtons
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 @total_ordering
 class SimulationModule:
     def __init__(self):
@@ -553,133 +555,135 @@ class StateSpaceSimulationModule(SimulationModule):
         
         # use trapezoidal  by default
         # use backward euler if real eigenvalue < -2 
-        temp = self.A.subs(self.network_matrix.symbolic_to_value_map) * (1/self.iteration_frequency)
+        temp = self.A.subs(self.network_matrix.symbolic_to_value_map)
         eigen_value_dict = temp.eigenvals()
         
         
-        min_eig = min(  [  sp.re(x.subs(self.network_matrix.symbolic_to_value_map)) for x  in eigen_value_dict.keys()])
+        min_eig = min(  [  sp.re(x.subs(self.network_matrix.symbolic_to_value_map))  * (1/self.iteration_frequency) for x  in eigen_value_dict.keys()])
         
         if min_eig <= -2:
             self.integration_strategy = "BackwardEuler"
         else:
             self.integration_strategy = "Trapezoidal"
+            
+        print(f"***********using {self.integration_strategy} *****************")
         
         
     def swap_col_and_update(self, label_to_Swap:str):
         if label_to_Swap != "":
-            self.network_matrix.update_M_matrix(label_to_Swap)
+            self.network_matrix.update_M_matrix(label_to_Swap, False)
         # do a cache
         
 
         
         key  = "".join(self.network_matrix.m_column_labels)
-        # if key not in self.M_cache.keys():
+        if key not in self.M_cache.keys():
             
-        # self.network_matrix.M, self.network_pivots_cols = self.network_matrix.M.rref()
-        self.S_dxdt, self.Sx, self.Su, self.C1, self.C, self.D, self.M0, self.A, self.B, self.C_SW, self.D_SW, self.network_inconsistent_labels = retrieveSystemMatrix(
-            M=self.network_matrix.M,
-            m_pivots=self.network_matrix.M_pivots,
-            m_labels=self.network_matrix.m_column_labels,
-            s_labels_size=self.network_matrix.s_labels_size,
-            y_labels_size=self.network_matrix.y_label_size,
-            x_hat_labels_size=self.network_matrix.x_hat_label_size,
-            x_labels_size=self.network_matrix.x_label_size,
-            y_zero_labels_size=self.network_matrix.y_zero_label_size,
-            s_zero_labels_size=self.network_matrix.s_zero_label_size,
-            capacitor_size=self.network_matrix.capacitor_size,
-            inductor_size=self.network_matrix.inductor_size,
-            voltage_source_size=self.network_matrix.voltage_source_size,
-            current_source_size=self.network_matrix.current_source_Size,
-            redundant_offset=self.network_matrix.redundant_size
-        )
-        
-        self.forced_switch_mapping = self.force_triggered_events()
-        
-        # at here, determine any force-triggered events, dependent variables, and so forth before turn into numpy array
-        M0_new, A_new, B_new, A_x_ind_filter, A_dep, B_dep, ind_lab, dep_lab = detemrminte_matrix_for_dependent_state_vars(self.M0, self.A, self.B, self.network_matrix.x_hat_labels)
-        self.M0 = M0_new.copy()
-        self.B = B_new.copy()
-        self.A = A_new.copy()
-        self.A_x_independent_filter = A_x_ind_filter.copy()
-        self.A_dependent = A_dep.copy()
-        self.B_dependent = B_dep.copy()
-        self.independent_state_var_labels = ind_lab.copy()
-        self.dependent_state_var_labels = dep_lab.copy()
-        
-        
-        self._A_iteration = sp.matrix2numpy(self.A.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
-        self._B_iteration = sp.matrix2numpy(self.B.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
-        self._C_iteration = sp.matrix2numpy(self.C.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
-        self._D_iteration = sp.matrix2numpy(self.D.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
-        self._S_dxdt = sp.matrix2numpy(self.S_dxdt.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
-        self._Sx = sp.matrix2numpy(self.Sx.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
-        self._Su = sp.matrix2numpy(self.Su.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
-        self._C_SW = sp.matrix2numpy(self.C_SW.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
-        self._D_SW = sp.matrix2numpy(self.D_SW.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
-        self._A_dependent = sp.matrix2numpy(self.A_dependent.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
-        self._B_dependent = sp.matrix2numpy(self.B_dependent.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
-        
-        cache_Data = [
-                        self.network_matrix.M[:,:], self.S_dxdt[:,:], self.Sx[:,:],
-                        self.Su[:,:], self.C1[:,:], self.C[:,:], self.D[:,:],
-                        self.M0[:,:], self.A[:,:], self.B[:,:],
-                        self.C_SW[:,:], self.D_SW[:,:],
-                        self._A_iteration[:,:],
-                        self._B_iteration[:,:],
-                        self._C_iteration[:,:],
-                        self._D_iteration[:,:],
-                        self._S_dxdt[:,:],
-                        self._Sx[:,:],
-                        self._Su[:,:],
-                        self._C_SW[:,:],
-                        self._D_SW[:,:],
-                        self.network_inconsistent_labels.copy(),
-                        self.A_dependent[:,:],
-                        self.B_dependent[:,:],
-                        self._A_dependent[:,:],
-                        self._B_dependent[:,:],
-                        self.A_x_independent_filter[:,:],
-                        self.forced_switch_mapping.copy(),
-                        self.independent_state_var_labels.copy(),
-                        self.dependent_state_var_labels.copy()
-                        ]
+            self.network_matrix.rref_update()
+            self.S_dxdt, self.Sx, self.Su, self.C1, self.C, self.D, self.M0, self.A, self.B, self.C_SW, self.D_SW, self.network_inconsistent_labels = retrieveSystemMatrix(
+                M=self.network_matrix.M,
+                m_pivots=self.network_matrix.M_pivots,
+                m_labels=self.network_matrix.m_column_labels,
+                s_labels_size=self.network_matrix.s_labels_size,
+                y_labels_size=self.network_matrix.y_label_size,
+                x_hat_labels_size=self.network_matrix.x_hat_label_size,
+                x_labels_size=self.network_matrix.x_label_size,
+                y_zero_labels_size=self.network_matrix.y_zero_label_size,
+                s_zero_labels_size=self.network_matrix.s_zero_label_size,
+                capacitor_size=self.network_matrix.capacitor_size,
+                inductor_size=self.network_matrix.inductor_size,
+                voltage_source_size=self.network_matrix.voltage_source_size,
+                current_source_size=self.network_matrix.current_source_Size,
+                redundant_offset=self.network_matrix.redundant_size
+            )
+            
+            self.forced_switch_mapping = self.force_triggered_events()
+            
+            # at here, determine any force-triggered events, dependent variables, and so forth before turn into numpy array
+            M0_new, A_new, B_new, A_x_ind_filter, A_dep, B_dep, ind_lab, dep_lab = detemrminte_matrix_for_dependent_state_vars(self.M0, self.A, self.B, self.network_matrix.x_hat_labels)
+            self.M0 = M0_new.copy()
+            self.B = B_new.copy()
+            self.A = A_new.copy()
+            self.A_x_independent_filter = A_x_ind_filter.copy()
+            self.A_dependent = A_dep.copy()
+            self.B_dependent = B_dep.copy()
+            self.independent_state_var_labels = ind_lab.copy()
+            self.dependent_state_var_labels = dep_lab.copy()
+            
+            
+            self._A_iteration = sp.matrix2numpy(self.A.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
+            self._B_iteration = sp.matrix2numpy(self.B.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
+            self._C_iteration = sp.matrix2numpy(self.C.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
+            self._D_iteration = sp.matrix2numpy(self.D.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
+            self._S_dxdt = sp.matrix2numpy(self.S_dxdt.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
+            self._Sx = sp.matrix2numpy(self.Sx.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
+            self._Su = sp.matrix2numpy(self.Su.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
+            self._C_SW = sp.matrix2numpy(self.C_SW.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
+            self._D_SW = sp.matrix2numpy(self.D_SW.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
+            self._A_dependent = sp.matrix2numpy(self.A_dependent.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
+            self._B_dependent = sp.matrix2numpy(self.B_dependent.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
+            
+            cache_Data = [
+                            self.network_matrix.M[:,:], self.S_dxdt[:,:], self.Sx[:,:],
+                            self.Su[:,:], self.C1[:,:], self.C[:,:], self.D[:,:],
+                            self.M0[:,:], self.A[:,:], self.B[:,:],
+                            self.C_SW[:,:], self.D_SW[:,:],
+                            self._A_iteration[:,:],
+                            self._B_iteration[:,:],
+                            self._C_iteration[:,:],
+                            self._D_iteration[:,:],
+                            self._S_dxdt[:,:],
+                            self._Sx[:,:],
+                            self._Su[:,:],
+                            self._C_SW[:,:],
+                            self._D_SW[:,:],
+                            self.network_inconsistent_labels.copy(),
+                            self.A_dependent[:,:],
+                            self.B_dependent[:,:],
+                            self._A_dependent[:,:],
+                            self._B_dependent[:,:],
+                            self.A_x_independent_filter[:,:],
+                            self.forced_switch_mapping.copy(),
+                            self.independent_state_var_labels.copy(),
+                            self.dependent_state_var_labels.copy()
+                            ]
 
-        self.M_cache[key] = cache_Data
+            self.M_cache[key] = cache_Data
             
             
-        # else:
-        #     cache_Data = self.M_cache[key]
+        else:
+            cache_Data = self.M_cache[key]
             
-        #     self.network_matrix.M = cache_Data[0][:,:]
-        #     self.S_dxdt = cache_Data[1][:,:]
-        #     self.Sx = cache_Data[2][:,:]
-        #     self.Su = cache_Data[3][:,:]
-        #     self.C1 = cache_Data[4][:,:]
-        #     self.C = cache_Data[5][:,:]
-        #     self.D = cache_Data[6][:,:]
-        #     self.M0 = cache_Data[7][:,:]  # Was missing
-        #     self.A = cache_Data[8][:,:]    # Was missing
-        #     self.B = cache_Data[9][:,:]    # Was missing
-        #     self.C_SW = cache_Data[10][:,:]
-        #     self.D_SW = cache_Data[11][:,:]
-        #     self._A_iteration = cache_Data[12][:,:]
-        #     self._B_iteration = cache_Data[13][:,:]
-        #     self._C_iteration = cache_Data[14][:,:]
-        #     self._D_iteration = cache_Data[15][:,:]
-        #     self._S_dxdt = cache_Data[16][:,:]
-        #     self._Sx = cache_Data[17][:,:]
-        #     self._Su = cache_Data[18][:,:]
-        #     self._C_SW = cache_Data[19][:,:]
-        #     self._D_SW = cache_Data[20][:,:]
-        #     self.network_inconsistent_labels = cache_Data[21].copy()
-        #     self.A_dependent = cache_Data[22][:,:]
-        #     self.B_dependent = cache_Data[23][:,:]
-        #     self._A_dependent = cache_Data[24][:,:]
-        #     self._B_dependent = cache_Data[25][:,:]
-        #     self.A_x_independent_filter = cache_Data[26][:,:]
-        #     self.forced_switch_mapping = cache_Data[27].copy()
-        #     self.independent_state_var_labels = cache_Data[28].copy()
-        #     self.dependent_state_var_labels = cache_Data[29].copy()
+            self.network_matrix.M = cache_Data[0][:,:]
+            self.S_dxdt = cache_Data[1][:,:]
+            self.Sx = cache_Data[2][:,:]
+            self.Su = cache_Data[3][:,:]
+            self.C1 = cache_Data[4][:,:]
+            self.C = cache_Data[5][:,:]
+            self.D = cache_Data[6][:,:]
+            self.M0 = cache_Data[7][:,:]  # Was missing
+            self.A = cache_Data[8][:,:]    # Was missing
+            self.B = cache_Data[9][:,:]    # Was missing
+            self.C_SW = cache_Data[10][:,:]
+            self.D_SW = cache_Data[11][:,:]
+            self._A_iteration = cache_Data[12][:,:]
+            self._B_iteration = cache_Data[13][:,:]
+            self._C_iteration = cache_Data[14][:,:]
+            self._D_iteration = cache_Data[15][:,:]
+            self._S_dxdt = cache_Data[16][:,:]
+            self._Sx = cache_Data[17][:,:]
+            self._Su = cache_Data[18][:,:]
+            self._C_SW = cache_Data[19][:,:]
+            self._D_SW = cache_Data[20][:,:]
+            self.network_inconsistent_labels = cache_Data[21].copy()
+            self.A_dependent = cache_Data[22][:,:]
+            self.B_dependent = cache_Data[23][:,:]
+            self._A_dependent = cache_Data[24][:,:]
+            self._B_dependent = cache_Data[25][:,:]
+            self.A_x_independent_filter = cache_Data[26][:,:]
+            self.forced_switch_mapping = cache_Data[27].copy()
+            self.independent_state_var_labels = cache_Data[28].copy()
+            self.dependent_state_var_labels = cache_Data[29].copy()
 
             
 
@@ -863,7 +867,7 @@ class StateSpaceSimulationModule(SimulationModule):
         
     def calc_nonimpulse_response(self):
         
-        
+        diode_switched = False
         non_impulse   =  np.matmul( self._Sx, self.x_cur )   +  np.matmul(self._Su, self.u)  
         # z_derivative = np.matmul( self._C_SW, self.x_cur )   +  np.matmul(self._D_SW, self.u) 
         # z_hat = non_impulse + 1/self.iteration_frequency * z_derivative 
@@ -894,11 +898,16 @@ class StateSpaceSimulationModule(SimulationModule):
                 self.switch_state[i] = True
                 self.swap_col_and_update(volt_lab)
                 
+                diode_switched = True
             elif diode_state == True and non_imp < 0 :
                 self.switch_state[i] = False
                 self.swap_col_and_update(volt_lab)
+                
+                diode_switched = True
             else:
                 pass
+        
+        return diode_switched
             
     def plot_switch_graph(self):
         time_np_array = np.array(self.time_t)
@@ -967,84 +976,136 @@ class StateSpaceSimulationModule(SimulationModule):
         plt.show()
         # return fig
 
-        
-                    
-            
     def plot_output_graph(self, ax1_y_ticks=None, ax2_y_ticks=None):
         time_np_array = np.array(self.time_t)
-        y_output_np_array = np.array(self.y_output).squeeze()
-        fig, _ = plt.subplots(self.fig_count)
-        self.fig_count+=1
-
+        y_output_np_array = np.array(self.y_output, dtype=np.float64).squeeze()
 
         # Create subplots for current and voltage
-        ax1 = fig.add_subplot(211)
-        ax2 = fig.add_subplot(212)
+        # Create subplots for current and voltage
+        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
+                            subplot_titles=("Voltage", "Current"))
 
-        # Line map for all signals
-        line_map = {}
-
+        # Add lines to the plot
         for i in range(self.network_matrix.y_label_size):
             lab = self.network_matrix.y_labels[i]
             ele = self.network_matrix.m_column_labels_to_obj_map[lab]
+
             if isinstance(ele, Voltmeter):
-                if len(y_output_np_array.shape) == 1:
-                    line, = ax1.plot(time_np_array, y_output_np_array, label=f"{ele.name}")
-                else:
-                    line, = ax1.plot(time_np_array, y_output_np_array[:, i], label=f"{ele.name}")
+                y_data = y_output_np_array if len(y_output_np_array.shape) == 1 else y_output_np_array[:, i]
+                fig.add_trace(
+                    go.Scatter(x=time_np_array, y=y_data, 
+                            mode='lines', name=f"Voltage: {ele.name}"),
+                    row=1, col=1
+                )
             else:
-                line, = ax2.plot(time_np_array, y_output_np_array[:, i], label=f"{ele.name}")
-            if len(y_output_np_array.shape) == 1:
-                line_map[line] = (time_np_array, y_output_np_array)
-            else:
-                line_map[line] = (time_np_array, y_output_np_array[:, i])
+                y_data = y_output_np_array if len(y_output_np_array.shape) == 1 else y_output_np_array[:, i]
+                fig.add_trace(
+                    go.Scatter(x=time_np_array, y=y_data, 
+                            mode='lines', name=f"Current: {ele.name}"),
+                    row=2, col=1
+                )
 
-        # Add grids and legends
-        ax1.grid()
-        ax2.grid()
-        ax1.legend()
-        ax2.legend()
+        # Update layout for grids and legends
+        fig.update_layout(
+            title="Output Graph",
+    
+            showlegend=True,  # Enables the legend for toggling lines
+            legend=dict(
+                yanchor="top",
+                y=0.99,
+                xanchor="left",
+                x=0.01
+            )
+        )
 
-        # Set custom y-axis ticks if provided
+        # Set axis titles and tick intervals
+        fig.update_xaxes(title_text="Time", row=2, col=1)
+        fig.update_yaxes(title_text="Voltage", row=1, col=1)
+        fig.update_yaxes(title_text="Current", row=2, col=1)
+
         if ax1_y_ticks is not None:
-            ax1.yaxis.set_major_locator(plt.MultipleLocator(ax1_y_ticks))
+            fig.update_yaxes(tickmode="linear", dtick=ax1_y_ticks, row=1, col=1)
         if ax2_y_ticks is not None:
-            ax2.yaxis.set_major_locator(plt.MultipleLocator(ax2_y_ticks))
+            fig.update_yaxes(tickmode="linear", dtick=ax2_y_ticks, row=2, col=1)
 
-        # Connect pick events to handle clicks on lines
-        fig.canvas.mpl_connect('pick_event', lambda event: on_pick(event, [line_map], fig))
+        # Display the figure
+        fig.show()  
+            
+    # def plot_output_graph(self, ax1_y_ticks=None, ax2_y_ticks=None):
+    #     time_np_array = np.array(self.time_t)
+    #     y_output_np_array = np.array(self.y_output).squeeze()
+    #     fig, _ = plt.subplots(self.fig_count)
+    #     self.fig_count+=1
 
-        # Enable picking on all lines
-        for line in line_map:
-            line.set_picker(True)
 
-        # Add interactive checkboxes
-        labels = [line.get_label() for line in line_map.keys()]
-        visibility = [line.get_visible() for line in line_map.keys()]
-        check_ax = fig.add_axes([0.9, 0.4, 0.15, 0.4])  # Position for checkboxes
-        check = CheckButtons(check_ax, labels, visibility)
+    #     # Create subplots for current and voltage
+    #     ax1 = fig.add_subplot(211)
+    #     ax2 = fig.add_subplot(212)
 
-        check.on_clicked(lambda label: toggle_visibility(label, [line_map], fig))
+    #     # Line map for all signals
+    #     line_map = {}
 
-        plt.show()
+    #     for i in range(self.network_matrix.y_label_size):
+    #         lab = self.network_matrix.y_labels[i]
+    #         ele = self.network_matrix.m_column_labels_to_obj_map[lab]
+    #         if isinstance(ele, Voltmeter):
+    #             if len(y_output_np_array.shape) == 1:
+    #                 line, = ax1.plot(time_np_array, y_output_np_array, label=f"{ele.name}")
+    #             else:
+    #                 line, = ax1.plot(time_np_array, y_output_np_array[:, i], label=f"{ele.name}")
+    #         else:
+    #             line, = ax2.plot(time_np_array, y_output_np_array[:, i], label=f"{ele.name}")
+    #         if len(y_output_np_array.shape) == 1:
+    #             line_map[line] = (time_np_array, y_output_np_array)
+    #         else:
+    #             line_map[line] = (time_np_array, y_output_np_array[:, i])
+
+    #     # Add grids and legends
+    #     ax1.grid()
+    #     ax2.grid()
+    #     ax1.legend()
+    #     ax2.legend()
+
+    #     # Set custom y-axis ticks if provided
+    #     if ax1_y_ticks is not None:
+    #         ax1.yaxis.set_major_locator(plt.MultipleLocator(ax1_y_ticks))
+    #     if ax2_y_ticks is not None:
+    #         ax2.yaxis.set_major_locator(plt.MultipleLocator(ax2_y_ticks))
+
+    #     # Connect pick events to handle clicks on lines
+    #     fig.canvas.mpl_connect('pick_event', lambda event: on_pick(event, [line_map], fig))
+
+    #     # Enable picking on all lines
+    #     for line in line_map:
+    #         line.set_picker(True)
+
+    #     # Add interactive checkboxes
+    #     labels = [line.get_label() for line in line_map.keys()]
+    #     visibility = [line.get_visible() for line in line_map.keys()]
+    #     check_ax = fig.add_axes([0.9, 0.4, 0.15, 0.4])  # Position for checkboxes
+    #     check = CheckButtons(check_ax, labels, visibility)
+
+    #     check.on_clicked(lambda label: toggle_visibility(label, [line_map], fig))
+
+    #     plt.show()
         # return fig
 
     
-    def update_y_cur(self):
+    def update_y_cur(self, x):
         #TODO: correcT?
         
-        x_temp =self.update_dependent_in_xcur()
-        self.y_cur = np.matmul( self._C_iteration ,x_temp) +  np.matmul( self._D_iteration ,self.u)
+        # x_temp =self.update_dependent_in_xcur()
+        self.y_cur = np.matmul( self._C_iteration ,x) +  np.matmul( self._D_iteration ,self.u)
 
         
     def update_x_cur(self):
         
-        
+        copy = self.x_cur.copy()
         #self.x_cur = radauIntegration( self.x_cur, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency )
         if self.integration_strategy == "Trapezoidal":
-            self.x_cur = trapezoidalIntegration( self.x_cur, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency )
+            self.x_cur = trapezoidalIntegration( self.x_cur, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency ).copy()
         else:
-            self.x_cur = backwardEulerIntegration(self.x_cur, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency)
+            self.x_cur = backwardEulerIntegration(self.x_cur, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency).copy()
 
         #TODO: update with dependent?
         # self.x_cur = self.update_dependent_in_xcur()
@@ -1053,10 +1114,23 @@ class StateSpaceSimulationModule(SimulationModule):
         
         #     res = self.update_state_with_dependent_variables()
         #     self.x_cur = res.copy()
-    
+        if np.isnan(self.x_cur).any() or np.isinf(self.x_cur).any():
+            p = 200
+        p = 200
     def iteration(self):
         # the iteration process
-        self.update_x_cur()
+
+        x_for_update =self.x_cur.copy()
+        
+        if self.cur_system_time == 0:
+            # turn all diode to off state
+            for lab, index  in self.switch_label_index_map.items():
+                # ele = self.network_matrix.net[lab]
+                if  index in  self.diode_index and  self.switch_state[index] == True:
+                    
+                    self.switch_state[index] = False
+                    self.swap_col_and_update(lab)
+
         # if self.cur_system_time == 0:
             
 
@@ -1086,7 +1160,7 @@ class StateSpaceSimulationModule(SimulationModule):
         # # record u and switch labe
         # # self.update_x_cur()
 
-        # trig = False
+        trig = False
         # # for now, assume only one switch change in one time period
         switch_triggere_labels = []
         for i in range(len(self.switch_triggered)):
@@ -1097,17 +1171,33 @@ class StateSpaceSimulationModule(SimulationModule):
                 sw_volt_lab, sw_I_lab = self.switch_index_label_map[i]
                 self.swap_col_and_update(sw_volt_lab)
                 switch_triggere_labels.append(sw_volt_lab)
+                trig = True
      
         if self.M0.rank() < self.M_size or len(self.forced_switch_mapping) > 0 :
             self.calc_impulse_response( switch_triggere_labels= switch_triggere_labels)
+            trig = True
             # The nonimpulse part
-        self.calc_nonimpulse_response()      
+        diode_switched = self.calc_nonimpulse_response()      
+
 
         self.M_size = self.M0.rank()
-
-
+        self.update_x_cur()
+        
+        # if trig or diode_switched:
+        #     self.update_y_cur()
+        #     self.update_x_cur()
+        #     # self.update_y_cur()
+        # else:
+            
+        #     self.update_x_cur()
+        #     self.update_y_cur()
+        if  diode_switched or trig:
+            self.update_y_cur(self.x_cur)
+        else:
+            self.update_y_cur(x_for_update)
+        # self.update_x_cur()
         #TODO: update x dependent for output?
-        self.update_y_cur()
+
         self.time_t.append(self.cur_system_time)
         
         self.u_output.append(  self.u.tolist())

@@ -131,15 +131,21 @@ class NetworkMatrix:
 
 
             self.M = self.M.subs(self.symbolic_to_value_map)
-        
+    
+    
+    def rref_update(self):
+        self.M_topology = self.M_topology.subs(self.symbolic_to_value_map)
+        self.M, self.M_toplolgy_pivots = self.M_topology.rref(iszerofunc=lambda x:abs(x)<10**-10)
+        self.M = self.M_topology[:,:].copy()
+        self.apply_mutual_inductance_effect(True)
     def update_M_matrix(self, labels_to_swap:str, sub_value = True):
         
         
         swapTwoColumn(self.M_topology, self.m_column_labels, self.m_column_labels_to_obj_map, labels_to_swap )
-        self.M_topology = self.M_topology.subs(self.symbolic_to_value_map)
-        self.M, self.M_toplolgy_pivots = self.M_topology.rref(iszerofunc=lambda x:abs(x)<10**-10)
-        self.M = self.M_topology[:,:].copy()
-        self.apply_mutual_inductance_effect(sub_value)
+        # self.M_topology = self.M_topology.subs(self.symbolic_to_value_map)
+        # self.M, self.M_toplolgy_pivots = self.M_topology.rref(iszerofunc=lambda x:abs(x)<10**-10)
+        # self.M = self.M_topology[:,:].copy()
+        # self.apply_mutual_inductance_effect(sub_value)
         
 
     def print_M_matrix(self ):

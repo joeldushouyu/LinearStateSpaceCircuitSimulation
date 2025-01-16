@@ -231,6 +231,9 @@ netList = [
 ]
 
 
+
+
+
 # end_sim_t = 1e-3
 # pwm_ratio = 0.5
 # switch_frequency = 100e3
@@ -254,50 +257,49 @@ netList = [
 
 
 
-# # llc BRIDGE?
-# end_sim_t = 1e-3
-# pwm_ratio = 0.5
-# switch_frequency = 100e3
 
-# current_factor, VT2_factor, VT3_factor = parameter_for_three_wind_transformer(280e-6, 968e-9, 968e-9, 0.99,0.99,0.99)
+
+
+
+
+
+
+
+# # 3 winding transformer of with diode modeling
+# switch_frequency = 60
+# end_sim_t = 0.1
+# # current_factor, VT2_factor, VT3_factor, LO_value = parameter_for_three_wind_transformer(280e-6, 968e-9, 968e-9, 0.99,0.99,0.99)
+# current_factor, VT2_factor, VT3_factor,LO_value = parameter_for_three_wind_transformer(280e-6, 968e-9, 968e-9, 0.99,0.99,0.99)
 # print(current_factor)
 # print(VT2_factor)
 # print(VT3_factor)
 # netList = [
     
-#     "Vin, NSource, 0, 400, 0",
-
-#     f"S1, NSource, NSA1, ON, {switch_frequency}, {pwm_ratio}",
-    
-#     "AMs1, NSA1, NSW",
-#     f"S2, NSW, NSA2, OFF, {switch_frequency}, {pwm_ratio}", 
-#     "AMS2, NSA2, 0",  
-    
-#     "Rp-, NSW, N2, 1",
-#     # "CR, Nc, N2, 24e-9",
-#     # "LR, NL, N2, 60e-6",
-#     # "R-LR, NL, N2, 0.00000001",
- 
+#     f"Vin, N1, 0, 400, {switch_frequency}",
+#     "R1, N1, NAM-LP, 1",
+#     "AM-R1, NAM-LP, N2",
 #     "VM-LP, N2, 0",
-#     "LP, N2, 0, 200e-6",
-#     f"ICIS-1, 0, N2, {str(-current_factor[0])}, AM-L2",  # note, negative because of how we measure the current
-#     f"ICIS-2, 0, N2, {str(-current_factor[1])}, AM-L3",
-#     # "R_CS, 0, N2, 1000e6",
+#     "LP, N2, 0, 280e-6",
+#     f"ICIS-1, 0, N2, -0.058, AM-L2",  # note, negative because of how we measure the current
+#     f"ICIS-2, 0, N2, -0.058, AM-L3",
     
-#     "L2, N3, NAM-L2, 5.99e-6",
+    
+#     "L2, N3, NAM-L2, 14.495e-9",
 #     "AM-L2, NAM-L2, N4",
 #     "VM-L2, N3, 0",
-#     f"VCVS-L1-L2, N3, NV3p, {str(VT2_factor[0])}, VM-LP",
-#     f"VCVS-L3-L2, NV3p, 0, {str(VT2_factor[1])},  VM-L3",
+#     f"VCVS-L1-L2, N3, NV3p, 0.029, VM-LP",
+#     f"VCVS-L3-L2, NV3p, 0, 0.49747,  VM-L3",
 #     "D1, N4, N7, ON",
+#     "VM-D1, N4, N7",
     
-#     "L3, N5, NAM-L3, 5.99e-6",
+#     "L3, N5, NAM-L3, 14.495e-9",
 #     "VM-L3, N5, N6",
 #     "AM-L3, NAM-L3, 0",
-#     f"VCVS-L1-L3, N5, NV4p, {str(VT3_factor[0])}, VM-LP",
-#     f"VCVS-L2-L3, NV4p, N6, {str(VT3_factor[1])}, VM-L2",
+#     f"VCVS-L1-L3, N5, NV4p, 0.029, VM-LP",
+#     f"VCVS-L2-L3, NV4p, N6,  0.49747, VM-L2",
 #     "VM-R3, N6, 0",
 #     "D2, N6, N7, ON",
+#     "VM-D2, N6, N7",
     
 #     "Rinternal, N7, N8, 0.001",
     
@@ -311,652 +313,71 @@ netList = [
 
 
 
-# # 3 winding transformer of with simple resistor
-# switch_frequency = 60
-# end_sim_t = 0.1
-# netList = [
-    
-#     f"Vin, N1, 0, 200, {switch_frequency}",
-#     "R1, N1, N2, 10",
-#     "Lp, N2, NG, 200e-6, [Ls1, Ls2], [0.99, 0.99]",
-#     "VM-S, N2, 0",
-    
-#     "Ls1, N3, NG, 400e-6, [Lp, Ls2], [0.99, 0.99]",
-#     "VM-L1, N3, NG",
-#     "R2, N3, NG, 100e3",
-    
-#     "Ls2, NG, N4, 400e-6, [Lp, Ls1], [0.99, 0.99]",
-#     "VM-L2, N4, NG",
-#     "R3, N4, NG, 100e3",
- 
-#     "RG, NG, 0, 0.00001",
- 
-    
-# ]
-
-
-# # 3 winding transformer of with simple resistor
-# switch_frequency = 60
-# end_sim_t = 0.1
-# netList = [
-    
-#     f"Vin, N1, 0, 200, {switch_frequency}",
-#     "R1, N1, N2, 10",
-#     "Lp, N2, 0, 200e-6",
-#     "VM-S, N2, 0",
-#     "ICIS-I2, 0, NICIS, 1,  ",
-#     "ICIS-I3, 0, NICIS, "
-    
-    
-#     "Ls1, N3, 0, 400e-6, [Lp, Ls2], [0.99, 0.99]",
-#     "VM-L1, N3, 0",
-#     "R2, N3, 0, 100e3",
-    
-#     "Ls2, 0, N4, 400e-6, [Lp, Ls1], [0.99, 0.99]",
-#     "VM-L2, N4, 0",
-#     "R3, N4, 0, 100e3",
- 
-
- 
-    
-# ]
-
-
-
-
-# # 3 winding transformer of with diode problem
-# switch_frequency = 60
-# end_sim_t = 0.02
-# netList = [
-    
-#     f"Vin, N1, NG1, 200, {switch_frequency}",
-#     "R1, N1, N2, 1",
-#     "Lp, N2, NG1, 200e-6, [Ls1, Ls2], [0.99, 0.99]",
-    
-#     "VM-L1, N3, NG2",
-#     "Ls1, N3, NG2, 400e-6, [Lp, Ls2], [0.99, 0.99]",
-
-#     "RD1, N3, N5, 0.01",
-#     "D1, N5, N7, ON",
-    
-#     "Ls2, NG2, N4, 400e-6, [Lp, Ls1], [0.99, 0.99]",
-
-#     "RD2, N4, N6, 0.01",
-#     "VM-L2, N4, 0",
-#     "D2, N6, N7, ON",
-    
-#     "Roo, N7, N8, 0.001",
-#     "Rout, N8, NG2, 10e3",
-#     "Cout, N8, NG2, 100e-6",
-    
-#     "VMout, N8, NG2",
-
-#     "RG, NG1, 0, 0.00001",
-#     "RG2, NG2, 0, 0.00001",
-    
-# ]
-
-
-
-
-
-# # TEST WITH NO windig for
-# switch_frequency = 60
-# end_sim_t = 0.2
-# netList = [
-    
-#     f"Vin, N1, 0, 200, {switch_frequency}",
-#     "R1, N1, N2, 1",
-#     "Lp, N2, 0, 200e-6, [Ls1, Ls2], [0.99, 0.99]",
-
-
-    
-    
-#     # "Vfake, NV, 0, 0,0",
-#     "Ls1, N3, 0, 400e-6, [Lp, Ls2], [0.99, 0.99]",
-    
-#     # "VM-L1, N3, 0",
-#     "RD1, N3, N5, 0.01",
-#     "D1, N5, N7, ON",
-    
-#     "Ls2, 0, N4, 400e-6, [Lp, Ls1], [0.99, 0.99]",
-#     # "VM-L2, N4, 0",
-#     "RD2, N4, N6, 0.01",
-#     "D2, N6, N7, ON",
-    
-#     "Roo, N7, N8, 0.001",
-#     "Rout, N8, 0, 10e3",
-#     "Cout, N8, 0, 100e-6",
-    
-#     "VMout, N8, 0",
-
-#     # "RG, NG, 0, 0.001",
- 
-    
-# ]
-
-
-
-
-
-# # buck network
-# switch_frequency=50e3
-# end_sim_t = 0.001
-# netList = [
-    
-#     "Vin, N1, 0, 12, 0",
-#     f"S1, N1,  N2-AM, ON, {switch_frequency}, 0.5",  #note, the switch frequency is 10 hz only
-#     # "Rtemp, N1-R, N2-AM, 0.0001",
-#     "L1, N2, NA, 125e-06",
-#     "D1, 0, N2, OFF",
-#     "C1, N3, 0, 4e-06",
-#     "R1, N3, N3-Resistor, 2.5",
-#     "VM1-VR, N3, 0",
-#     "AM1-IL, NA, N3",
-#     "VM2-Vin, N1, 0",
-#     "AM2-MOSFET, N2-AM, N2",
-#     "AM3-Resistor, N3-Resistor, 0",
-# ]
-
-# boost network
-# end_sim_t = 0.005
-# switch_frequency = 50e3
-# netList = [
-#     "Vin, N1, 0, 6, 0",
-#     f"S1, N2, 0, ON, {switch_frequency}, 0.6",  #note, the switch frequency is 10 hz only
-#     "L1, N1, N4, 150e-6",
-#     "D1, N2, N3, OFF",
-#     "C1, N3, 0, 33.33e-6",
-#     "R1, N3, 0, 6",
-#     "VM1-VR, N3,0",
-#     "AM1-IR, N4, N2",
-# ]
-
-
-
-# # 3 winding transformer with simple resistor, but model secondary with VCVS
-
-# netList = [
-    
-#     f"Vin, N1, 0, 200, {switch_frequency}",
-#     "R1, N1, N2, 10",
-#     "Lp, N2, NG, 200e-6, [LS1, LS2], [0.99, 0.99]",
-#     "VM-p, N2, 0",
-    
-#     "LS1, N3, NG, 400e-6, [Lp, LS2], [0.99, 0.99]",
-#     "RS1, N3, NG, 1000e6",
-#     "VM-S1, N3, NG",
-    
-#     "LS2, NG, N4, 400e-6, [Lp, LS1], [0.99, 0.99]",
-#     "RS2, N4, NG, 1000e6",
-#     "VM-S2, N4, NG",
-    
-#     "VCVS-S1, N5, NG, 1, VM-S1",
-#     "R2, N5, NG, 100e3",
-    
-#     "VCVS-S2, NG, N6, 1, VM-S2",
-#     "R3, N6, NG, 100e3",
-    
-#     "RGround, NG, 0, 0.00001",
-    
-#     "VM1-Out, N5, 0",
-# ]
-
-# # 3 winding transformer with simple resistor, but model secondary with ICVS
-# netList = [
-    
-#     f"Vin, N1, 0, 200, {switch_frequency}",
-#     "R1, N1, N2, 10",
-#     "Lp, N2, NG, 200e-6, [LS1, LS2], [0.99, 0.99]",
-#     "VM-p, N2, 0",
-    
-#     "LS1, N3, NG, 400e-6, [Lp, LS2], [0.99, 0.99]",
-#     "RS1, N3, NLS1-AM, 1000e6",
-#     "AM-S1, NLS1-AM, NG",
-#     "VM-S1, N3, NG",
-    
-#     "LS2, NG, N4, 400e-6, [Lp, LS1], [0.99, 0.99]",
-#     "RS2, N4, NLS2-AM, 1000e6",
-#     "AM-S2, NLS2-AM, 0",
-#     "VM-S2, N4, NG",
-    
-#     "ICVS-S1, N5, NG, 1000e6, AM-S1",  # ratio should be equal wi
-#     "R2, N5, NG, 100e3",
-#     "VM-S1-ideal, N5, NG",
-
-    
-#     "ICVS-S2, N6, NG, 1000e6, AM-S2",
-#     "R3, N6, NG, 100e3",
-#     "VM-S2-ideal, N6, NG",
-#     "AMG, NG, 0",
-    
-#     "VM1-Out, N5, 0",
-# ]
-
-
-# # 3 winding diode-switch work with dependent source modeling.
-# end_sim_t = 0.2
-# netList = [
-    
-#     f"Vin, N1, 0, 200, {switch_frequency}",
-#     "R1, N1, N2, 1",
-#     "Lp, N2, NP-A, 200e-6, [LS1, LS2], [0.99, 0.99]",
-#     "AMP, NP-A, NG",
-#     "VM-p, N2, NG",
-    
-#     "LS1, N3, 0, 400e-6, [Lp, LS2], [0.99, 0.99]",
-#     "RS1, N3, NLS1-AM, 1000e6",
-#     "AM-S1, NLS1-AM, NG",
-#     # "VM-S1, N3, 0",
-    
-#     "LS2, NG, N4, 400e-6, [Lp, LS1], [0.99, 0.99]",
-#     "RS2, N4, NLS2-AM, 1000e6",
-#     "AM-S2, NLS2-AM, NG",
-#     # "VM-S2, N4, 0",
-    
-#     "ICVS-S1, N5, NG, 1000e6, AM-S1",  # ratio should be equal with the resistor of LS1
-#     "VM-D1, N5, NG",
-#     "AM-D1, N5, D1-AM",
-#     "D1, D1-AM, N7, ON",
-    
-#     "ICVS-S2, N6, NG, 1000e6, AM-S2",
-#     "VM-D2, N6, NG",
-#     "AM-D2, N6, D2-AM",
-#     "D2,  D2-AM, N7, OFF",
-    
-#     "Ro-o, N7, N8, 0.001",
-#     "C1, N8, NG, 100e-6",
-#     "Ro, N8, NG, 10e3",
-
-#     "AMG, NG, 0",
-    
-#     "VM1-Out, N8, NG",
-# ]
-
-
-# # 3 winding transformer with simple resistor, but with ideal transformer modeling
-# netList = [
-    
-#     f"Vin, N1, 0, 200, {switch_frequency}",
-#     "R1, N1, N2, 10",
-#     "Lp, N2, NG, 200e-6, [LS1, LS2], [0.99, 0.99]",
-#     "VM-p, N2, 0",
-    
-#     "LS1, N3, NG, 400e-6, [Lp, LS2], [0.99, 0.99]",
-#     "VCVS-1, N3, NLS1-AM, 1, VM-S1-ideal",
-#     "AM-S1, NLS1-AM, NG",
-#     "VM-S1, N3, NG",
-    
-#     "LS2, NG, N4, 400e-6, [Lp, LS1], [0.99, 0.99]",
-#     "VCVS-2, N4, NLS2-AM, 1, VM-S2-ideal",
-#     "AM-S2, NLS2-AM, 0",
-#     "VM-S2, N4, NG",
-    
-#     "ICVS-S1, N5, NG, 1, AM-S1",  # ratio should be equal wi
-#     "R2, N5, NG, 100e3",
-#     "VM-S1-ideal, N5, NG",
-
-    
-#     "ICVS-S2, N6, NG, 2, AM-S2",
-#     "R3, N6, NG, 100e3",
-#     "VM-S2-ideal, N6, NG",
-#     "AMG, NG, 0",
-    
-#     "VM1-Out, N5, 0",
-# ]
-
-
-# end_sim_t = 0.02
-# netList = [
-    
-#     f"Vin, N1, 0, 200, {switch_frequency}",
-#     "R1, N1, N2, 1",
-#     "Lp, N2, NP-A, 200e-6, [Ls1, Ls2], [0.99, 0.99]",
-#     "AMP, NP-A, NG",
-#     "VM-p, N2, NG",
-    
-#     "Ls1, N5, NG, 400e-6, [Lp, Ls2], [0.99, 0.99]",
-#     # "VM-L1, N5, NG",
-
-    
-#     "Ls2, NG, N6, 400e-6, [Lp, Ls1], [0.99, 0.99]",
-#     # "VM-L2, N6, NG",
-    
-#     # "ICVS-S1, N5, NG, 2, AM-S1",  # ratio should be equal with the resistor of LS1
-#     "VM-D1, N5, NG",
-#     "AM-D1, N5, D1-AM",
-#     "D1, D1-AM, N7, ON",
-    
-#     # "ICVS-S2, N6, NG, 2, AM-S2",
-#     "VM-D2, N6, NG",
-#     "AM-D2, N6, D2-AM",
-#     "D2,  D2-AM, N7, ON",
-    
-#     "Ro-o, N7, N8, 0.001",
-#     "C1, N8, NG, 100e-6",
-#     "Ro, N8, NG, 10e3",
-#     "AMG, NG, 0",
-    
-#     "VM1-Out, N8, NG",
-# ]
-
-
-
-# # break point
-
-# # 3 winding diode-switch work with ideal transformer modeling
-# end_sim_t = 0.0008
-# netList = [
-    
-#     f"Vin, N1, 0, 200, {switch_frequency}",
-#     "VM-vin, N1, 0",
-#     "R1, N1, N2, 1",
-#     "Lp, N2, NP-A, 200e-6, [LS1, LS2], [0.99, 0.99]",
-#     "AMP, NP-A, NG",
-#     "VM-p, N2, NG",
-    
-#     "LS1, N3, 0, 400e-6, [Lp, LS2], [0.99, 0.99]",
-#     "RS1, N3, NLS1-AM, 200e6",
-#     "AM-S1, NLS1-AM, NG",
-#     # "VM-S1, N3, 0",
-    
-#     "LS2, NG, N4, 400e-6, [Lp, LS1], [0.99, 0.99]",
-#     "RS2, N4, NLS2-AM, 200e6",
-#     "AM-S2, NLS2-AM, NG",
-#     # "VM-S2, N4, 0",
-    
-#     "ICVS-S1, N5, NG, 200e6, AM-S1",  # ratio should be equal with the resistor of LS1
-#     "VM-D1, N5, NG",
-#     "AM-D1, N5, D1-AM",
-#     "D1, D1-AM, N7, OFF",
-    
-#     "ICVS-S2, N6, NG, 200e6, AM-S2",
-#     "VM-D2, N6, NG",
-#     "AM-D2, N6, D2-AM",
-#     "D2,  D2-AM, N7, OFF",
-    
-#     "Ro-o, N7, N8, 0.001",
-#     "C1, N8, NG, 10e-6",
-#     "Ro, N8, NG, 1e3",
-
-#     "AMG, NG, 0",
-
-#     "VM1-Out, N8, NG",
-# ]
-
-
-
-
-
-# # end_sim_t = 0.1
-# # netList = [
-    
-# #     f"Vin, N1, 0, 200, {60}",
-# #     "R1, N1, N2, 1",
-# #     "Lp, N2, NG, 200e-6, [LS1, LS2], [0.99, 0.99]",
-# #     # "AMP, NP-A, 0",
-# #     "VM-p, N2, 0",
-    
-# #     "LS1, N3, NG, 400e-6, [Lp, LS2], [0.99, 0.99]",
-# #     # "RS1, N3, NLS1-AM, 0.1",
-# #     # "AM-S1, NLS1-AM, 0",
-# #     # "VM-S1, N3, 0",
-    
-# #     "LS2, NG, N4, 400e-6, [Lp, LS1], [0.99, 0.99]",
-# #     # "RS2, N4, NLS2-AM, 0.1",
-# #     # "AM-S2, NLS2-AM, 0",
-# #     # "VM-S2, N4, 0",
-    
-# #     # "ICVS-S1, N5, 0, 2, AM-S1",  # ratio should be equal with the resistor of LS1
-# #     # "VM-D1, N5, 0",
-# #     # "AM-D1, N5, D1-AM",
-# #     "D1, N3, N7, ON",
-    
-# #     # "ICVS-S2, N6, 0, 2, AM-S2",
-# #     # "VM-D2, N6, 0",
-# #     # "AM-D2, N6, D2-AM",
-# #     "D2, N4, N7, ON",
-    
-# #     "Ro-o, N7, N8, 0.001",
-# #     "C1, N8, NG, 100e-6",
-# #     "Ro, N8, NG, 10e3",
-
-# #     "RGround, NG, 0, 0.00001",
-    
-# #     "VM1-Out, N8, 0",
-# # ]
-
-
-
-
-
-
-
-# # 3 winding diode-switch work with  Voltagedependent source modeling But no "NG" node
-# end_sim_t = 0.1
-# netList = [
-    
-#     f"Vin, N1, 0, 200, {switch_frequency}",
-#     "R1, N1, N2, 1",
-#     "Lp, N2, NP-A, 200e-6, [LS1, LS2], [0.99, 0.99]",
-#     "AMP, NP-A, 0",
-#     "VM-p, N2, 0",
-    
-#     "LS1, N3, 0, 400e-6, [Lp, LS2], [0.99, 0.99]",
-#     "RS1, N3, NLS1-AM, 2",
-#     "AM-S1, NLS1-AM, 0",
-#     "VM-S1, N3, 0",
-    
-#     "LS2, 0, N4, 400e-6, [Lp, LS1], [0.99, 0.99]",
-#     "RS2, N4, NLS2-AM, 2",
-#     "AM-S2, NLS2-AM, 0",
-#     "VM-S2, N4, 0",
-    
-#     "VCVS-S1, N5, 0, 1, VM-S1",  # ratio should be equal with the resistor of LS1
-#     "VM-D1, N5, 0",
-#     "AM-D1, N5, D1-AM",
-#     "D1, D1-AM, N7, ON",
-    
-#     "VCVS-S2, N6, 0, 1, VM-S2",
-#     "VM-D2, N6, 0",
-#     "AM-D2, N6, D2-AM"z
-#     "D2,  D2-AM, N7, OFF",
-    
-#     "Ro-o, N7, N8, 0.001",
-#     "C1, N8, 0, 100e-6",
-#     "Ro, N8, 0, 10e3",
-
-#     # "RGround, NG, 0, 0.00001",
-    
-#     "VM1-Out, N8, 0",
-# ]
-
 
-# # # 3 winding diode-switch work with dependent source modeling But no "NG" node
-# # end_sim_t = 2e-3
-# # switch_frequency = 100e3
-# # netList = [
-    
-# #     f"Vin, N1, 0, 400, {switch_frequency}",
-# #     "R1, N1, N2, 0.0001",
-# #     "Lp, N2, NP-A, 280e-6, [LS1, LS2], [0.99, 0.99]",
-# #     "AMP, NP-A, 0",
-# #     # "VM-p, N2, 0",
-    
-# #     "LS1, N3, 0, 968e-9, [Lp, LS2], [0.99, 0.99]",[200e-6 2.800142853e-4 2.800142853e-4; 2.800142853e-4 400e-6 3.9600e-4; 2.800142853e-4 3.9600e-4 400e-6]
-# #     "RS1, N3, NLS1-AM, 2",
-# #     "AM-S1, NLS1-AM, 0",
-# #     # "VM-S1, N3, 0",
-    
-# #     "LS2, 0, N4, 968e-9, [Lp, LS1], [0.99, 0.99]",
-# #     "RS2, N4, NLS2-AM, 2",
-# #     "AM-S2, NLS2-AM, 0",
-# #     # "VM-S2, N4, 0",
-    
-# #     "ICVS-S1, N5, 0, 2, AM-S1",  # ratio should be equal with the resistor of LS1
-# #     "VM-D1, N5, 0",
-# #     "AM-D1, N5, D1-AM",
-# #     "D1, D1-AM, N7, ON",
-    
-# #     "ICVS-S2, N6, 0, 2, AM-S2",        self.update_x_cur()
-
-
-
-# # end_sim_t = 2e-3
-# # pwm_ratio = 0.5
-# # switch_frequency = 100e3
-
-
-
 
 
 
+# # llc modeling
 
 
-# end_sim_t = 2e-3
-# pwm_ratio = 0.5
-# switch_frequency = 100e3
-
-# netList = [
-#     "Vin, NSource, 0, 400, 0",
+end_sim_t = 2e-3
+pwm_ratio = 0.5
+switch_frequency = 100e3
+# current_factor, VT2_factor, VT3_factor, LO_value = parameter_for_three_wind_transformer(280e-6, 968e-9, 968e-9, 0.99,0.99,0.99)
+current_factor, VT2_factor, VT3_factor,LO_value = parameter_for_three_wind_transformer(280e-6, 968e-9, 968e-9, 0.99,0.99,0.99)
+print(current_factor)
+print(VT2_factor)
+print(VT3_factor)
+netList = [
     
-#     f"S1, NSource, NSA1, ON, {switch_frequency}, {pwm_ratio}",
-    
-#     "AMs1, NSA1, NSW",
-#     f"S2, NSW, NSA2, OFF, {switch_frequency}, {1-pwm_ratio}", 
-#     "AMS2, NSA2, 0",  
 
-#     # "R1, NSW, NR, 0.1", 
-#     "AMR, NSW, NC",
-#     "Cr, NC, NL, 24e-9",
-#     "LR, NL, N2, 60e-6",
-#     "RLR, NL, N2, 1000e3",
+    "Vin, NSource, 0, 400, 0",
+    # "Rvin, NSource, NVin, 0.0001",
+    f"S1, NSource, NSW, ON, {switch_frequency}, 0.5",
+    # "VM-S1, NVin, NSW",
+    f"S2, NSW, 0, OFF, {switch_frequency}, 0.5", 
+    # "RS2, NRS2, 0, 0.0001",
+    # "VM-S2, NSW, 0",
+    "R1, NSW, NC, 0.001", 
 
-#     "Lp, N2, 0, 280e-6, [LS1, LS2], [0.99, 0.99]",
-#     # "AMP, NP-A, 0",
-#     # "VM-p, N2, 0",
-    
-#     "LS1, N3, 0, 968e-9, [Lp, LS2], [0.99, 0.99]",
-#     "RS1, N3, NLS1-AM, 2",
-#     "AM-S1, NLS1-AM, 0",
-#     # "VM-S1, N3, 0",
-    
-#     "LS2, 0, N4, 968e-9, [Lp, LS1], [0.99, 0.99]",
-#     "RS2, N4, NLS2-AM, 2",
-#     "AM-S2, NLS2-AM, 0",
-#     # "VM-S2, N4, 0",
-    
-#     "ICVS-S1, N5, 0, 2, AM-S1",  # ratio should be equal with the resistor of LS1
-#     "VM-D1, N5, 0",
-#     "AM-D1, N5, D1-AM",
-#     "D1, D1-AM, N7, ON",
-#     "VM-D1-Across, D1-AM, N7",
-    
-#     "ICVS-S2, N6, 0, 2, AM-S2",
-#     "VM-D2, N6, 0",
-#     "AM-D2, N6, D2-AM",
-#     "D2, D2-AM, N7, OFF",
-#     "VM-D2-Across, D2-AM, N7",
-    
-#     "Ro-o, N7, N8, 0.001",
-#     "C1, N8, 0, 100e-6",
-#     "Ro, N8, 0, 0.58",
+    "Cr, NC, NL, 24e-9",
+    "LR, NL, N2, 60e-6",
+    # "R-LR, NL, N2, 1000e6",
+    # "RLRR, NLRLR, N2, 0.001",
 
-#     # "RGround, NG, 0, 0.00001",
+    "VM-LP, N2, 0",
+    "LP, N2, 0, 280e-6",
     
-#     "VM1-Out, N8, 0",
-# ]
 
-# end_sim_t = 1e-3
-# pwm_ratio = 0.5
-# switch_frequency = 100e3
-# netList = [
-#     "Vin, NSource, 0, 400, 0",
+    f"ICIS-1, 0, N2, -0.058, AM-L2",  # note, negative because of how we measure the current
+    f"ICIS-2, 0, N2, -0.058, AM-L3",
+    "R-ICIS, 0, N2, 2000e6",
+    # "VM-ICSI, 0, N2",
+        
+    "L2, N3, NAM-L2, 14.495e-9",
+    "AM-L2, NAM-L2, N4",
+    "VM-L2, N3, 0",
+    f"VCVS-L1-L2, N3, NV3p, 0.029, VM-LP",
+    f"VCVS-L3-L2, NV3p, 0, 0.49747,  VM-L3",
+    "D1, N4, N7, ON",
+    "VM-D1, N4, 0",
     
-#     f"S1, NSource, NSA1, ON, {switch_frequency}, {pwm_ratio}",
-    
-#     "AMs1, NSA1, NSW",
-#     f"S2, NSW, NSA2, OFF, {switch_frequency}, {pwm_ratio}", 
-#     "AMS2, NSA2, 0",  
-
-#     "R1, NSW, NR, 0.01", 
-#     "AMR, NR, NC",
-#     "C1, NC, NL, 24e-9",
-#     "LR, NL, 0, 60e-6",
-#     "VMR, NSW, 0",
-#     "VMC, NC, 0",
-#     "VML, NL, 0",
-# ]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#cut point
-
-
-
-
-# end_sim_t = 2e-3
-# pwm_ratio = 0.5
-# switch_frequency = 100e3
-
-# netList = [
-#     "Vin, NSource, 0, 400, 0",
+    "L3, N5, NAM-L3, 14.495e-9",
+    "VM-L3, N5, N6",
+    "AM-L3, NAM-L3, 0",
+    f"VCVS-L1-L3, N5, NV4p, 0.029, VM-LP",
+    f"VCVS-L2-L3, NV4p, N6,  0.49747, VM-L2",
+    "D2, N6, N7, ON",
+    "VM-D2, N6, 0",
     
-#     f"S1, NSource, NSA1, ON, {switch_frequency}, {pwm_ratio}",
+    "Rinternal, N7, N8, 0.001",
     
-#     "AMs1, NSA1, NSW",
-#     f"S2, NSW, NSA2, OFF, {switch_frequency}, {1-pwm_ratio}", 
-#     "AMS2, NSA2, 0",  
-
-#     # "R1, NSW, NR, 0.1", 
-#     "AMR, NSW, NC",
-#     "Cr, NC, NL, 24e-9",
-#     "LR, NL, N2, 60e-6",
-#     "RLR, NL, N2, 1000e3",
+    "C1, N8, 0, 1000e-6",
+    "Ro, N8, 0, 0.48",
+    "VMC, N8, 0",
+]
 
-#     "Lp, N2, NP-A, 200e-6, [LS1, LS2], [0.99, 0.99]",
-#     "AMP, NP-A, 0",
-#     # "VM-p, N2, 0",
-    
-#     "LS1, N3, 0, 400e-6, [Lp, LS2], [0.99, 0.99]",
-#     "RS1, N3, NLS1-AM, 2",
-#     "AM-S1, NLS1-AM, 0",
-#     "VM-S1, N3, 0",
-    
-#     "LS2, 0, N4, 400e-6, [Lp, LS1], [0.99, 0.99]",
-#     "RS2, N4, NLS2-AM, 2",
-#     "AM-S2, NLS2-AM, 0",
-#     "VM-S2, N4, 0",
-    
-#     "VCVS-S1, N5, 0, 1, VM-S1",  # ratio should be equal with the resistor of LS1
-#     "VM-D1, N5, 0",
-#     "AM-D1, N5, D1-AM",
-#     "D1, D1-AM, N7, OFF",
-    
-#     "VCVS-S2, N6, 0, 1, VM-S2",
-#     "VM-D2, N6, 0",
-#     "AM-D2, N6, D2-AM"
-#     "D2,  D2-AM, N7, OFF",
-    
-#     "Ro-o, N7, N8, 0.001",
-#     "C1, N8, 0, 1000e-6",
-#     "Ro, N8, 0, 0.48",
 
-#     # "RGround, NG, 0, 0.00001",
-    
-#     "VM1-Out, N8, 0",
-# ]
 
 
 network_matrix = system_realization(netList)
@@ -1011,7 +432,7 @@ switch_oversample_message = OversamplingMessage(message_manager=message_manager)
 
 # okay, now create each individual simulation modules
 
-iteration_frequency =  max(20e3, switch_frequency*20)
+iteration_frequency =  max(1000e3, switch_frequency*100)
 state_space_module = StateSpaceSimulationModule(network_matrix=network_matrix, iteration_frequency= iteration_frequency) #TODO: change later
 oversample_module =SwitchOversampleModule( network_matrix=network_matrix, sample_frequency=iteration_frequency, oversample_message=switch_oversample_message)
 
