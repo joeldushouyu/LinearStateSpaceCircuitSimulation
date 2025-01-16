@@ -709,7 +709,36 @@ def parameter_for_two_wind_from_book(L1, L2, K):
     # Lu = K**2*L1
     # return La, Lu, n #TODO?
     
+
+
+def parameter_for_three_wind_transformer(Lp, L1, L2, K12, K13, K23):
+    decimal_precision = 3
+    # https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=703254
+    M12= K12*math.sqrt(Lp *L1)
+    M13 = K13*math.sqrt(Lp*L2)
+    M23 = K23*math.sqrt(L1*L2)
+    L = Matrix([[Lp, M12, M13 ], 
+                    [M12, L1, M23], 
+                    [M13, M23, L2]])
+    B = L.inv()
     
+    n1 = 1
+    n2 = L[0,1]/L[0,0]
+    n3 = L[0,2]/L[0,0]
+    
+    l12 = -1/(n1*n2*B[0,1])
+    l13 = -1/(n1*n3*B[0,2])
+    l23 = -1/(n2*n3*B[1,2])
+    
+    L02 = (n2**2) * 1/( (1/l12) +(1/l23) )
+    L03 = (n3**2) * 1/( (1/l13) + (1/l23) )
+    
+    
+    
+    VT2_factor =[   round(L02/(n2*l12),decimal_precision), round( L02/(n2*n3*l23),decimal_precision) ]
+    VT3_factor = [ round(L03/(n3*l13),decimal_precision) , round(L03/(n2*n3*l23),decimal_precision)]
+    
+    return [round(n2,decimal_precision), round(n3,decimal_precision)], VT2_factor, VT3_factor, [Lp , L02, L03]
     
     
     

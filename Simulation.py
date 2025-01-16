@@ -135,7 +135,7 @@ class VoltageCurrentSimulationModule(SimulationModule):
         
 
         self.cur_source_value = self.sinewave_at_time_t(message.get_time())
-        print(message.get_time(),   self.cur_source_value)
+        # print(message.get_time(),   self.cur_source_value)
     def publish(self):
 
         if self.source.is_voltage_source:
@@ -404,7 +404,7 @@ class StateSpaceSimulationModule(SimulationModule):
                     elif isinstance(ele, ExternalSwitch):
                         switch_list.append(ele)
             
-            if len(switch_list) >0:
+            if len(switch_list) >0 and len(diode_list) > 0:
                 assert len(switch_list) == 1
                 forced_switch_diode_mapping[switch_list[0]] = diode_list
         
@@ -1056,7 +1056,7 @@ class StateSpaceSimulationModule(SimulationModule):
     
     def iteration(self):
         # the iteration process
-
+        self.update_x_cur()
         # if self.cur_system_time == 0:
             
 
@@ -1105,7 +1105,7 @@ class StateSpaceSimulationModule(SimulationModule):
 
         self.M_size = self.M0.rank()
 
-        self.update_x_cur()
+
         #TODO: update x dependent for output?
         self.update_y_cur()
         self.time_t.append(self.cur_system_time)

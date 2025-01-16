@@ -889,7 +889,7 @@ def system_realization(netList: list[list[str]]):
     M, pivot = M.rref()
     
     
-    # M = M.subs(symbollic_to_value_map)
+    M = M.subs(symbollic_to_value_map)
     net =  NetworkMatrix(
         M_topology=M[:,:],
         m_column_labels=reordered_m_labels,
