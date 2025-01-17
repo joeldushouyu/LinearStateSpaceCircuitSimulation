@@ -718,6 +718,15 @@ def system_realization(netList: list[list[str]]):
         elif isinstance(item1, Capacitor) and isinstance(item2, Inductor):
             return 1
         else:
+            
+            if isinstance(item1, Inductor) and isinstance(item2, Inductor):
+                if len(item1.K_factors) > 0 and len(item2.K_factors) > 0 and item1.name in item2.mutual_inductor_names:
+                    return 0
+                else:
+                    if item1.name < item2.name:
+                        return -1
+                    else:
+                        return 1
             return 0
     # generate util, u
     u_tilt = []
@@ -877,20 +886,6 @@ def system_realization(netList: list[list[str]]):
     
     
     
-    print_matrix(M, reordered_m_labels, ["" for x in range(M.shape[0])])
-
-    
-
-
-    
-    # # also try to swap two columns to get into false, true state
-    # temp = M[:, 5]
-    # M[:, 5] = M[:, 7].copy()
-    # M[:,7] = temp
-    
-    # k = reordered_m_labels[5]
-    # reordered_m_labels[5] = reordered_m_labels[7]
-    # reordered_m_labels[7] = k
     
     M, pivot = M.rref()
     
