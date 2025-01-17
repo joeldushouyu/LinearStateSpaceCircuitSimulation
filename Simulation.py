@@ -12,8 +12,8 @@ from FormNetworkMatrix import NetworkMatrix
 from sympy import Matrix
 import sympy as sp
 from util import (is_rise_edge, retrieveSystemMatrix,
-                  determine_dependent_state_vars, print_matrix_for_matlab_format,
-                  backwardEulerIntegration, trapezoidalIntegration, radauIntegration,
+                  determine_dependent_state_vars, print_matrix_for_matlab_format,stiffSolver,
+                  backwardEulerIntegration, trapezoidalIntegration, 
                   detemrminte_matrix_for_dependent_state_vars
                   )
 from typing import Tuple
@@ -560,7 +560,16 @@ class StateSpaceSimulationModule(SimulationModule):
         
         
         min_eig = min(  [  sp.re(x.subs(self.network_matrix.symbolic_to_value_map))  * (1/self.iteration_frequency) for x  in eigen_value_dict.keys()])
+        max_eig =  max(  [  sp.re(x.subs(self.network_matrix.symbolic_to_value_map))  * (1/self.iteration_frequency) for x  in eigen_value_dict.keys()])
         
+        max_abs = max([  abs(sp.re(x.subs(self.network_matrix.symbolic_to_value_map))  * (1/self.iteration_frequency)) for x  in eigen_value_dict.keys()])
+        min_abs = min([  abs(sp.re(x.subs(self.network_matrix.symbolic_to_value_map))  * (1/self.iteration_frequency)) for x  in eigen_value_dict.keys()])
+        
+        # if max_abs/min_abs > 1000:
+        #     # means stiff system encounter
+        #     # ration equation: https://en.wikipedia.org/wiki/Stiff_equation
+        #     # stiffness ratio is negotiable to change
+        #     self.integration_strategy = "stiff"
         if min_eig <= -2:
             self.integration_strategy = "BackwardEuler"
         else:
@@ -1102,6 +1111,11 @@ class StateSpaceSimulationModule(SimulationModule):
         
         copy = self.x_cur.copy()
         #self.x_cur = radauIntegration( self.x_cur, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency )
+        # if self.integration_strategy ==  "p_0_q_2":
+        #     self.x_cur = p_0_q_2_integration( self.x_cur, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency ).copy()
+        # el
+        # if self.integration_strategy == "stiff":
+        #     self.x_cur = stiffSolver( self.x_cur, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency ).copy()
         if self.integration_strategy == "Trapezoidal":
             self.x_cur = trapezoidalIntegration( self.x_cur, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency ).copy()
         else:

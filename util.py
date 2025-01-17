@@ -11,7 +11,7 @@ import numpy as np
 import numpy.typing as npt
 import math
 import sys
-from scipy.integrate import solve_ivp
+from scipy.integrate import ode,solve_ivp
 
 
 import scipy.linalg  
@@ -489,45 +489,6 @@ def transfer_func_and_poles(A: Matrix, B: Matrix, C:Matrix, D:Matrix, symbolic_v
 
 # @njit(parallel=True)
 
-def radauIntegration(x_cur: np.ndarray, A: np.ndarray, B: np.ndarray, u: np.ndarray, time_t: float):
-    """
-    Implements 3rd order Radau IIA integration for stiff systems.
-    This method is L-stable and particularly suitable for stiff problems.
-    
-    Args:
-        x_cur: Current state vector
-        A: State matrix
-        B: Input matrix
-        u: Input vector
-        time_t: Time step
-    """
-    # A = np.array([[0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [1, 0, 0, 0]])  # Example 4x4 matrix
-    # B = np.array([[0], [1], [0], [0]])  # Example 4x1 matrix (input matrix)
-    #u = np.array([1])  # Constant input (scalar)
-    t_span = [0, time_t]  # Time span for one step
-
-    # Define the derivative function
-    # Define the derivative function
-    def lti_system(t, x):
-        # Ensure that both A @ x and B @ u are 1D arrays (of shape (n,))
-        return np.squeeze(A @ x + B @ u)
-
-    # Ensure x_cur is 1D (flatten if necessary)
-    x_cur = x_cur.flatten()
-    u = u.flatten()
-    # Solve the system
-    solution = solve_ivp(
-        lti_system,
-        t_span=t_span,
-        y0=x_cur,  # y0 must be 1-dimensional
-        method='Radau'
-    )
-
-    # Return the state at the end of the integration
-    return np.reshape(solution.y[:, -1], (-1, 1))
-
-
-
 def backwardEulerIntegration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, u:  np.ndarray, time_t:float):
     # p = 0
     # q = 1
@@ -624,6 +585,50 @@ def backwardEulerIntegration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, 
     
 #     return x_next
 
+
+
+
+
+
+
+
+
+def stiffSolver(x_cur: np.ndarray, A: np.ndarray, B: np.ndarray, u: np.ndarray, time_t: float) -> np.ndarray:
+    """
+    Solve a stiff LTI system using the Radau IIA method.
+
+    :param x_cur: Current state vector (shape: (6,)).
+    :param A: State matrix (shape: (6, 6)).
+    :param B: Input matrix (shape: (6, m), where m is the number of inputs).
+    :param u: Input vector (shape: (m,)).
+    :param time_t: Time step for integration.
+    :return: The state vector at the end of the time step (shape: (6,)).
+    """
+    # Ensure x_cur is 1-dimensional
+    # Ensure x_cur is 1-dimensional
+    x_cur = np.asarray(x_cur).flatten()
+
+    # Ensure u is 1-dimensional
+    u = np.asarray(u).flatten()
+
+    def state_space_dynamics(t, x, u, A, B):
+        """
+        Compute the derivative of the state vector.
+        :param t: Time (not used in LTI systems, but required by the solver).
+        :param x: Current state vector (shape: (6,)).
+        :param u: Input vector (shape: (m,)).
+        :param A: State matrix (shape: (6, 6)).
+        :param B: Input matrix (shape: (6, m)).
+        :return: Derivative of the state vector (shape: (6,)).
+        """
+        dxdt = np.dot(A, x) + np.dot(B, u)
+        return dxdt
+
+    # Solve the ODE using Radau IIA
+    sol = solve_ivp(state_space_dynamics, [0, time_t], x_cur, args=(u, A, B), method='Radau')
+
+    # Return the final state (ensure it is 1-dimensional)
+    return sol.y[:, -1].flatten()
 
 # @njit(parallel=True)
 def trapezoidalIntegration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, u:  np.ndarray, time_t:float):
