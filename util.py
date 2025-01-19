@@ -127,7 +127,97 @@ def calculate_dependent_state_vars(M0: Matrix, x_hat_labels:list[str]):
             dependent_state_vars.append(x_hat_labels[i]) 
 
 
+def reogranize_matrix_by_row_col_mapping(matrix: Matrix, old_lab_row_idx_mapping:dict[str, int], old_lab_col_idx_mapping:dict[str, int],
+                                         new_lab_row_idx_mapping:dict[str, int], new_lab_col_idx_mapping:dict[str, int]
+                                         ):
+    
+    num_rows = len(new_lab_row_idx_mapping)
+    num_cols = len(new_lab_col_idx_mapping)
 
+# Create a new zero matrix with the desired dimensions
+    new_matrix = sp.zeros(num_rows, num_cols)
+
+    # Populate the new matrix
+    for new_row_label, new_row_idx in new_lab_row_idx_mapping.items():
+        for new_col_label, new_col_idx in new_lab_col_idx_mapping.items():
+            # Get the original row and column indices
+            original_row_idx = old_lab_row_idx_mapping[new_row_label]
+            original_col_idx = old_lab_col_idx_mapping[new_col_label]
+            
+            # Assign the value from the original matrix to the new matrix
+            new_matrix[new_row_idx, new_col_idx] = matrix[original_row_idx, original_col_idx]
+    return new_matrix
+
+
+
+def generate_independent_dependent_row_col_mapping(M0: Matrix, A: Matrix, B: Matrix, C: Matrix, D: Matrix, independent_state_row_col_map:dict[str, list[int]], dependent_state_row_col_map:dict[str, list[int]]):
+    # Note: no need to reorder C1, because any dependent x_hat(derivative of x) will be o
+    
+
+    system_row_index_mapping:dict[str, int]  = {}
+    system_col_index_mapping:dict[str, int] = {}
+    
+    ind_dep_row_index_mapping:dict[str, int] = {}
+    ind_dep_col_index_mapping:dict[str, int] = {}
+    
+    index = 0
+    for lab, system_row_col in independent_state_row_col_map.items():
+        ind_dep_row_index_mapping[lab] = index
+        ind_dep_col_index_mapping[lab] = index
+        
+        system_row_index_mapping[lab] = system_row_col[0]
+        system_col_index_mapping[lab] = system_row_col[1]
+
+        
+        index +=1
+    for lab, system_row_col in dependent_state_row_col_map.items():
+        ind_dep_row_index_mapping[lab] = index
+        ind_dep_col_index_mapping[lab] = index
+        
+        system_row_index_mapping[lab] = system_row_col[0]
+        system_col_index_mapping[lab] = system_row_col[1]
+        
+        index +=1
+
+    return system_row_index_mapping, system_col_index_mapping, ind_dep_row_index_mapping, ind_dep_col_index_mapping
+
+
+
+
+def determine_dependent_independent_state_mapping(M0: Matrix, A: Matrix, B: Matrix, m_pivots:list[int], x_hat_labels: list[int], x_hat_col_offset_in_m_pivots:int,  ):
+    
+    
+    independent_state_row_col_map:dict[str, list[int]] = {}
+    dependent_state_row_col_map:dict[str, list[int]] = {}
+    # determine the the dependent/independent state variabls with their row/column
+    _,M0_pivots = M0.rref() 
+    
+    
+    for index in range(len(M0_pivots)):
+        assert M0_pivots[index] == m_pivots[ index + x_hat_col_offset_in_m_pivots ]
+        
+        pivot_col = M0_pivots[index]
+        pivot_row = index # by def, pivots are the first nonzero in each row
+        label = x_hat_labels[pivot_col]
+        
+        independent_state_row_col_map[label] = [pivot_row, pivot_col]
+    
+    # remaing column that are not in M0_pivots
+    # dependent variable are cols not in M0_pivots, but in m_pivots
+    # those m_pivots points to column in A matrix
+    
+    dependent_row_start = len(M0_pivots)
+    for m_pivot_col in m_pivots[x_hat_col_offset_in_m_pivots + len(x_hat_labels)]:
+        
+        M0_pivot_col = m_pivot_col - len(x_hat_labels)
+        
+        label = x_hat_labels[M0_pivot_col]
+        
+        dependent_state_row_col_map[label] = [dependent_row_start, M0_pivot_col]
+        
+        dependent_row_start += 1
+    
+    return independent_state_row_col_map, dependent_state_row_col_map
 def retrieveSystemMatrix(
     M: Matrix,
     m_pivots: list[int],
@@ -165,16 +255,6 @@ def retrieveSystemMatrix(
     zero_offset = x_col_offset + x_labels_size
     u_col_offset = zero_offset + y_zero_labels_size + s_zero_labels_size
 
-    # s_row_offset = 0
-    # y_row_offset = s_labels_size
-    # x_row_offset = y_row_offset + y_labels_size
-    
-    
-    
-    # those offset are ideal when network is consistent
-    # but when network is no longer consistent, ie the pivots are not in sequential order
-    
-
 
     inconsistent_labels:list[str] = []
     
@@ -210,6 +290,12 @@ def retrieveSystemMatrix(
     y_row_col_offset -= s_row_inconsistent_count
     x_hat_row_col_offset -= ( s_row_inconsistent_count + y_row_inconsistent_count)
     
+
+    M_offset_info = {"s_row_col_offset":s_row_col_offset, "y_row_col_offset":y_row_col_offset, "x_hat_row_col_offset":x_hat_row_col_offset,
+                     "y_col_offset":y_col_offset, "x_hat_col_offset":x_hat_col_offset, "x_col_offset":x_col_offset, "zero_offset":zero_offset,
+                     "u_col_offset":u_col_offset
+                     }
+
 
     s_dxdt = -M[s_row_col_offset:y_row_col_offset, x_hat_col_offset:x_col_offset]
     Sx = -M[s_row_col_offset:y_row_col_offset, x_col_offset:zero_offset]
@@ -365,85 +451,85 @@ def determine_dependent_state_vars(M0: Matrix, A:Matrix, B:Matrix, network_matri
     indenepdent_state_vars_labels = []
     dependent_state_vars_labels = []
     
-    independent_state_vars_cols = []
-    dependent_state_vars_cols = []
+#     independent_state_vars_cols = []
+#     dependent_state_vars_cols = []
     
-    cols = M0.cols
-    _, pivots = M0.rref()
-    j = 0
-    for i in range(cols):
-        is_independent = j  < len(pivots)  and pivots[j] == i
-        if is_independent:
-            indenepdent_state_vars_labels.append( network_matrix.x_hat_labels[i] )  
-            independent_state_vars_cols.append(i)
-            j += 1
-        else:
-            dependent_state_vars_labels.append(network_matrix.x_hat_labels[i])
-            dependent_state_vars_cols.append(i)
-    
-    
-    zero_rows = []
-    
-    for i in range(M0.rows):
-        if M0[i,:].is_zero_matrix:
-            zero_rows.append(i)
-    zero_count = len(zero_rows)
-    independent_count= len(indenepdent_state_vars_labels)
-    dependent_count = len(dependent_state_vars_labels)
-    
-    Adi = Matrix(zero_count, independent_count, [0]*( zero_count*independent_count ))
-    Add_inv = Matrix(zero_count, dependent_count, [0] *(zero_count * dependent_count) )
-    Bd = Matrix( zero_count, B.cols, [0]*(zero_count *B.cols) )  # B.cols is the number of input variable
+#     cols = M0.cols
+#     _, pivots = M0.rref()
+#     j = 0
+#     for i in range(cols):
+#         is_independent = j  < len(pivots)  and pivots[j] == i
+#         if is_independent:
+#             indenepdent_state_vars_labels.append( network_matrix.x_hat_labels[i] )  
+#             independent_state_vars_cols.append(i)
+#             j += 1
+#         else:
+#             dependent_state_vars_labels.append(network_matrix.x_hat_labels[i])
+#             dependent_state_vars_cols.append(i)
     
     
+#     zero_rows = []
     
-    # check if any inconsistent actually occurs
+#     for i in range(M0.rows):
+#         if M0[i,:].is_zero_matrix:
+#             zero_rows.append(i)
+#     zero_count = len(zero_rows)
+#     independent_count= len(indenepdent_state_vars_labels)
+#     dependent_count = len(dependent_state_vars_labels)
+    
+#     Adi = Matrix(zero_count, independent_count, [0]*( zero_count*independent_count ))
+#     Add_inv = Matrix(zero_count, dependent_count, [0] *(zero_count * dependent_count) )
+#     Bd = Matrix( zero_count, B.cols, [0]*(zero_count *B.cols) )  # B.cols is the number of input variable
     
     
-    forced_diode_switches = []
-    for i in range(zero_count):
+    
+#     # check if any inconsistent actually occurs
+    
+    
+#     forced_diode_switches = []
+#     for i in range(zero_count):
         
-        row = zero_rows[i]
+#         row = zero_rows[i]
         
-        # see if the rows of A is empty but B is not empty
-        if A[row,:].is_zero_matrix and not B[row,:].is_zero_matrix:
+#         # see if the rows of A is empty but B is not empty
+#         if A[row,:].is_zero_matrix and not B[row,:].is_zero_matrix:
             
-            # network_matrix.print_M_matrix()
+#             # network_matrix.print_M_matrix()
            
-            # find nonzero labels of this row in the network.M matrix
-            row_num_in_m = row + network_matrix.s_labels_size+ network_matrix.y_label_size
+#             # find nonzero labels of this row in the network.M matrix
+#             row_num_in_m = row + network_matrix.s_labels_size+ network_matrix.y_label_size
             
-            row_in_m = network_matrix.M[row_num_in_m, :]
-            offset = network_matrix.s_labels_size + network_matrix.y_label_size + network_matrix.x_hat_label_size
+#             row_in_m = network_matrix.M[row_num_in_m, :]
+#             offset = network_matrix.s_labels_size + network_matrix.y_label_size + network_matrix.x_hat_label_size
         
         
-            for i in range( offset,   row_in_m.cols):
-                if row_in_m[i] != 0:
-                    lab = network_matrix.m_column_labels[i]
-                    ele = network_matrix.m_column_labels_to_obj_map[lab]
-                    if isinstance(ele, Diode):
-                        forced_diode_switches.append(lab)
-                    elif isinstance(ele, ExternalSwitch):
-                        assert ele.element_current_name == sw_lab or ele.element_voltage_name == sw_lab
-                    else:
-                        pass
+#             for i in range( offset,   row_in_m.cols):
+#                 if row_in_m[i] != 0:
+#                     lab = network_matrix.m_column_labels[i]
+#                     ele = network_matrix.m_column_labels_to_obj_map[lab]
+#                     if isinstance(ele, Diode):
+#                         forced_diode_switches.append(lab)
+#                     elif isinstance(ele, ExternalSwitch):
+#                         assert ele.element_current_name == sw_lab or ele.element_voltage_name == sw_lab
+#                     else:
+#                         pass
             
                         
-        else:
-            for j in range(dependent_count):
-                col = dependent_state_vars_cols[j]
-                Add_inv[i, j]  = A[row, col]
-            for j in range(independent_count):
-                col = independent_state_vars_cols[j]
-                Adi[i,j] = A[row, col]
+#         else:
+#             for j in range(dependent_count):
+#                 col = dependent_state_vars_cols[j]
+#                 Add_inv[i, j]  = A[row, col]
+#             for j in range(independent_count):
+#                 col = independent_state_vars_cols[j]
+#                 Adi[i,j] = A[row, col]
             
-            for j in range(B.cols):
-                Bd[i,j] = B[row, j]
+#             for j in range(B.cols):
+#                 Bd[i,j] = B[row, j]
         
 
-            Add_inv = Add_inv.inv()
+#             Add_inv = Add_inv.inv()
     
-    return  forced_diode_switches, Add_inv, Adi, Bd, indenepdent_state_vars_labels, independent_state_vars_cols, dependent_state_vars_labels, dependent_state_vars_cols
+#     return  forced_diode_switches, Add_inv, Adi, Bd, indenepdent_state_vars_labels, independent_state_vars_cols, dependent_state_vars_labels, dependent_state_vars_cols
 
 
 
@@ -593,42 +679,42 @@ def backwardEulerIntegration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, 
 
 
 
-def stiffSolver(x_cur: np.ndarray, A: np.ndarray, B: np.ndarray, u: np.ndarray, time_t: float) -> np.ndarray:
-    """
-    Solve a stiff LTI system using the Radau IIA method.
+# def stiffSolver(x_cur: np.ndarray, A: np.ndarray, B: np.ndarray, u: np.ndarray, time_t: float) -> np.ndarray:
+#     """
+#     Solve a stiff LTI system using the Radau IIA method.
 
-    :param x_cur: Current state vector (shape: (6,)).
-    :param A: State matrix (shape: (6, 6)).
-    :param B: Input matrix (shape: (6, m), where m is the number of inputs).
-    :param u: Input vector (shape: (m,)).
-    :param time_t: Time step for integration.
-    :return: The state vector at the end of the time step (shape: (6,)).
-    """
-    # Ensure x_cur is 1-dimensional
-    # Ensure x_cur is 1-dimensional
-    x_cur = np.asarray(x_cur).flatten()
+#     :param x_cur: Current state vector (shape: (6,)).
+#     :param A: State matrix (shape: (6, 6)).
+#     :param B: Input matrix (shape: (6, m), where m is the number of inputs).
+#     :param u: Input vector (shape: (m,)).
+#     :param time_t: Time step for integration.
+#     :return: The state vector at the end of the time step (shape: (6,)).
+#     """
+#     # Ensure x_cur is 1-dimensional
+#     # Ensure x_cur is 1-dimensional
+#     x_cur = np.asarray(x_cur).flatten()
 
-    # Ensure u is 1-dimensional
-    u = np.asarray(u).flatten()
+#     # Ensure u is 1-dimensional
+#     u = np.asarray(u).flatten()
 
-    def state_space_dynamics(t, x, u, A, B):
-        """
-        Compute the derivative of the state vector.
-        :param t: Time (not used in LTI systems, but required by the solver).
-        :param x: Current state vector (shape: (6,)).
-        :param u: Input vector (shape: (m,)).
-        :param A: State matrix (shape: (6, 6)).
-        :param B: Input matrix (shape: (6, m)).
-        :return: Derivative of the state vector (shape: (6,)).
-        """
-        dxdt = np.dot(A, x) + np.dot(B, u)
-        return dxdt
+#     def state_space_dynamics(t, x, u, A, B):
+#         """
+#         Compute the derivative of the state vector.
+#         :param t: Time (not used in LTI systems, but required by the solver).
+#         :param x: Current state vector (shape: (6,)).
+#         :param u: Input vector (shape: (m,)).
+#         :param A: State matrix (shape: (6, 6)).
+#         :param B: Input matrix (shape: (6, m)).
+#         :return: Derivative of the state vector (shape: (6,)).
+#         """
+#         dxdt = np.dot(A, x) + np.dot(B, u)
+#         return dxdt
 
-    # Solve the ODE using Radau IIA
-    sol = solve_ivp(state_space_dynamics, [0, time_t], x_cur, args=(u, A, B), method='Radau')
+#     # Solve the ODE using Radau IIA
+#     sol = solve_ivp(state_space_dynamics, [0, time_t], x_cur, args=(u, A, B), method='Radau')
 
-    # Return the final state (ensure it is 1-dimensional)
-    return sol.y[:, -1].flatten()
+#     # Return the final state (ensure it is 1-dimensional)
+#     return sol.y[:, -1].flatten()
 
 # @njit(parallel=True)
 def trapezoidalIntegration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, u:  np.ndarray, time_t:float):

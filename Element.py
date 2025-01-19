@@ -61,9 +61,11 @@ class ExternalSwitch(PortElement):
         self.switch_frequency = switch_frequency
         self.duty_cycle = duty_cycle
 class Diode(PortElement):
-    def __init__(self, name, port_a, port_b, initial_switch_state:bool):
+    def __init__(self, name, port_a, port_b, initial_switch_state:bool, diode_voltmeter_name:str, diode_ammeter_name:str):
         super().__init__(name, port_a, port_b)
         self.initial_switch_state = initial_switch_state
+        self.diode_voltmeter_name = diode_voltmeter_name
+        self.diode_ammeter_name = diode_ammeter_name
 
 class Inductor(PortElement):
     def __init__(self, name, port_a, port_b, inductance:float, inductor_symbol:Symbol, mutual_inductor_names:list[str]|None=None, K_factors:list[Symbol]|None = None):

@@ -12,7 +12,7 @@ from FormNetworkMatrix import NetworkMatrix
 from sympy import Matrix
 import sympy as sp
 from util import (is_rise_edge, retrieveSystemMatrix,
-                  determine_dependent_state_vars, print_matrix_for_matlab_format,stiffSolver,
+                  determine_dependent_state_vars, print_matrix_for_matlab_format,
                   backwardEulerIntegration, trapezoidalIntegration, 
                   detemrminte_matrix_for_dependent_state_vars
                   )
@@ -300,6 +300,7 @@ class StateSpaceSimulationModule(SimulationModule):
         
         self.number_of_output = len(self.network_matrix.y_labels)
         self.y_cur = np.ndarray(  (self.number_of_output, 1), dtype=np.float64)
+        self.y_cur[:, 0] = 0
         #self.y_cur = sp.Matrix(self.number_of_output, 1, [0 for k in range(self.number_of_output)]) 
     
         self.C: Matrix =None
@@ -363,22 +364,22 @@ class StateSpaceSimulationModule(SimulationModule):
         self.initialize_data()
     
     
-    def update_dependent_in_xcur(self):
+    def update_dependent_in_xcur(self, x_cur_for_update):
         
         
-        part_1  =  np.matmul(self.A_x_independent_filter, self.x_cur)
-        res =   part_1    +   np.matmul( self._A_dependent, self.x_cur) +  np.matmul( self._B_dependent ,  self.u)
+        part_1  =  np.matmul(self.A_x_independent_filter, x_cur_for_update) # -1 on dependent variables
+        res =   part_1    +   np.matmul( self._A_dependent, x_cur_for_update) +  np.matmul( self._B_dependent ,  self.u)
         
         # add back with original self.x_cir
-        res += self.x_cur
+        res +=x_cur_for_update
         #TODO: remove later
         
         for lab in self.dependent_state_var_labels:
             ind = self.network_matrix.x_hat_labels.index(lab)
-            assert part_1[ind,0] == -self.x_cur[ind, 0]
+            assert part_1[ind,0] == -x_cur_for_update[ind, 0]
         for lab in self.independent_state_var_labels:
             ind = self.network_matrix.x_hat_labels.index(lab)
-            assert res[ind,0] == self.x_cur[ind,0]
+            assert res[ind,0] == x_cur_for_update[ind,0]
             
         return res
         
@@ -566,10 +567,11 @@ class StateSpaceSimulationModule(SimulationModule):
         min_abs = min([  abs(sp.re(x.subs(self.network_matrix.symbolic_to_value_map))  * (1/self.iteration_frequency)) for x  in eigen_value_dict.keys()])
         
         # if max_abs/min_abs > 1000:
-        #     # means stiff system encounter
-        #     # ration equation: https://en.wikipedia.org/wiki/Stiff_equation
-        #     # stiffness ratio is negotiable to change
-        #     self.integration_strategy = "stiff"
+        # #     # means stiff system encounter
+        # #     # ration equation: https://en.wikipedia.org/wiki/Stiff_equation
+        # #     # stiffness ratio is negotiable to change
+        # #     self.integration_strategy = "stiff"
+        #     print("System is very stiff")
         if min_eig <= -2:
             self.integration_strategy = "BackwardEuler"
         else:
@@ -587,7 +589,7 @@ class StateSpaceSimulationModule(SimulationModule):
         
         key  = "".join(self.network_matrix.m_column_labels)
         if key not in self.M_cache.keys():
-            
+        
             self.network_matrix.rref_update()
             self.S_dxdt, self.Sx, self.Su, self.C1, self.C, self.D, self.M0, self.A, self.B, self.C_SW, self.D_SW, self.network_inconsistent_labels = retrieveSystemMatrix(
                 M=self.network_matrix.M,
@@ -620,6 +622,20 @@ class StateSpaceSimulationModule(SimulationModule):
             self.dependent_state_var_labels = dep_lab.copy()
             
             
+            M0_value = sp.matrix2numpy(self.network_matrix.inductance_capacitance_M0.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
+            
+            M0_value_inverse = np.linalg.inv(M0_value)
+            self.A = M0_value_inverse@A_new
+            self.B = M0_value_inverse@B_new
+            
+            _, piv = self.M0.rref()
+            
+            # for col in range(self.M0.shape[0]):
+            #     if col not in piv:
+            #         self.A[col,:] = 0
+            #         self.B[col, :] = 0
+            # self.A = self.M0* self.A
+            # self.B = self.M0 * self.B
             self._A_iteration = sp.matrix2numpy(self.A.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
             self._B_iteration = sp.matrix2numpy(self.B.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
             self._C_iteration = sp.matrix2numpy(self.C.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
@@ -658,7 +674,7 @@ class StateSpaceSimulationModule(SimulationModule):
                             ]
 
             self.M_cache[key] = cache_Data
-            
+        
             
         else:
             cache_Data = self.M_cache[key]
@@ -788,57 +804,10 @@ class StateSpaceSimulationModule(SimulationModule):
             
 
     
-    # def update_state_with_dependent_variables(self):
 
-    #     x_ind = Matrix(  len(self.independent_state_cols), 1, [0]*len(self.independent_state_cols) )
-       
-    #     x_state_imp = self.x_cur.copy()
-        
-    #     for i in range(len (self.independent_state_cols) ):
-    #         col = self.independent_state_cols[i]
-    #         x_ind[i] = x_state_imp[col]
-            
-        
-    #     x_dep = -self.Add_inv*(self.Adi*x_ind+self.Bd*self.u)
-    #     x_dep.subs(self.network_matrix.symbolic_to_value_map)
-         
-    #     for i in range(len(self.dependent_state_cols )):
-    #         col = self.dependent_state_cols[i]
-    #         x_state_imp[col] = x_dep[i]
-    #     return x_state_imp
 
-    def calc_impulse_response(self,  switch_triggere_labels:list[str]):
-        
-        # forced_triggered_diodes, self.Add_inv, self.Adi, self.Bd, self.independent_state_labels, self.independent_state_cols, self.dependent_state_labels, self.dependent_state_cols = determine_dependent_state_vars(self.M0, self.A, self.B,self.network_matrix,sw_volt_lab)
-        
-        
-        # if len(forced_triggered_diodes) > 0:
-        #     for lab in forced_triggered_diodes:
-        #         ind = self.switch_label_index_map[lab]
-        #         self.switch_state[ind] = ~self.switch_state[ind]
-        #         self.swap_col_and_update(lab)
-        #     return
-        
-        # x_ind = Matrix(  len(ind_state_cols), 1, [0]*len(ind_state_cols) )
-       
-        # x_state_imp = self.x_cur.copy()
-        
-        # for i in range(len (ind_state_cols) ):
-        #     col = ind_state_cols[i]
-        #     x_ind[i] = x_state_imp[col]
-            
-        
-        # x_dep = -Add_inv*(Adi*x_ind+Bd*self.u)
-        # x_dep.subs(self.network_matrix.symbolic_to_value_map)
-         
-        # for i in range(len(dep_state_cols )):
-        #     col = dep_state_cols[i]
-        #     x_state_imp[col] = x_dep[i]
-
-        # x_state_imp = self.update_state_with_dependent_variables()
-        
-        
-       
+    def calc_impulse_response(self,  switch_triggere_labels:list[str], x_cur_for_update:np.ndarray, x_cur_for_y):
+           
         if len(self.forced_switch_mapping) > 0 and len(switch_triggere_labels) > 0:
             for label in switch_triggere_labels:
                 switch_ele = self.network_matrix.m_column_labels_to_obj_map[label]
@@ -848,74 +817,98 @@ class StateSpaceSimulationModule(SimulationModule):
                     diode_index = self.switch_label_index_map[diode.element_current_name]
                     self.switch_state[diode_index] = not self.switch_state[diode_index]
                     self.swap_col_and_update(diode.element_voltage_name)
+            
+
+            # x_hat = np.matmul(self.A, x_cur_for_y) + np.matmul(self.B, self.u)
+            # self.update_y_cur(x_hat_term=x_hat, x_cur_for_y=x_cur_for_y)
+            
         else:
         
-            x_state_imp =   self.update_dependent_in_xcur()
-            #impulse = self.S_dxdt*(x_state_imp - self.x_cur)
-            # impulse = self._S_dxdt*(x_state_imp - self.x_cur)
-            # check to see any diode's has a impulse
-            difference = x_state_imp- self.x_cur
-            difference = difference.astype(np.float32)
-            impulse = np.matmul( self._S_dxdt, difference, dtype=np.float32   ) 
+            x_state_imp =   self.update_dependent_in_xcur(x_cur_for_update=x_cur_for_update)
+
+            difference = x_state_imp-x_cur_for_update  #TODO: turn to 1???
+
+            impulse = difference.astype(np.float32)
+            
+            impulse_output = self.C1@impulse
+            # impulse = np.matmul( self._S_dxdt, difference, dtype=np.float32   ) 
             for i in self.diode_index:
                 volt_lab, I_lab = self.switch_index_label_map[i]
-                #imp = impulse[i,0].subs(self.network_matrix.symbolic_to_value_map)
-                imp = impulse[i,0]
-                if imp > 0: 
+
+                diode_ele = self.network_matrix.m_column_labels_to_obj_map[volt_lab]
+                
+                assert isinstance(diode_ele, Diode)
+                vm_name = diode_ele.diode_voltmeter_name
+                am_name = diode_ele.diode_ammeter_name
+                vm_element = self.network_matrix.element_name_obj_map[vm_name]
+                vm_index =  self.network_matrix.y_labels.index(vm_element.element_voltage_name)
+                
+                am_element = self.network_matrix.element_name_obj_map[am_name]
+                am_index = self.network_matrix.y_labels.index(am_element.element_current_name)
+                
+                volt = impulse_output[vm_index]
+                current = impulse_output[am_index]
+
+                if volt > 0 and self.switch_state[i] == False: 
                     # assert  self.switch_state[i] == False
                     self.switch_state[i] = True
                     self.swap_col_and_update(volt_lab)
-                elif imp < 0:
+                elif current < 0 and self.switch_state[i] == True:
                     # assert self.switch_state[i] == True
                     self.switch_state[i] = False
                     self.swap_col_and_update(volt_lab)
                 else:
                     pass
-                    
+            
+            
+            
+            # x_hat = np.matmul(self.A, x_cur_for_y) + np.matmul(self.B, self.u)  #TODO: use impulse in output?
+            # self.update_y_cur(x_hat_term=x_hat, x_cur_for_y=x_cur_for_y)
+            # replace 
+            
         
         
-    def calc_nonimpulse_response(self):
+    def calc_nonimpulse_response(self, x_cur_for_update, x_cur_for_y):
         
         diode_switched = False
-        non_impulse   =  np.matmul( self._Sx, self.x_cur )   +  np.matmul(self._Su, self.u)  
-        # z_derivative = np.matmul( self._C_SW, self.x_cur )   +  np.matmul(self._D_SW, self.u) 
-        # z_hat = non_impulse + 1/self.iteration_frequency * z_derivative 
+
+
         
-        # is_consistent = False
-        # for i in self.diode_index:
-        #     if non_impulse[i,0] < 0 and z_hat[i,0] > 0:
-        #         is_consistent = False
-        #     elif non_impulse[i,0] > 0 and z_hat[i,0] > 0:
-        #         is_consistent = False
-        #     else:
-        #         is_consistent = True
         
-        #non_impulse.subs(self.network_matrix.symbolic_to_value_map)
         for i in self.diode_index:
-            non_imp = non_impulse[i,0]
+
             volt_lab, I_lab = self.switch_index_label_map[i]
             diode_state = self.switch_state[i]
+            diode_ele = self.network_matrix.m_column_labels_to_obj_map[volt_lab]
             
-            # if not is_consistent:
-            #     return
-            # if debug_swap1 or debug_swap2 or debug_swap3 or debug_swap4:
-            #     self.switch_state[0] = not self.switch_state[1]
-            #     self.switch_state[1] = not self.switch_state[1]
-            #     self.swap_col_and_update("V_D1")
-            #     self.swap_col_and_update("V_D2")
-            if diode_state == False and non_imp>0 :
+            assert isinstance(diode_ele, Diode)
+            vm_name = diode_ele.diode_voltmeter_name
+            am_name = diode_ele.diode_ammeter_name
+            vm_element = self.network_matrix.element_name_obj_map[vm_name]
+            vm_index =  self.network_matrix.y_labels.index(vm_element.element_voltage_name)
+            
+            am_element = self.network_matrix.element_name_obj_map[am_name]
+            am_index = self.network_matrix.y_labels.index(am_element.element_current_name)
+            
+            volt = self.y_cur[vm_index]
+            current = self.y_cur[am_index]
+        
+            # get the vm, am from y_cur
+            
+            if diode_state == False and volt>0 :
                 self.switch_state[i] = True
                 self.swap_col_and_update(volt_lab)
-                
                 diode_switched = True
-            elif diode_state == True and non_imp < 0 :
+            elif diode_state == True and current < 0 :
                 self.switch_state[i] = False
                 self.swap_col_and_update(volt_lab)
-                
                 diode_switched = True
             else:
                 pass
         
+        
+        # x_hat = np.matmul(self.A, x_cur_for_y) + np.matmul(self.B, self.u)  #TODO: use impulse in output?
+        # self.update_y_cur(x_hat_term=x_hat, x_cur_for_y=x_cur_for_y)
         return diode_switched
             
     def plot_switch_graph(self):
@@ -1039,135 +1032,39 @@ class StateSpaceSimulationModule(SimulationModule):
 
         # Display the figure
         fig.show()  
-            
-    # def plot_output_graph(self, ax1_y_ticks=None, ax2_y_ticks=None):
-    #     time_np_array = np.array(self.time_t)
-    #     y_output_np_array = np.array(self.y_output).squeeze()
-    #     fig, _ = plt.subplots(self.fig_count)
-    #     self.fig_count+=1
 
-
-    #     # Create subplots for current and voltage
-    #     ax1 = fig.add_subplot(211)
-    #     ax2 = fig.add_subplot(212)
-
-    #     # Line map for all signals
-    #     line_map = {}
-
-    #     for i in range(self.network_matrix.y_label_size):
-    #         lab = self.network_matrix.y_labels[i]
-    #         ele = self.network_matrix.m_column_labels_to_obj_map[lab]
-    #         if isinstance(ele, Voltmeter):
-    #             if len(y_output_np_array.shape) == 1:
-    #                 line, = ax1.plot(time_np_array, y_output_np_array, label=f"{ele.name}")
-    #             else:
-    #                 line, = ax1.plot(time_np_array, y_output_np_array[:, i], label=f"{ele.name}")
-    #         else:
-    #             line, = ax2.plot(time_np_array, y_output_np_array[:, i], label=f"{ele.name}")
-    #         if len(y_output_np_array.shape) == 1:
-    #             line_map[line] = (time_np_array, y_output_np_array)
-    #         else:
-    #             line_map[line] = (time_np_array, y_output_np_array[:, i])
-
-    #     # Add grids and legends
-    #     ax1.grid()
-    #     ax2.grid()
-    #     ax1.legend()
-    #     ax2.legend()
-
-    #     # Set custom y-axis ticks if provided
-    #     if ax1_y_ticks is not None:
-    #         ax1.yaxis.set_major_locator(plt.MultipleLocator(ax1_y_ticks))
-    #     if ax2_y_ticks is not None:
-    #         ax2.yaxis.set_major_locator(plt.MultipleLocator(ax2_y_ticks))
-
-    #     # Connect pick events to handle clicks on lines
-    #     fig.canvas.mpl_connect('pick_event', lambda event: on_pick(event, [line_map], fig))
-
-    #     # Enable picking on all lines
-    #     for line in line_map:
-    #         line.set_picker(True)
-
-    #     # Add interactive checkboxes
-    #     labels = [line.get_label() for line in line_map.keys()]
-    #     visibility = [line.get_visible() for line in line_map.keys()]
-    #     check_ax = fig.add_axes([0.9, 0.4, 0.15, 0.4])  # Position for checkboxes
-    #     check = CheckButtons(check_ax, labels, visibility)
-
-    #     check.on_clicked(lambda label: toggle_visibility(label, [line_map], fig))
-
-    #     plt.show()
-        # return fig
 
     
-    def update_y_cur(self, x):
+    def update_y_cur(self, x_hat_term, x_cur_for_y ):
         #TODO: correcT?
         
         # x_temp =self.update_dependent_in_xcur()
-        self.y_cur = np.matmul( self._C_iteration ,x) +  np.matmul( self._D_iteration ,self.u)
+        self.y_cur = np.matmul(self.C1 , x_hat_term) +   np.matmul( self._C_iteration ,x_cur_for_y) +  np.matmul( self._D_iteration ,self.u)
 
         
     def update_x_cur(self):
         
         copy = self.x_cur.copy()
-        #self.x_cur = radauIntegration( self.x_cur, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency )
-        # if self.integration_strategy ==  "p_0_q_2":
-        #     self.x_cur = p_0_q_2_integration( self.x_cur, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency ).copy()
-        # el
-        # if self.integration_strategy == "stiff":
-        #     self.x_cur = stiffSolver( self.x_cur, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency ).copy()
+
         if self.integration_strategy == "Trapezoidal":
             self.x_cur = trapezoidalIntegration( self.x_cur, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency ).copy()
         else:
             self.x_cur = backwardEulerIntegration(self.x_cur, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency).copy()
 
-        #TODO: update with dependent?
-        # self.x_cur = self.update_dependent_in_xcur()
-        # if self.M0.rank() < self.network_matrix.x_hat_label_size :
-        #     #forced_triggered_diodes, self.Add_inv, self.Adi, self.Bd, self.independent_state_labels, self.independent_state_cols, self.dependent_state_labels, self.dependent_state_cols = determine_dependent_state_vars(self.M0, self.A, self.B,self.network_matrix,"")
-        
-        #     res = self.update_state_with_dependent_variables()
-        #     self.x_cur = res.copy()
-        if np.isnan(self.x_cur).any() or np.isinf(self.x_cur).any():
-            p = 200
-        p = 200
+
     def iteration(self):
         # the iteration process
 
-        x_for_update =self.x_cur.copy()
+        x_a_beginning =self.x_cur.copy()
+        self.update_x_cur()
+        x_hat = np.matmul(self.A, self.x_cur) +np.matmul(self.B, self.u)
+        self.update_y_cur(x_hat,self.x_cur )
         
-        if self.cur_system_time == 0:
-            # turn all diode to off state
-            for lab, index  in self.switch_label_index_map.items():
-                # ele = self.network_matrix.net[lab]
-                if  index in  self.diode_index and  self.switch_state[index] == True:
-                    
-                    self.switch_state[index] = False
-                    self.swap_col_and_update(lab)
+        #TODO: common y update output
+        
+       
+        x_after_iter = self.x_cur.copy()
 
-        # if self.cur_system_time == 0:
-            
-
-        # #     p = 200
-        # #     # all false
-        #     self.swap_col_and_update("V_D2")
-        #     self.switch_state[1] = False
-        #     self.swap_col_and_update("V_D1")
-        #     self.switch_state[0] = False
-        #     p = 200
-        #     #  False  True 
-        #     self.swap_col_and_update("V_D2")
-        #     self.switch_state[1] = True
-        #     p= 00  
-        #     # true, true 
-        #     self.swap_col_and_update("V_D1")
-        #     self.switch_state[0] = True
-        #     p = 200
-        #     # true false
-        #     self.swap_col_and_update("V_D2")
-        #     self.switch_state[1] = False
-            
-        #     p = 200
         cur_switch_state = self.switch_state[self.switch_mask]
         cur_diode_state = self.switch_state[~self.switch_mask]
         cur_switch_trigger = self.switch_triggered[self.switch_mask]
@@ -1187,30 +1084,17 @@ class StateSpaceSimulationModule(SimulationModule):
                 switch_triggere_labels.append(sw_volt_lab)
                 trig = True
      
-        if self.M0.rank() < self.M_size or len(self.forced_switch_mapping) > 0 :
-            self.calc_impulse_response( switch_triggere_labels= switch_triggere_labels)
+        if self.M0.rank() < self.network_matrix.x_hat_label_size or len(self.forced_switch_mapping) > 0 :
+            self.calc_impulse_response( switch_triggere_labels= switch_triggere_labels, x_cur_for_update=x_a_beginning, x_cur_for_y=x_after_iter)
             trig = True
-            # The nonimpulse part
-        diode_switched = self.calc_nonimpulse_response()      
+        else:
+            diode_switched = self.calc_nonimpulse_response(x_cur_for_update=x_a_beginning, x_cur_for_y=x_after_iter)      
 
 
         self.M_size = self.M0.rank()
-        self.update_x_cur()
-        
-        # if trig or diode_switched:
-        #     self.update_y_cur()
-        #     self.update_x_cur()
-        #     # self.update_y_cur()
-        # else:
-            
-        #     self.update_x_cur()
-        #     self.update_y_cur()
-        if  diode_switched or trig:
-            self.update_y_cur(self.x_cur)
-        else:
-            self.update_y_cur(x_for_update)
         # self.update_x_cur()
-        #TODO: update x dependent for output?
+        
+     
 
         self.time_t.append(self.cur_system_time)
         

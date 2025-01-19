@@ -44,7 +44,8 @@ class NetworkMatrix:
         voltage_source_size:int,
         current_source_size:int,
         redundant_size:int,
-        simpilfied = True
+        inductance_capacitance_M0:Matrix,
+        simpilfied = True,
     ):
         
         if simpilfied:
@@ -63,6 +64,8 @@ class NetworkMatrix:
         self.voltage_source_size = voltage_source_size
         self.current_source_Size = current_source_size
         
+        
+        self.inductance_capacitance_M0 = inductance_capacitance_M0
         
         # M_topology describe the topology relation between matrix
         # M is the matrix after apply mutual inductance effect between inductors
@@ -134,9 +137,10 @@ class NetworkMatrix:
     
     
     def rref_update(self):
-        self.M_topology = self.M_topology.subs(self.symbolic_to_value_map)
-        self.M, self.M_toplolgy_pivots = self.M_topology.rref(iszerofunc=lambda x:abs(x)<10**-10)
-        self.M = self.M_topology[:,:].copy()
+        self.M_topology, _ = self.M_topology.rref()
+        # self.M_topology = self.M_topology.subs(self.symbolic_to_value_map)
+        # self.M, self.M_toplolgy_pivots = self.M_topology.rref(iszerofunc=lambda x:abs(x)<10**-10)
+        self.M = self.M_topology.copy()
         self.apply_mutual_inductance_effect(True)
     def update_M_matrix(self, labels_to_swap:str, sub_value = True):
         
@@ -321,7 +325,8 @@ def read_netlis_description(
                 inductor_capacitor_list.append(ele)
             case "D":
                 initial_state = True if labels[3] == "ON" else False
-                ele = Diode(labels[0], node_a, node_b, initial_state)
+       
+                ele = Diode(labels[0], node_a, node_b, initial_state, labels[4], labels[5])
                 switch_list.append(ele)
             case "S":
                 pwm_val_at_beginning_of_each_cycle = True if labels[3] == "ON" else False
@@ -801,7 +806,7 @@ def system_realization(netList: list[list[str]]):
         
     reorder_matrix_by_colum_label(M, reordered_m_labels, m_labels_mapping)
 
-
+    # M = M.subs(symbollic_to_value_map)
 
     
     # do any rref on M matrix
@@ -820,77 +825,61 @@ def system_realization(netList: list[list[str]]):
         label = x_hat[i-offset]
         ele = reordered_m_lable_obj_mapping[label]
 
+        # if isinstance(ele, Capacitor):
+        #     #M[i,i] *= ele.capacitor_symbol
+        #     M[i,i] = ele.capacitor_symbol
+        # else:
+        #     assert isinstance(ele, Inductor)
+        #     # #M[i,i] *= ele.inductor_symbol 
+        #     M[i,i] = ele.inductor_symbol 
+            
+        #     for index, mutual_element_lab in enumerate(ele.mutual_inductor_names):
+        #         mutual_inductor_ele = ele_name_obj_map[mutual_element_lab]
+                
+        #         col_index = offset  + x_hat.index(mutual_inductor_ele.element_voltage_name)
+                
+        #         k_value =  ele.K_factors[index]
+        #         M[i, col_index] = k_value *  sp.sqrt( ele.inductor_symbol *  mutual_inductor_ele.inductor_symbol )
+
+    
+
+    
+    # form M0_value 
+    x_hat_size = len(x_hat)
+    Inductance_capacitance_M0 = Matrix(  x_hat_size, x_hat_size, [0]*x_hat_size*x_hat_size )
+    x_hat_col_row_map = {}
+    
+    for ind, lab in enumerate(x_hat):
+        x_hat_col_row_map[lab] = ind
+    
+    
+    for lab in x_hat:
+        ele = reordered_m_lable_obj_mapping[lab]
+        ele_index = x_hat_col_row_map[lab]
         if isinstance(ele, Capacitor):
-            #M[i,i] *= ele.capacitor_symbol
-            M[i,i] = ele.capacitor_symbol
+            Inductance_capacitance_M0[ele_index, ele_index] =ele.capacitor_symbol
         else:
             assert isinstance(ele, Inductor)
-            # #M[i,i] *= ele.inductor_symbol 
-            M[i,i] = ele.inductor_symbol 
+            Inductance_capacitance_M0[ele_index, ele_index] = ele.inductor_symbol
             
-            for index, mutual_element_lab in enumerate(ele.mutual_inductor_names):
-                mutual_inductor_ele = ele_name_obj_map[mutual_element_lab]
-                
-                col_index = offset  + x_hat.index(mutual_inductor_ele.element_voltage_name)
-                
-                k_value =  ele.K_factors[index]
-                M[i, col_index] = k_value *  sp.sqrt( ele.inductor_symbol *  mutual_inductor_ele.inductor_symbol )
+            if len(ele.K_factors) > 0: # means have mutual affect
+                for index ,(mutual_name, factor) in enumerate( zip(ele.mutual_inductor_names, ele.K_factors) ):
+                    mutual_obj= ele_name_obj_map[mutual_name]
+                    mutual_index = x_hat_col_row_map[mutual_obj.element_voltage_name]
+                    Inductance_capacitance_M0[ele_index, mutual_index] = factor* sp.sqrt(ele.inductor_symbol*mutual_obj.inductor_symbol)
+    
+                         
 
     
-    #M = M.subs(symbollic_to_value_map)
-    # # # debug
-    # M, pivots = M.rref()
-    # redundant_columns_size = len(w + u_tilt)
-    # M = M[redundant_columns_size:, redundant_columns_size:]
-    # reordered_m_labels = reordered_m_labels[redundant_columns_size:]
-    # print_matrix(M, reordered_m_labels, ["" for x in range(M.shape[0])])
-
-    # swapTwoColumn(M, reordered_m_labels, reordered_m_lable_obj_mapping, "V_D1")
-    # # swapTwoColumn(M, reordered_m_labels, reordered_m_lable_obj_mapping, "V_D2")
-    # # k = M.subs(symbollic_to_value_map)
-    # # k[5,6] = 0
-    # # # k[6,6] = 0
-    # # k[6,5] = 0
-    # # k[6,7] = 0
-    # # k[7,6] = 0
-    
-    
-    # M_t, p = M.rref()
-    
-    
-
-    # M_t[:, 6] *=0.000280014285349873
-    # M_t[:, 7] *=  0.000280014285349873
-    # M_t, p = M_t.rref()
-    k = 200
-    # swapTwoColumn(M, reordered_m_labels, reordered_m_lable_obj_mapping, "V_D1")
-    # M, _ = M.rref()
-
-    
-    # # # M = M.subs(symbollic_to_value_map)
-    # M, pivot = M.rref()
-
-    # assert M.rank() == M.shape[0]
-
-
     print_matrix(M, reordered_m_labels, ["" for x in range(M.shape[0])])
-    
-    # # print("M before reduced with real value")
-    # print_matrix(M.subs(symbollic_to_value_map), reordered_m_labels, ["" for x in range(M.shape[0])])
-    # now, remove the w, utilted columns from the matrix
-    # redundant_columns_size = len(w + u_tilt)
-    
-    
-    # M = M[redundant_columns_size:, redundant_columns_size:]
-    # reordered_m_labels = reordered_m_labels[redundant_columns_size:]
-    
+
     
     
     
     M, pivot = M.rref()
     
     
-    M = M.subs(symbollic_to_value_map)
+    # M = M.subs(symbollic_to_value_map)
     net =  NetworkMatrix(
         M_topology=M[:,:],
         m_column_labels=reordered_m_labels,
@@ -909,6 +898,7 @@ def system_realization(netList: list[list[str]]):
         voltage_source_size=voltage_source_count,
         current_source_size=current_source_count,
         redundant_size= len(w+u_tilt),
+        inductance_capacitance_M0=Inductance_capacitance_M0,
         simpilfied=False
 
     )

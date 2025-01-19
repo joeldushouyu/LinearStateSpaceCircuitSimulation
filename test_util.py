@@ -106,8 +106,8 @@ def test_determine_matrx_for_dependent_state_vars():
     assert A_dependent_expect.equals(A_dependent)
     assert B_dependent_expect.equals(B_dependent)
     
-    assert len(ind_labs) == 1 and ind_labs[0] == "IL"
-    assert len(dep_labs) == 1 and dep_labs[0] == "Vc"
+    assert len(ind_labs) == 1 and dep_labs[0] == "IL"
+    assert len(dep_labs) == 1 and ind_labs[0] == "Vc"
     
     
 
@@ -191,7 +191,8 @@ def test_retrieveSystemMatrix():
             capacitor_size=capacitor_size,
             inductor_size=inductor_size,
             voltage_source_size = 1,
-            current_source_size= 0
+            current_source_size= 0,
+            redundant_offset=0
         )
     )
     assert s_dxdt.equals(s_dxdt_expect)
@@ -289,7 +290,8 @@ def test_retrieveSystemMatrix():
             capacitor_size=capacitor_size,
             inductor_size=inductor_size,
             voltage_source_size = 1,
-            current_source_size= 0
+            current_source_size= 0,
+            redundant_offset=0
         )
     )
     assert s_dxdt.equals(s_dxdt_expect)
