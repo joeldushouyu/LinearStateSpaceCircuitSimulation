@@ -12,9 +12,10 @@ from FormNetworkMatrix import NetworkMatrix
 from sympy import Matrix
 import sympy as sp
 from util import (is_rise_edge, retrieveSystemMatrix,
-                  determine_dependent_state_vars, print_matrix_for_matlab_format,
+                  print_matrix_for_matlab_format,
                   backwardEulerIntegration, trapezoidalIntegration, 
-                  detemrminte_matrix_for_dependent_state_vars
+                  detemrminte_matrix_for_dependent_state_vars,
+                  update_system_matrix_to_reflect_dependency
                   )
 from typing import Tuple
 import numpy as np
@@ -293,8 +294,11 @@ class StateSpaceSimulationModule(SimulationModule):
         
         # the iteration process
         self.number_of_state_variable = len(self.network_matrix.x_labels)
-        self.x_cur = np.ndarray((self.number_of_state_variable,1), dtype=np.float64, )
-        self.x_cur[:,:] = 0
+        self.__x_cur_ind = np.ndarray((self.number_of_state_variable,1), dtype=np.float64, )
+        self.__x_cur_ind[:,:] = 0
+        
+        self.__x_cur_dep = np.ndarray((self.number_of_state_variable,1), dtype=np.float64, )
+        self.__x_cur_dep[:,:] = 0
         
         #sp.Matrix( self.number_of_state_variable, 1,  [0 for k in range(self.number_of_state_variable)])  # assume initial value of zero in the beginning
         
@@ -336,7 +340,7 @@ class StateSpaceSimulationModule(SimulationModule):
         # self.Bd:Matrix = None
         self.A_dependent:Matrix = None
         self.B_dependent:Matrix =  None
-        self.A_x_independent_filter:Matrix = None
+
         self.network_inconsistent_labels:list[str] = []
         self.independent_state_var_labels:list[str] = []
         self.dependent_state_var_labels:list[str] = []
@@ -364,6 +368,7 @@ class StateSpaceSimulationModule(SimulationModule):
         self.initialize_data()
     
     
+
     def update_dependent_in_xcur(self, x_cur_for_update):
         
         
@@ -413,141 +418,7 @@ class StateSpaceSimulationModule(SimulationModule):
         
         return forced_switch_diode_mapping
     
-    # def determine_dependency_state(self):
-    #     # independent_state_vars_labels = []
-    #     # dependent_state_vars_labels = []
-        
-    #     # independent_state_vars_cols = []
-    #     independent_state_vars_rows = []
-    #     # dependent_state_vars_cols = []
-    #     dependent_state_vars_rows = []
 
-
-        
-    #     # mapping
-    #     independent_row_col_map:dict[str, list[int]] = {}
-    #     dependent_row_col_map:dict[str, list[int]] = {}
-    
-    #     # recall rref form
-    #     # 1. if pivot row means the first nonzero value in the row
-    #     # for any non pivot column, the rows start with the max(pivot_row) +1
-
-    #     cols = self.M0.cols
-    #     self.M0, pivots = self.M0.rref()
-    #     # pivot_rows = [next(row for row in range(self.M0.shape[0]) if self.M0[row, col] != 0) for col in pivots]
-        
-    #     dependent_row_start = 0
-    #     for i in range(len(pivots)):
-    #         col = pivots[i]
-    #         ind_label =  self.network_matrix.x_hat_labels[col] 
-       
-            
-    #         independent_row_col_map[ind_label] = [i , col   ]  # by def, ith pivor correspond to ith row
-    #         independent_state_vars_rows.append(i)
-            
-    #     dependent_row_start = max(independent_state_vars_rows) +1
-    #     assert dependent_row_start == len(pivots) 
-        
-    #     for col in range(self.M0.cols):
-    #         if col not in pivots:
-                
-    #             dep_label = self.network_matrix.x_hat_labels[col]
-                
-    #             # find a zero row, from dependent_row_start
-                
-    #             for r in range(dependent_row_start, self.M0.rows):
-    #                 if self.M0[r, col] == 0 and r not in dependent_state_vars_rows:
-    #                     dependent_state_vars_rows.append(r)
-                        
-    #                     dependent_row_col_map[dep_label] = [r, col]
-    #                     break
-            
-    #     # j = 0
-    #     # for col in range(cols):
-    #     #     is_independent = j  < len(pivots)  and pivots[j] == col
-    #     #     if is_independent:
-    #     #         independent_state_vars_labels.append( self.network_matrix.x_hat_labels[col] )  
-    #     #         independent_state_vars_cols.append(col)
-    #     #         first_non_zero_row = next((row for row in range(self.M0.shape[0]) if self.M0[row, col] != 0), None)
-    #     #         # find max of this row
-    #     #         independent_state_vars_rows.append(first_non_zero_row)
-    #     #         j += 1
-    #     #     else:
-    #     #         dependent_state_vars_labels.append(self.network_matrix.x_hat_labels[col])
-    #     #         dependent_state_vars_cols.append(col) 
-                
-    #     #         # find a row that is all zero in M0
-                
-        
-        
-    #     zero_rows = []
-        
-    #     for i in range(self.M0.rows):
-    #         if self.M0[i,:].is_zero_matrix:
-    #             zero_rows.append(i)
-    #     zero_count = len(zero_rows)
-    #     # independent_count= len(independent_state_vars_labels)
-    #     # dependent_count = len(dependent_state_vars_labels)
-        
-    #     A_dependent =  Matrix(self.A.rows, self.A.cols, [0]*(self.A.rows *self.A.cols ))   
-    #     B_dependent = Matrix(self.B.rows, self.B.cols, [0]*(self.B.rows *self.B.cols ) )     
-        
-    #     if zero_count == 0:
-    #         return independent_row_col_map, dependent_row_col_map, A_dependent, B_dependent
-        
-    #     x_hat_labels_orders = self.network_matrix.x_hat_labels
-    #     # update M0, A, B
-    #     A_temp = self.A[:,:]
-    #     B_temp = self.B[:,:]
-    #     M0_temp = self.M0[:,:]
-    #     zero_row_A = Matrix(1, self.A.cols, [0]*self.A.cols)
-    #     zero_row_B = Matrix(1, self.B.cols, [0]*self.B.cols)
-    #     zero_row_M0 = Matrix(1, self.M0.cols, [0]*self.M0.cols)
-        
-    #     #TODO: is M0 always correctly reflected in transformer model?
-    #     for row_ind in range( M0_temp.rows ):
-    #         label = x_hat_labels_orders[row_ind]
-    #         if label in independent_row_col_map:
-            
-    #             original_row = independent_row_col_map[label][0]
-    #             assert row_ind == independent_row_col_map[label][1]
-    #             self.M0[row_ind,:] = M0_temp[ original_row   ,:]
-    #             self.A[row_ind, :] = A_temp[original_row, :]
-    #             self.B[row_ind, :] = B_temp[original_row, :]
-
-                
-                
-    #             #update back
-    #             independent_row_col_map[label] = [row_ind, row_ind]
-    #         else:
-    #             # means is an dependent variable
-    #             # use 8-58 of chua
-                
-    #             original_row = dependent_row_col_map[label][0]
-    #             original_col = dependent_row_col_map[label][1]
-    #             assert row_ind == original_col
-    #             self.M0[row_ind, :] = zero_row_M0[:,:]
-    #             self.A[row_ind, :] = zero_row_A[:,:]  
-    #             self.B[row_ind, :] = zero_row_B[:,:]
-
-                
-    #             # j = row_ind
-    #             # k = row_ind
-                
-    #             a_j_k = A_temp[original_row, original_col]
-    #             A_temp[original_row, original_col] = 0
-    #             A_dependent[row_ind, :] = A_temp[original_row, :]
-    
-    #             B_dependent[row_ind, :] = B_temp[original_row, :]
-                
-    #             A_dependent[row_ind, :] *= -1/a_j_k
-    #             B_dependent[row_ind, :] *= -1/a_j_k
-                
-                
-    #             # update back
-    #             dependent_row_col_map[label] = [row_ind, row_ind]
-    #     return independent_row_col_map, dependent_row_col_map, A_dependent, B_dependent     
-                
             
                
     
@@ -591,7 +462,7 @@ class StateSpaceSimulationModule(SimulationModule):
         if key not in self.M_cache.keys():
         
             self.network_matrix.rref_update()
-            self.S_dxdt, self.Sx, self.Su, self.C1, self.C, self.D, self.M0, self.A, self.B, self.C_SW, self.D_SW, self.network_inconsistent_labels = retrieveSystemMatrix(
+            self.S_dxdt, self.Sx, self.Su, self.C1, self.C, self.D, self.M0, self.A, self.B, self.C_SW, self.D_SW, self.network_inconsistent_labels,M_offset_info = retrieveSystemMatrix(
                 M=self.network_matrix.M,
                 m_pivots=self.network_matrix.M_pivots,
                 m_labels=self.network_matrix.m_column_labels,
@@ -610,26 +481,49 @@ class StateSpaceSimulationModule(SimulationModule):
             
             self.forced_switch_mapping = self.force_triggered_events()
             
-            # at here, determine any force-triggered events, dependent variables, and so forth before turn into numpy array
-            M0_new, A_new, B_new, A_x_ind_filter, A_dep, B_dep, ind_lab, dep_lab = detemrminte_matrix_for_dependent_state_vars(self.M0, self.A, self.B, self.network_matrix.x_hat_labels)
-            self.M0 = M0_new.copy()
-            self.B = B_new.copy()
-            self.A = A_new.copy()
-            self.A_x_independent_filter = A_x_ind_filter.copy()
-            self.A_dependent = A_dep.copy()
-            self.B_dependent = B_dep.copy()
-            self.independent_state_var_labels = ind_lab.copy()
-            self.dependent_state_var_labels = dep_lab.copy()
+            # # at here, determine any force-triggered events, dependent variables, and so forth before turn into numpy array
+            # M0_new, A_new, B_new, A_x_ind_filter, A_dep, B_dep, ind_lab, dep_lab = detemrminte_matrix_for_dependent_state_vars(self.M0, self.A, self.B, self.network_matrix.x_hat_labels)
+            # self.M0 = M0_new.copy()
+            # self.B = B_new.copy()
+            # self.A = A_new.copy()
+            # self.A_x_independent_filter = A_x_ind_filter.copy()
+            # self.A_dependent = A_dep.copy()
+            # self.B_dependent = B_dep.copy()
+            # self.independent_state_var_labels = ind_lab.copy()
+            # self.dependent_state_var_labels = dep_lab.copy()
             
             
-            M0_value = sp.matrix2numpy(self.network_matrix.inductance_capacitance_M0.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
+            # M0_value = sp.matrix2numpy(self.network_matrix.inductance_capacitance_M0.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
             
-            M0_value_inverse = np.linalg.inv(M0_value)
-            self.A = M0_value_inverse@A_new
-            self.B = M0_value_inverse@B_new
+            # M0_value_inverse = np.linalg.inv(M0_value)
+            # self.A = M0_value_inverse@A_new
+            # self.B = M0_value_inverse@B_new
             
-            _, piv = self.M0.rref()
+            # _, piv = self.M0.rref()
             
+            
+            # filter out inconsistent labels from y _labels
+            y_labels_filter = [x for x in self.network_matrix.y_labels if x not in self.network_inconsistent_labels]
+            M0_final, A_final, B_final, C_final, D_final, A_dependent_final, B_dependent_final = update_system_matrix_to_reflect_dependency(
+                M0=self.M0.copy(),
+                C1 = self.C1.copy(),
+                A=self.A.copy(), B=self.B.copy(), C=self.C.copy(), D=self.D.copy(),
+                m_pivots=self.network_matrix.M_pivots,
+                u_labels=self.network_matrix.u_labels,
+                y_labels=y_labels_filter,
+                x_hat_labels=self.network_matrix.x_hat_labels,
+                x_hat_col_offset_in_m_pivots=M_offset_info["x_hat_col_offset"],
+                x_hat_label_to_obj_map=self.network_matrix.m_column_labels_to_obj_map,
+                symbol_to_value_map=self.network_matrix.symbolic_to_value_map,
+                element_name_to_obj_map=self.network_matrix.element_name_obj_map
+            )
+            self.M0= M0_final[:,:]
+            self.A = A_final[:,:]
+            self.B = B_final[:,:]
+            self.C = C_final[:,:]
+            self.D = D_final[:,:]
+            self.A_dependent = A_dependent_final[:,:]
+            self.B_dependent = B_dependent_final[:,:]
             # for col in range(self.M0.shape[0]):
             #     if col not in piv:
             #         self.A[col,:] = 0
@@ -667,14 +561,14 @@ class StateSpaceSimulationModule(SimulationModule):
                             self.B_dependent[:,:],
                             self._A_dependent[:,:],
                             self._B_dependent[:,:],
-                            self.A_x_independent_filter[:,:],
+                    
                             self.forced_switch_mapping.copy(),
                             self.independent_state_var_labels.copy(),
                             self.dependent_state_var_labels.copy()
                             ]
 
             self.M_cache[key] = cache_Data
-        
+            
             
         else:
             cache_Data = self.M_cache[key]
@@ -705,10 +599,10 @@ class StateSpaceSimulationModule(SimulationModule):
             self.B_dependent = cache_Data[23][:,:]
             self._A_dependent = cache_Data[24][:,:]
             self._B_dependent = cache_Data[25][:,:]
-            self.A_x_independent_filter = cache_Data[26][:,:]
-            self.forced_switch_mapping = cache_Data[27].copy()
-            self.independent_state_var_labels = cache_Data[28].copy()
-            self.dependent_state_var_labels = cache_Data[29].copy()
+
+            self.forced_switch_mapping = cache_Data[26].copy()
+            self.independent_state_var_labels = cache_Data[27].copy()
+            self.dependent_state_var_labels = cache_Data[28].copy()
 
             
 
@@ -806,7 +700,7 @@ class StateSpaceSimulationModule(SimulationModule):
     
 
 
-    def calc_impulse_response(self,  switch_triggere_labels:list[str], x_cur_for_update:np.ndarray, x_cur_for_y):
+    def calc_impulse_response(self,  switch_triggere_labels:list[str], x_cur_before_t0:np.ndarray):
            
         if len(self.forced_switch_mapping) > 0 and len(switch_triggere_labels) > 0:
             for label in switch_triggere_labels:
@@ -823,10 +717,8 @@ class StateSpaceSimulationModule(SimulationModule):
             # self.update_y_cur(x_hat_term=x_hat, x_cur_for_y=x_cur_for_y)
             
         else:
-        
-            x_state_imp =   self.update_dependent_in_xcur(x_cur_for_update=x_cur_for_update)
 
-            difference = x_state_imp-x_cur_for_update  #TODO: turn to 1???
+            difference = self.get_x_cur_with_dep()- x_cur_before_t0
 
             impulse = difference.astype(np.float32)
             
@@ -868,7 +760,7 @@ class StateSpaceSimulationModule(SimulationModule):
             
         
         
-    def calc_nonimpulse_response(self, x_cur_for_update, x_cur_for_y):
+    def calc_nonimpulse_response(self):
         
         diode_switched = False
 
@@ -1012,12 +904,12 @@ class StateSpaceSimulationModule(SimulationModule):
             title="Output Graph",
     
             showlegend=True,  # Enables the legend for toggling lines
-            legend=dict(
-                yanchor="top",
-                y=0.99,
-                xanchor="left",
-                x=0.01
-            )
+            # legend=dict(
+            #     yanchor="top",
+            #     y=0.99,
+            #     xanchor="right",
+            #     x=-0.0001
+            # )
         )
 
         # Set axis titles and tick intervals
@@ -1035,35 +927,163 @@ class StateSpaceSimulationModule(SimulationModule):
 
 
     
-    def update_y_cur(self, x_hat_term, x_cur_for_y ):
-        #TODO: correcT?
+    def update_internal_switch_response(self, switch_trigger_labels:list[str], x_cur_before_t0:np.ndarray):
         
-        # x_temp =self.update_dependent_in_xcur()
-        self.y_cur = np.matmul(self.C1 , x_hat_term) +   np.matmul( self._C_iteration ,x_cur_for_y) +  np.matmul( self._D_iteration ,self.u)
+        
+        if len(self.forced_switch_mapping) > 0 and len(switch_trigger_labels) > 0:
+            for label in switch_trigger_labels:
+                switch_ele = self.network_matrix.m_column_labels_to_obj_map[label]
+                list_of_diodes = self.forced_switch_mapping[switch_ele]
+                
+                for diode in list_of_diodes:
+                    diode_index = self.switch_label_index_map[diode.element_current_name]
+                    self.switch_state[diode_index] = not self.switch_state[diode_index]
+                    self.swap_col_and_update(diode.element_voltage_name)
 
         
+        # now, check for any impulse switch or soft switch
+        
+        impulse_output = self.C1@ (self.get_x_cur_with_dep() - x_cur_before_t0)
+        
+
+        self.update_y_cur(self.get_x_cur_with_dep() )
+        non_impulse = self.y_cur.copy()
+
+        for i in self.diode_index:
+            volt_lab, I_lab = self.switch_index_label_map[i]
+            diode_state = self.switch_state[i]
+            diode_ele = self.network_matrix.m_column_labels_to_obj_map[volt_lab]
+            
+            assert isinstance(diode_ele, Diode)
+            vm_name = diode_ele.diode_voltmeter_name
+            am_name = diode_ele.diode_ammeter_name
+            vm_element = self.network_matrix.element_name_obj_map[vm_name]
+            vm_index =  self.network_matrix.y_labels.index(vm_element.element_voltage_name)
+            
+            am_element = self.network_matrix.element_name_obj_map[am_name]
+            am_index = self.network_matrix.y_labels.index(am_element.element_current_name)
+            
+            volt_impulse = impulse_output[vm_index]
+            current_impulse = impulse_output[am_index]
+
+            volt_nonimpulse = non_impulse[vm_index]
+            current_nonimpulse = non_impulse[am_index]
+            
+            if volt_impulse > 0 or ( diode_state==False and volt_nonimpulse>0 ):
+                self.switch_state[i] = True
+                self.swap_col_and_update(volt_lab)
+            elif current_impulse <0 or (diode_state == True and current_nonimpulse < 0):
+                self.switch_state[i] = False
+                self.swap_col_and_update(volt_lab)
+            else:
+                pass
+        
+    
+        # self.update_y_cur(self.get_x_cur_with_dep())
+            
+    def update_y_cur(self, x_cur_for_y ):
+        
+        self.y_cur =  np.matmul( self._C_iteration ,x_cur_for_y) +  np.matmul( self._D_iteration ,self.u)
+    
+    def get_x_hat(self,):
+        return  np.matmul(self.A, self.get_x_cur_no_dep()) +np.matmul(self.B, self.u)
+    def get_x_cur_no_dep(self):
+        return self.__x_cur_ind
+    
+
+    def get_x_cur_with_dep(self):
+        return (self._A_dependent@ self.get_x_cur_no_dep() + self._B_dependent@self.u)
+
+
+
     def update_x_cur(self):
-        
-        copy = self.x_cur.copy()
-
+        # no need to get x_cur_with_dep
+        # because the corresponding row of A of the depent x is all 0
         if self.integration_strategy == "Trapezoidal":
-            self.x_cur = trapezoidalIntegration( self.x_cur, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency ).copy()
+            x_t = trapezoidalIntegration( self.get_x_cur_no_dep(), self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency ).copy()
         else:
-            self.x_cur = backwardEulerIntegration(self.x_cur, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency).copy()
+            x_t = backwardEulerIntegration(self.get_x_cur_no_dep(), self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency).copy()
 
+        
+        self.__x_cur_ind =x_t
 
     def iteration(self):
-        # the iteration process
+        
+        
+        
+        # #for debug
+        # if self.cur_system_time == 0:
+        #     # # came in as  TFTT
+        #     tftt=200
+            
+        #     # swap to tfff
+        #     self.switch_state[3] = False
+        #     self.swap_col_and_update("V_D2")
+        #     self.switch_state[2] = False
+        #     self.swap_col_and_update("V_D1")
+        #     tfff=200
+            
+        #     # swap to TFTF
+        #     self.switch_state[2] = True
+        #     self.swap_col_and_update("V_D1")
+        #     tftf = 200
+            
+        #     # swap to TFFT
+        #     self.switch_state[2] = False
+        #     self.swap_col_and_update("V_D1")
+        #     self.switch_state[3] = True
+        #     self.swap_col_and_update("V_D2")
+        #     tfft = 200
 
-        x_a_beginning =self.x_cur.copy()
+        #     # swap to FTFT
+        #     self.switch_state[0] = False
+        #     self.swap_col_and_update("V_S1")
+        #     self.switch_state[1] = True
+        #     self.swap_col_and_update("V_S2")
+        #     ftft = 200
+            
+        #     # swap to ftff
+        #     self.switch_state[3] = False
+        #     self.swap_col_and_update("V_D2")
+        #     ftff = 200
+            
+        #     # swap to fttf
+        #     self.switch_state[2] = True
+        #     self.swap_col_and_update("V_D1")
+        #     fttf = 200
+            
+        #     # swap to fttt
+        #     self.switch_state[3] = True
+        #     self.swap_col_and_update("V_D2")
+        #     fttt = 200
+            
+        #     # swap to fttf
+        #     self.switch_state[3] = False
+        #     self.swap_col_and_update("V_D2")
+        #     fttf = 200
+            
+        #     # swap to tftf
+        #     self.switch_state[0] = True
+        #     self.swap_col_and_update("V_S1")
+        #     self.switch_state[1] = False
+        #     self.swap_col_and_update("V_S2")
+        #     p = 200
+        # # turn all diode to off 
+        # if self.cur_system_time == 0:
+        #     for i in self.diode_index:
+        #         volt_lab, I_lab = self.switch_index_label_map[i]
+        #         if self.switch_state[i] == True:
+        #             self.switch_state[i] = False
+        #             self.swap_col_and_update(volt_lab)
+        # the iteration process
+        x_before_t0 = self.get_x_cur_no_dep().copy()
+        
+
+
         self.update_x_cur()
-        x_hat = np.matmul(self.A, self.x_cur) +np.matmul(self.B, self.u)
-        self.update_y_cur(x_hat,self.x_cur )
-        
-        #TODO: common y update output
-        
-       
-        x_after_iter = self.x_cur.copy()
+        # self.update_y_cur( self.get_x_cur_no_dep())
+
+
 
         cur_switch_state = self.switch_state[self.switch_mask]
         cur_diode_state = self.switch_state[~self.switch_mask]
@@ -1084,18 +1104,19 @@ class StateSpaceSimulationModule(SimulationModule):
                 switch_triggere_labels.append(sw_volt_lab)
                 trig = True
      
-        if self.M0.rank() < self.network_matrix.x_hat_label_size or len(self.forced_switch_mapping) > 0 :
-            self.calc_impulse_response( switch_triggere_labels= switch_triggere_labels, x_cur_for_update=x_a_beginning, x_cur_for_y=x_after_iter)
-            trig = True
-        else:
-            diode_switched = self.calc_nonimpulse_response(x_cur_for_update=x_a_beginning, x_cur_for_y=x_after_iter)      
+        # y_cur_before_update = self.y_cur.copy()
+        self.update_internal_switch_response(switch_trigger_labels=switch_triggere_labels, x_cur_before_t0=x_before_t0)
+
+        # if self.M0.rank() < self.network_matrix.x_hat_label_size or len(self.forced_switch_mapping) > 0 :
+        #     self.calc_impulse_response( switch_triggere_labels= switch_triggere_labels, x_cur_before_t0=x_before_t0)
+        #     trig = True
+        # else:
+        #     diode_switched = self.calc_nonimpulse_response()      
 
 
         self.M_size = self.M0.rank()
-        # self.update_x_cur()
-        
-     
 
+        
         self.time_t.append(self.cur_system_time)
         
         self.u_output.append(  self.u.tolist())

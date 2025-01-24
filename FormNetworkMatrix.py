@@ -453,7 +453,14 @@ def gen_incident_matrix(
     return A_matrix, tree_port, cotree_port, tree_nonport, cotree_nonport
 
 
-def system_realization(netList: list[list[str]]):
+def system_realization(netList: list[list[str]], supress_inconsistenc=False):
+    
+    
+    #TODO: instead of the supress inconsistence parameter
+    # check for cutset, loop, and connectivy of the graph
+    
+    # if everything is good but still did not get full rank M0 at the beginning, means inherent dependency between elements, like two inductor connect in series
+    
     # process netlisth
     node_name_obj_map: dict[str, Node] = {"0": GroundNode("GND")}
     node_name_row_map: dict[str, int] = {}
@@ -696,6 +703,7 @@ def system_realization(netList: list[list[str]]):
     # the order is w, u_tilt, s, y, x_hat, x, 0, u
     # w is all nonport element [iy, vz]
     w = iy_labels + vz_labels
+    #TODO: debug only
     def sort_for_u(item1:VoltageCurrentSource, item2:VoltageCurrentSource): # current source first
         if item1.is_voltage_source == False and item2.is_voltage_source:
             return -1
@@ -705,9 +713,9 @@ def system_realization(netList: list[list[str]]):
             return 0
     def sort_for_meter(item1:Element, item2:Element):  # voltmeter first
         if isinstance(item1,Voltmeter) and isinstance(item2, Ammeter):
-            return -1
-        elif isinstance(item1, Ammeter) and isinstance(item2, Voltmeter):
             return 1
+        elif isinstance(item1, Ammeter) and isinstance(item2, Voltmeter):
+            return -1
         else:
             return 0
     def sort_for_switch(item1:Element, item2:Element):  # switch first, then diode
@@ -717,6 +725,7 @@ def system_realization(netList: list[list[str]]):
             return 1
         else:
             return 0
+    #TODO: debug only
     def sort_for_capacitor_inductor(item1:Element, item2:Element):
         if isinstance(item1, Inductor) and isinstance(item2, Capacitor):
             return -1
@@ -782,7 +791,12 @@ def system_realization(netList: list[list[str]]):
             x.append(ele.element_voltage_name)
     
 
+    #TODO: debug
     
+    # x_hat = ['I_C1', 'V_L1', 'V_LS0', 'V_LS1', 'V_LS2', 'I_C2']
+    # x = ['V_C1', 'I_L1', 'I_LS0', 'I_LS1', 'I_LS2', 'V_C2']
+    # y = ['I_AM2', 'I_AM3','V_VM2', 'V_VM3', 'V_VM4','V_VM5', 'V_VM6', 'V_VM7','I_AM4', 'I_AM5', 'I_AM6' ]
+    # y_zero = ['V_AM2', 'V_AM3','I_VM2', 'I_VM3', 'I_VM4','I_VM5', 'I_VM6', 'I_VM7','V_AM4', 'V_AM5', 'V_AM6']
 
     reordered_m_labels = w + u_tilt + s + y + x_hat + x + s_zero + y_zero + u
     reordered_m_lable_obj_mapping = {}
@@ -806,7 +820,7 @@ def system_realization(netList: list[list[str]]):
         
     reorder_matrix_by_colum_label(M, reordered_m_labels, m_labels_mapping)
 
-    # M = M.subs(symbollic_to_value_map)
+    M = M.subs(symbollic_to_value_map)
 
     
     # do any rref on M matrix
@@ -814,7 +828,9 @@ def system_realization(netList: list[list[str]]):
     print(pivots)
     # ensure pivots are in consective order
     for i in range(len(pivots)):
-        assert i == pivots[i]
+        if i != pivots[i] and supress_inconsistenc:
+            print("Warning: inconsistency system detected!")
+        # assert i == pivots[i]
 
 
     # multiple L/C to result in correct x_hat. Since ic = C*dv/dt
@@ -905,137 +921,62 @@ def system_realization(netList: list[list[str]]):
     # net.M_topology, _ = net.M_topology.rref()
     net.apply_mutual_inductance_effect()  # do it for the first time
 
-    s_dxdt, Sx, Su, C1, C, D, M0, A, B, C_SW, D_SW, inconsistent_labels = retrieveSystemMatrix(
-        M=net.M,
-        m_labels=net.m_column_labels,
-        m_pivots=net.M_pivots,
-        s_labels_size=net.s_labels_size,
-        y_labels_size=net.y_label_size,
-        x_hat_labels_size=net.x_hat_label_size,
-        x_labels_size=net.x_label_size,
-        y_zero_labels_size=net.y_zero_label_size,
-        s_zero_labels_size=net.s_zero_label_size,
-        capacitor_size= net.capacitor_size,
-        inductor_size=net.inductor_size,
-        voltage_source_size=net.voltage_source_size,
-        current_source_size=net.current_source_Size,
-        redundant_offset=net.redundant_size
-        
-    )
-    with open("test.txt","w") as f:
-        print_matrix(net.M, net.m_column_labels, ["" for x in range(net.M.shape[0])], file=f)
-    print("s_dxdt")
-    pprint(s_dxdt)
 
-    print("sx")
-    pprint(Sx)
 
-    print("su")
-    pprint(Su)
+    # net.rref_update()
+    # M_TFTT = net.M.copy()
+    # lab_TFTT = net.m_column_labels.copy()
+    
+    # #TFTF
+    # net.update_M_matrix("V_D2", False)
+    # net.rref_update()
+    # M_TFTF = net.M.copy()
+    # lab_TFTF = net.m_column_labels.copy()
+    # #TFFF 
+    # net.update_M_matrix("V_D1", False)
+    # net.rref_update()
+    # M_TFFF = net.M.copy()
+    # lab_TFFF = net.m_column_labels.copy()
+    
+    # #TFFT
+    # net.update_M_matrix("V_D2", False)
+    # net.rref_update()
+    # M_TFFT = net.M.copy()
+    # lab_TFFT = net.m_column_labels.copy()
+    
+    # #FTTT
+    # net.update_M_matrix("V_D1", False)
+    # net.rref_update()
+    # net.update_M_matrix("I_S1", False)
+    # net.rref_update()
+    # net.update_M_matrix("I_S2", False)
+    # net.rref_update()
+    # M_FTTT= net.M.copy()
+    # lab_FTTT = net.m_column_labels.copy()
+    # #FTTF
+    # net.update_M_matrix("V_D2", False)
+    # net.rref_update()
+    # M_FTTF = net.M.copy()
+    # lab_FTTF = net.m_column_labels.copy()
+    
+    # #FTFF
+    # net.update_M_matrix("V_D1", False)
+    # net.rref_update()
+    # M_FTFF = net.M.copy()
+    # lab_FTFF = net.m_column_labels.copy()
+    # #FTFT
+    # net.update_M_matrix("V_D2", False)
+    # net.rref_update()
+    # M_FTFT = net.M.copy()
+    # lab_FTFT = net.m_column_labels.copy()
+    # p = 200
 
-    print("C1")
-    pprint(C1)
-    print("C")
-    pprint(C)
-    print("D")
-    pprint(D)
 
-    print("M0")
-    pprint(M0)
-    print("A")
-    pprint(A)
-    print("B")
-    pprint(B)
 
-    print("C_SW")
-    pprint(C_SW)
-    
-    print("D_SW")
-    pprint(D_SW)
 
-    _, pivot = net.M.rref()
-    
-    for i in range(len(pivot)):
-        if pivot[i] != i:
-            raise ValueError("Error in the network matrix")
-        
-        
-    # # check transfer func and stability
-    A_iter= A.subs(symbollic_to_value_map)
-    B_iter = B.subs(symbollic_to_value_map)
-    C_iter = C.subs(symbollic_to_value_map)
-    D_iter = D.subs(symbollic_to_value_map)
-    
-    # # Print matrices in MATLAB format
-    # print("\nA = [")
-    # print(np.array2string(np.array(A_iter).astype(float), separator=', ', precision=8).replace('[', '').replace(']', ''))
-    # print("];")
 
-    # print("\nB = [")
-    # print(np.array2string(np.array(B_iter).astype(float), separator=', ', precision=8).replace('[', '').replace(']', ''))
-    # print("];")
 
-    # print("\nC = [")
-    # print(np.array2string(np.array(C_iter).astype(float), separator=', ', precision=8).replace('[', '').replace(']', ''))
-    # print("];")
 
-    # print("\nD = [")
-    # print(np.array2string(np.array(D_iter).astype(float), separator=', ', precision=8).replace('[', '').replace(']', ''))
-    # print("];")
-    
-    
-    
-    
-    print("A with subs")
-    pprint(A)
-    # transfer_func, poles, pole_roots = transfer_func_and_poles(A, B, C, D, symbolic_value_map=symbollic_to_value_map)
-    # print("Transfer function :")
-    # pprint(transfer_func)
-    # print("DET SI-A  POLES")
-    # pprint(sp.simplify(poles))
-    # print("Poles of system")
-    # print(pole_roots)
-    
-    print("Eigen values of A")  # should be less than 1 for discrete system, or less than 0 for    
-    pprint(A_iter.eigenvals())
-    
-    # check if any negative eigen values
-    # Check if any eigenvalue has a positive real part
-    for eigenval in A_iter.eigenvals():
-        if eigenval.as_real_imag()[0] > 0:  # Check real part of eigenvalue
-            warning_msg = "Warning: System is unstable! Found eigenvalue with positive real part."
-            print(warning_msg)
-            # raise ValueError(warning_msg)
-    
-    # print("value of eigen values of A")
-    # tmp = A.subs(symbollic_to_value_map)
-    # print(tmp.eigenvals())
-    
-    # write_matrix_info(net=net)
-    
-    
-    
-    # test of swap
-    # false, true
-    # net.update_M_matrix("V_D1")
-    # net.update_M_matrix("V_D2")
-    # s_dxdt, Sx, Su, C1, C, D, M0, A, B, C_SW, D_SW, inconsistent_labels = retrieveSystemMatrix(
-    #     M=net.M,
-    #     m_labels=net.m_column_labels,
-    #     m_pivots=net.M_pivots,
-    #     s_labels_size=net.s_labels_size,
-    #     y_labels_size=net.y_label_size,
-    #     x_hat_labels_size=net.x_hat_label_size,
-    #     x_labels_size=net.x_label_size,
-    #     y_zero_labels_size=net.y_zero_label_size,
-    #     s_zero_labels_size=net.s_zero_label_size,
-    #     capacitor_size= net.capacitor_size,
-    #     inductor_size=net.inductor_size,
-    #     voltage_source_size=net.voltage_source_size,
-    #     current_source_size=net.current_source_Size,
-    #     redundant_offset=net.redundant_size
-        
-    # )
     return net    
     
 

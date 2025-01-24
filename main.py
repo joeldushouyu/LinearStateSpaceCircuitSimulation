@@ -1,7 +1,7 @@
 from FormNetworkMatrix import system_realization, NetworkMatrix, ExternalSwitch
 from SimulationMessage import MessageManager, VoltageCurrentMessage, OversamplingMessage, SwitchMessage, SystemTimeMessage
 from Simulation import VoltageCurrentSimulationModule, SystemClockSimulationModule, SwitchSimulationModule, SwitchOversampleModule, StateSpaceSimulationModule
-from util import swapTwoColumn, retrieveSystemMatrix, determine_dependent_state_vars,parameter_for_three_wind_transformer
+from util import swapTwoColumn, retrieveSystemMatrix, parameter_for_three_wind_transformer
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -83,25 +83,26 @@ netList = [
 ]
 
 
-# # # full-wave rectifier circuit
-# switch_frequency = 1000
-# end_sim_t = 0.005
-# netList = [
+# # # # # full-wave rectifier circuit
+# # # switch_frequency = 1000
+# # # end_sim_t = 0.005
+# # # netList = [
     
-#     "Vin, N1, N4, 100, 1000",
-#     "L1, N1, N5, 125e-6",
+# # #     "Vin, N1, N4, 100, 1000",
+# # #     "L1, N1, N5, 125e-6",
 
-#     "D1, N2, N3, ON",
-#     "D2, 0, N4, ON",
-#     "D3, 0, N2, OFF",
-#     "R1, N3, 0, 1e3",
-#     "VM1-R1, N3, 0",
-#     "AM1-L, N5, N2",
-#     "D4, N4, N3, OFF",
-# ]
+# # #     "D1, N2, N3, ON",
+# # #     "D2, 0, N4, ON",
+# # #     "D3, 0, N2, OFF",
+# # #     "R1, N3, 0, 1e3",
+# # #     "VM1-R1, N3, 0",
+# # #     "AM1-L, N5, N2",
+# # #     "D4, N4, N3, OFF",
+# # # ]
+
+# # simplified half-bridge, capactiro,resistor parallel circuit
 switch_frequency = 1000
 end_sim_t = 0.005
-# simplified half-bridge, capactiro,resistor parallel circuit
 netList = [
     
     "Vin, N1, 0, 20, 1000",
@@ -118,14 +119,14 @@ netList = [
     "VM1-C1, N3, 0",
     "VM2-Rt, Nt, N2",
 ]
-
+supress=False
 
 
 
 end_sim_t  = 0.1
 switch_frequency = 60
 
-# 3 winding transformer with simple resistor, but model secondary with ICVS
+# 3 winding transformer with simple resisto
 netList = [
     
     f"Vin, N1, 0, 200, {switch_frequency}",
@@ -151,52 +152,30 @@ netList = [
 
 
 
-# end_sim_t  = 0.1
-# switch_frequency = 60
+end_sim_t  = 0.2
+switch_frequency = 60
 
-# # 3 winding transformer with simple resistor, with idea transformer
-# netList = [
+# 2 winding transformer with RLC modeling
+netList = [
     
-    
-#     # transformer
-#     "LS0, NA, NB, 200e-6, [LS1, LS2], [0.99, 0.99]",
-#     "LS2, NB, NC, 400e-6, [LS0, LS1], [0.99, 0.99]",
-#     "LS1, NC, ND, 400e-6, [LS0, LS2], [0.99, 0.99]",
-    
-#     "VMLS0, NB, NA",
-#     "VMLS1, NC, NB",
-#     "VMLS2, ND, NC",
-    
-#     # the dependent source connects to it
-#     "ICIS-1, NB, NA, 1, AM-S0",
-#     "ICIS-2, NC, NB, 1, AM-S1",
-#     "ICIS-3, ND, NC, 1, AM-S2",
-    
-    
-#     f"Vin, N1, 0, 200, {switch_frequency}",
-#     "R1, N1, NAM-S0, 10",
-#     "AM-S0, NAM-S0, N2",
-#     "VCVS-1, N2, 0, 1, VMLS0",
+    f"Vin, N1, 0, 200, {switch_frequency}",
+    "R1, N1, N2, 1",
+    "LS0, N2, 0, 200e-6, [LS1], [0.99]",
 
+    "LS1, N3, 0, 400e-6, [LS0], [0.99]",
 
-
-
-#     "VCVS-2, NAM-S1, 0, 1, VMLS1 ",
-#     "AM-S1, NAM-S1, N3",
-#     "R2, N3, 0, 100e3",
-#     "VMR2, N3, 0",
-
+    "VMD1, N4, N5",
+    "AMD1, N3, N4",
+    "D1, N4, N5, ON, VMD1, AMD1",
+    "Ro, N5, N6, 10",
+    "C0, N6, 0, 100e-6",
+    
+    "VMRC, N5, 0",
+    "VMC, N6, 0",
     
 
-#     "VCVS-3, 0, NAMS2, 1, VMLS2",
-#     "AM-S2, NAMS2, N4",
-#     "R3, N4, 0, 100e3",
-#     "VMR4, N4, 0",
 
-
-#     "RNA, NA, 0, 0.0001",
-
-# ]
+]
 
 
 
@@ -204,103 +183,156 @@ netList = [
 
 
 
-# end_sim_t  = 0.2
-# switch_frequency = 60
 
-# # 3 winding transformer with RLC modeling
-# netList = [
+end_sim_t  = 0.2
+switch_frequency = 60
+
+# 3 winding transformer with RLC modeling
+netList = [
     
-#     f"Vin, N1, 0, 200, {switch_frequency}",
-#     "R1, N1, N2, 1",
-#     "LS0, N2, 0, 200e-6, [LS1, LS2], [0.99, 0.99]",
-#     "RLS0, N2, 0, 100e6",
-#     "VM-p, N2, 0",
+    f"Vin, N1, 0, 200, {switch_frequency}",
+    "R1, N1, N2, 1",
+    "LS0, N2, 0, 200e-6, [LS1, LS2], [0.99, 0.99]",
+    "RS0, N2, 0, 100e3",
+    "VM-p, N2, 0",
 
 
-#     "LS1, N3, 0, 400e-6, [LS0, LS2], [0.99, 0.99]",
-#     # "RLS1, N3, NA, 100e6",
-#     # "CLS1, N3, 0, 0.1e-10",
-#     "D1, N3, NAMD1, ON, VMD1, AMD1",
-#     "VMD1, N3, NAMD1",
-#     "AMD1,  NAMD1, N5",
-#     "VMLS1, N3, 0",
+    "LS1, N3, 0, 400e-6, [LS0, LS2], [0.99, 0.99]",
+    "AMD1, N3, N3AM",
+    "VMD1, N3AM, N5",
+    "D1, N3AM, N5, ON, VMD1, AMD1",
+    "VMLS1, N3, 0",
     
+
+
     
+    "LS2, 0, N4, 400e-6, [LS0, LS1], [0.99, 0.99]",
+    "AMD2, N4, N4AM",
+    "VMD2, N4AM, N5",
+    "D2, N4AM, N5, ON, VMD2, AMD2",
+    "VMLS2, N4, 0",
     
-#     "LS2, 0, N4, 400e-6, [LS0, LS1], [0.99, 0.99]",
-#     # "CLS2, N4, 0, 0.1e-10",
-#     # "RLS2, NA, N4, 100e6",
-#     "D2, N4, NAMD2, ON, VMD2, AMD2",
-#     "VMD2, N4, NAMD2",
-#     "AMD2, NAMD2, N5",
-#     "VMLS2, N4, 0",
+    "Rinternal, N5, N6, 0.001",
+    "Cout, N6, 0, 100e-6",
+    "Rout, N6, 0, 10e3",
     
-#     "Rinternal, N5, N6, 0.001",
-#     "Cout, N6, 0, 100e-6",
-#     "Rout, N6, 0, 10e3",
-#     "VMout, N6, 0",
-    
-#     # "RNA, NA, 0, 0",
+    "VMout, N6, 0",
 
 
 
-# ]
+]
 
 
 
 
-
-
-
-# end_sim_t  = 1e-3
+# end_sim_t  = 2e-3
 # switch_frequency = 100e3
 # duty_cycle = 0.5
-# # 3 winding transformer with RLC modeling
+# # HALF-bridge lswitch only
 # netList = [
-    
-#     f"Vin, N1, 0, 400, 0",
-#     "Rsource, N1, NSource, 0.0001",
+#     f"Vin, NSource, 0, 400, 0",
+#     # "RInternal, N1, NSource, 0",
 #     f"S1, NSource, NSW, ON, {switch_frequency}, {duty_cycle}",
 #     f"S2, NSW, 0, OFF, {switch_frequency}, {1-duty_cycle}",
-#     "Rin1, NSW, NR, 0.00001",
-#     "Cr, NR, NC, 24e-9",
-#     "Lr, NC, N2, 60e-6",
-#     "RLR, NC, N2, 100e6",
-    
-    
-    
-#     "LS0, N2, 0, 280e-6, [LS1, LS2], [0.99, 0.99]",
-#     "VM-p, N2, 0",
-    
-#     "LS1, N3, 0, 968e-9, [LS0, LS2], [0.99, 0.99]",
-#     # "RLS1, N3, 0, 100e6",
-#     "CLS1, N3, 0, 0.1e-10",
-#     "D1, N3, NAMD1, ON, VMD1, AMD1",
-#     "VMD1, N3, NAMD1",
-#     "AMD1,  NAMD1, N5",
-#     "VMLS1, N3, 0",
-    
-#     "LS2, 0, N4, 968e-9, [LS0, LS1], [0.99, 0.99]",
-#     "CLS2, N4, 0, 0.1e-10",
-
-#     "D2, N4, NAMD2, OFF, VMD2, AMD2",
-#     "VMD2, N4, NAMD2",
-#     "AMD2, NAMD2, N5",
-#     "VMLS2, N4, 0",
-    
-#     "Rinternal, N5, N6, 0.001",
-#     "Cout, N6, 0, 1000e-6",
-#     "Rout, N6, 0, 0.48",
-#     "VMout, N6, 0",
-
+#     "Rin1, NSW, NR, 0.01",
+#     "AMRIN, NR, NRIN",
+#     "Cr, NRIN, NC, 24e-9",
+#     "Lr, NC, 0, 60e-6",
+#     "VMC, NRIN, 0",
+#     "VML, NC, 0",
 
 
 # ]
 
+# supress=False
+# end_sim_t  = 2e-3
+# switch_frequency = 100e3
+# duty_cycle = 0.5
+# supress = True
+# # HALF-bridge lswitch only
+# netList = [
+#     f"Vin, NSource, 0, 400, 0",
+#     f"S1, NSource, NSW, ON, {switch_frequency}, {duty_cycle}",
+#     f"S2, NSW, 0, OFF, {switch_frequency}, {1-duty_cycle}",
+#     "Rin1, NSW, NR, 0.01",
+    
+#     "AM4, NR, NAMLR",
+#     "VM5, NR, NLR",
+#     "L1, NAMLR, NLR, 60e-6",
+
+    
+    
+#     "AM5, NLR, NAMC",
+#     "VM6, NLR, NC",
+#     "C1, NAMC, NC, 24e-9",
+    
+#     "AM6, NAMSO, 0",
+#     "LS0, NC, NAMSO, 280e-6, [LS1, LS2], [0.99, 0.99]",
+#     "VM7, NC, 0",
+    
+#     "LS1, N3, 0, 968e-9, [LS0, LS2], [0.99, 0.99]",
+#     "AM2, N3, N3AM",
+#     "VM2, N3AM, N5",
+#     "D1, N3AM, N5, ON, VM2, AM2",
+
+    
+#     "LS2, 0, N4, 968e-9, [LS0, LS1], [0.99, 0.99]",
+#     "AM3, N4, N4AM",
+#     "VM3, N4AM, N5",
+#     "D2, N4AM, N5, ON, VM3, AM3",
+
+#     "Rinternal, N5, N6, 0.001",
+#     "C2, N6, 0, 1000e-6",
+#     "Rout, N6, 0, 0.48",
+#     "VM4, N6, 0",
+# ]
+
+end_sim_t  = 2e-3
+switch_frequency = 100e3
+duty_cycle = 0.5
+supress = True
+# HALF-bridge lswitch only
+netList = [
+    f"Vin, NSource, 0, 400, 0",
+    f"S1, NSource, NSW, ON, {switch_frequency}, {duty_cycle}",
+    f"S2, NSW, 0, OFF, {switch_frequency}, {1-duty_cycle}",
+    "Rin1, NSW, NR, 0.01",
+    
+    "AM4, NR, NAMLR",
+    "VM5, NR, NLR",
+    "L1, NAMLR, NLR, 60e-6",
+
+    
+    
+    "AM5, NLR, NAMC",
+    "VM6, NLR, NC",
+    "C1, NAMC, NC, 24e-9",
+    
+    "AM6, NAMSO, 0",
+    "LS0, NC, NAMSO, 280e-6, [LS1, LS2], [0.99, 0.99]",
+    "VMp, NC, 0",
+    
+    "LS1, N3, 0, 968e-9, [LS0, LS2], [0.99, 0.99]",
+    "AMD1, N3, N3AM",
+    "VMD1, N3AM, N5",
+    "D1, N3AM, N5, ON, VMD1, AMD1",
+    "VMLS1, N3, 0",
+
+    
+    "LS2, 0, N4, 968e-9, [LS0, LS1], [0.99, 0.99]",
+    "AMD2, N4, N4AM",
+    "VMD2, N4AM, N5",
+    "D2, N4AM, N5, ON, VMD2, AMD2",
+    "VMLS2, N4, 0",
+
+    "Rinternal, N5, N6, 0.001",
+    "C2, N6, 0, 1000e-6",
+    "Rout, N6, 0, 0.48",
+    "VMout, N6, 0",
+]
 
 
-
-network_matrix = system_realization(netList)
+network_matrix = system_realization(netList,supress)
 # swapTwoColumn(network_matrix.M, network_matrix.m_column_labels, network_matrix.m_column_labels_to_obj_map, network_matrix.s_labels[0])
 # swapTwoColumn(network_matrix.M, network_matrix.m_column_labels, network_matrix.m_column_labels_to_obj_map, network_matrix.s_labels[1])
 # swapTwoColumn(network_matrix.M, network_matrix.m_column_labels, network_matrix.m_column_labels_to_obj_map, network_matrix.s_labels[0])
@@ -352,7 +384,7 @@ switch_oversample_message = OversamplingMessage(message_manager=message_manager)
 
 # okay, now create each individual simulation modules
 
-iteration_frequency =  max(1e3, switch_frequency*20)
+iteration_frequency =  max(2e3, switch_frequency*100)
 state_space_module = StateSpaceSimulationModule(network_matrix=network_matrix, iteration_frequency= iteration_frequency) #TODO: change later
 oversample_module =SwitchOversampleModule( network_matrix=network_matrix, sample_frequency=iteration_frequency, oversample_message=switch_oversample_message)
 

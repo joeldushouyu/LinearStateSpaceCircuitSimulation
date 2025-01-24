@@ -1,7 +1,7 @@
 import scipy.integrate
 import scipy.linalg
 from Element import (
-    Element, ExternalSwitch, Diode
+    Element, ExternalSwitch, Diode, Capacitor, Inductor
 )
 from typing import Tuple
 import sympy as sp
@@ -149,75 +149,413 @@ def reogranize_matrix_by_row_col_mapping(matrix: Matrix, old_lab_row_idx_mapping
     return new_matrix
 
 
-
-def generate_independent_dependent_row_col_mapping(M0: Matrix, A: Matrix, B: Matrix, C: Matrix, D: Matrix, independent_state_row_col_map:dict[str, list[int]], dependent_state_row_col_map:dict[str, list[int]]):
-    # Note: no need to reorder C1, because any dependent x_hat(derivative of x) will be o
+def apply_inductance_capactiance_to_state_matrix(cap_parallel_ind_series_ind_dep_mapping:dict[str,list[str]],
+                                                M0_I: Matrix, A: Matrix, B: Matrix, C: Matrix, D: Matrix, x_hat_label_to_obj_map:dict[list, Element],
+                                                independent_state_number:int, dependent_state_number:int,
+                                                symbol_to_value_map:dict[Symbol, ],
+                                                ind_dep_A_row_idx_map:dict[str, list[int]], 
+                                                ind_dep_A_col_idx_map:dict[str, list[int]]
+                                                 ):
     
 
-    system_row_index_mapping:dict[str, int]  = {}
-    system_col_index_mapping:dict[str, int] = {}
+
+    # update M0 based on any natual independent/dependent in M0
+    M0_I_res = sp.zeros( independent_state_number + dependent_state_number)
+    M0_I_res[:independent_state_number, :independent_state_number] = sp.eye(independent_state_number)
+    # Get M0_I to be in the same format as plexim
+    for ind_label, col in ind_dep_A_col_idx_map.items():
+        if ind_label in cap_parallel_ind_series_ind_dep_mapping:
+            for dep_lab in cap_parallel_ind_series_ind_dep_mapping[ind_label]:
+                dep_row  = ind_dep_A_row_idx_map[ dep_lab ]
+                
+                M0_I_res[dep_row, col] = 1  
+
+    E = Matrix(independent_state_number, independent_state_number, [0]*independent_state_number *independent_state_number)
     
-    ind_dep_row_index_mapping:dict[str, int] = {}
-    ind_dep_col_index_mapping:dict[str, int] = {}
+    for row_lab, row_idx in ind_dep_A_row_idx_map.items():
+        for col_lab, col_idx in ind_dep_A_col_idx_map.items():
+            
+            if row_idx >= independent_state_number or col_idx >= independent_state_number:
+                continue
+            
+            
+            if  row_lab  == col_lab:
+                ele = x_hat_label_to_obj_map[row_lab]
+                if isinstance(ele, Capacitor):
+                    E[row_idx, col_idx] =ele.capacitance
+                    # apply the affect of parallel capacitor
+                    if row_lab in cap_parallel_ind_series_ind_dep_mapping:
+                        parallel_capacitor_labels:list[str] = cap_parallel_ind_series_ind_dep_mapping[row_lab]
+                        for parallel_lab in parallel_capacitor_labels:
+                            parallel_element = x_hat_label_to_obj_map[parallel_lab]
+                            assert isinstance(parallel_element, Capacitor)
+                            E[row_idx, col_idx ] += parallel_element.capacitance
+                else:
+                    assert isinstance(ele, Inductor)
+                    E[row_idx, col_idx] = ele.inductance
+                    
+                    # apply the affect of inductor in series
+                    if row_lab in cap_parallel_ind_series_ind_dep_mapping:
+                        series_inductor_labels:list[str] = cap_parallel_ind_series_ind_dep_mapping[row_lab]
+                        for ser_lab in series_inductor_labels:
+                            series_element = x_hat_label_to_obj_map[ser_lab]
+                            assert isinstance(series_element, Inductor)
+                            E[row_idx, col_idx] += series_element.inductance
+                
+            else:
+                # check for possible mutual inductance affect
+                row_ele = x_hat_label_to_obj_map[row_lab]
+                col_ele = x_hat_label_to_obj_map[col_lab]
+                
+                if isinstance(row_ele, Inductor)  and isinstance(col_ele, Inductor) and row_ele.name in col_ele.mutual_inductor_names:
+                    K_factor_ind = col_ele.mutual_inductor_names.index(row_ele.name)
+                    E[row_idx, col_idx] = col_ele.K_factors[K_factor_ind] * sp.sqrt(col_ele.inductance*row_ele.inductance)
+                    
     
-    index = 0
-    for lab, system_row_col in independent_state_row_col_map.items():
-        ind_dep_row_index_mapping[lab] = index
-        ind_dep_col_index_mapping[lab] = index
-        
-        system_row_index_mapping[lab] = system_row_col[0]
-        system_col_index_mapping[lab] = system_row_col[1]
-
-        
-        index +=1
-    for lab, system_row_col in dependent_state_row_col_map.items():
-        ind_dep_row_index_mapping[lab] = index
-        ind_dep_col_index_mapping[lab] = index
-        
-        system_row_index_mapping[lab] = system_row_col[0]
-        system_col_index_mapping[lab] = system_row_col[1]
-        
-        index +=1
-
-    return system_row_index_mapping, system_col_index_mapping, ind_dep_row_index_mapping, ind_dep_col_index_mapping
-
-
-
-
-def determine_dependent_independent_state_mapping(M0: Matrix, A: Matrix, B: Matrix, m_pivots:list[int], x_hat_labels: list[int], x_hat_col_offset_in_m_pivots:int,  ):
+    A11 = sp.matrix2numpy( A[:independent_state_number, :independent_state_number], dtype=np.float64)
+    A12 = sp.matrix2numpy(A[:independent_state_number, independent_state_number:], dtype=np.float64)
+    A21 = sp.matrix2numpy(A[independent_state_number:, :independent_state_number], dtype=np.float64)
+    A22 = sp.matrix2numpy(A[independent_state_number:, independent_state_number:], dtype=np.float64)
     
+    B1 = sp.matrix2numpy( B[:independent_state_number, :], dtype=np.float64)
+    B2 = sp.matrix2numpy(B[independent_state_number:, :], dtype=np.float64)
+    C1 = sp.matrix2numpy(C[:, :independent_state_number], dtype=np.float64)
+    C2 = sp.matrix2numpy(C[:, independent_state_number:], dtype=np.float64)
+    
+    
+    E = E.subs(symbol_to_value_map)
+    E_np = sp.matrix2numpy(E, dtype=np.float64)
+    E_inverse = np.linalg.inv(E_np)
+    A22_inverse = np.linalg.inv(A22)
+    A11_new = E_inverse@( A11 - A12@A22_inverse@A21)
+    A12_new = sp.zeros(A12.shape[0], A12.shape[1])
+    A21_new = sp.zeros(A21.shape[0], A21.shape[1])
+    A22_new = sp.zeros( A22.shape[0], A22.shape[1] )
+    B1_new = E_inverse @(B1 - A12@A22_inverse@B2)
+    B2_new = sp.zeros(B2.shape[0], B2.shape[1])
+    
+    
+    C1_new = C1-C2@A22_inverse@A21
+    C2_new = sp.zeros(C2.shape[0], C2.shape[1])
+    
+    D_new = D-C2@A22_inverse@B2
+    
+    
+    A11_dependent_matrix = sp.eye(independent_state_number) # simplify a copye of A11 matrix
+    A21_dependent_matrix = -1*A22_inverse@A21
+    B2_dependent_matrix = -1*A22_inverse@B2
+    B1_dependent_matrix = sp.zeros(B1.shape[0], B1.shape[1])
+    A12_dependent_matrix = sp.zeros( independent_state_number, dependent_state_number)
+    A22_dependent_matrix = sp.zeros(dependent_state_number, dependent_state_number)
+        
+
+
+    
+    A_res = sp.BlockMatrix( [ [ Matrix(A11_new),  Matrix(A12_new)],
+                             [Matrix(A21_new), Matrix(A22_new)]]   )
+    B_res = sp.BlockMatrix([ [Matrix(B1_new)], 
+                            [Matrix(B2_new)] ])
+    C_res = sp.BlockMatrix(  [ [Matrix(C1_new), 
+                                Matrix(C2_new)]] )
+    D_res =  sp.Matrix(D_new)
+    
+    A_dependent_res = sp.BlockMatrix( [  [Matrix(A11_dependent_matrix),  Matrix(A12_dependent_matrix)],
+                                        [Matrix(A21_dependent_matrix), Matrix(A22_dependent_matrix)]]  )
+    B_dependent_res = sp.BlockMatrix( [  [Matrix(B1_dependent_matrix)],
+                                       [ Matrix(B2_dependent_matrix)]] )
+    
+    return M0_I_res, A_res, B_res, C_res, D_res, A_dependent_res, B_dependent_res                 
+            
+    
+def determine_dependent_independent_state_mapping(M0_I: Matrix, A_raw:Matrix,  m_pivots:list[int], u_labels:list[str], y_labels:list[str], x_hat_labels: list[str], x_hat_col_offset_in_m_pivots:int  ):
+    
+    
+    # could have two possible scenario when there exist dependency
+    
+    #TODO: add more doc in the future
     
     independent_state_row_col_map:dict[str, list[int]] = {}
     dependent_state_row_col_map:dict[str, list[int]] = {}
     # determine the the dependent/independent state variabls with their row/column
-    _,M0_pivots = M0.rref() 
+    _,M0_pivots = M0_I.rref() 
+    
+    
+    
+    #NOTE: remember by def of pivot, pivot row is the first nonzero value in that pivot column
+    
+    # start by looking from dependency state first
+    
+    # dependency state happen when pivots exist in the correspong "x" label column, not "x_hat" label column
+    dependent_col_offset = x_hat_col_offset_in_m_pivots+len(x_hat_labels)
+    dependent_pivot_col = [col for col in m_pivots if col >=dependent_col_offset]
+    
+    for col in dependent_pivot_col:
+        col_in_A = col-dependent_col_offset
+        if col_in_A  >=len(x_hat_labels):
+            # means is a force trigger related
+            continue
+        label = x_hat_labels[col_in_A]
+        A_col = A_raw[:, col_in_A]
+        pivot_row = None
+        for row in range(A_col.rows):
+            if A_col[row] != 0:
+                pivot_row = row
+                break
+        assert pivot_row is not None
+        
+        dependent_state_row_col_map[label] = [pivot_row, col_in_A]
+    
+    # state dependency
+    # for marking elements that are naturally dependent on another element
+    # this happen in capacitors in parallel or inductor in series
+    
+    cap_parallel_ind_series_ind_dep_mapping:dict[str, list[str]] = {}
+    
     
     
     for index in range(len(M0_pivots)):
-        assert M0_pivots[index] == m_pivots[ index + x_hat_col_offset_in_m_pivots ]
-        
+        # assert M0_pivots[index] == m_pivots[ index + x_hat_col_offset_in_m_pivots ]
         pivot_col = M0_pivots[index]
-        pivot_row = index # by def, pivots are the first nonzero in each row
         label = x_hat_labels[pivot_col]
-        
+        pivot_row = index # by def, pivots are the first nonzero in each row
+        if label in dependent_state_row_col_map:
+            # scenario where on state are idential to another state
+            # for example, two inductor in series or two capacitor in parallel. I_L / V_C is the same for both element
+            # there should be another 1's column in the same row
+            
+            M0_I_row = M0_I[pivot_row, :]
+            assert M0_I_row[pivot_col] == 1
+            new_pivot_col = None
+            for new_col in range(pivot_col+1,  M0_I_row.cols):
+                if M0_I_row[new_col] == 1:
+                    new_pivot_col = new_col
+            assert new_pivot_col is not None
+            # update new pivot col, 
+            pivot_col = new_pivot_col  
+
+            if x_hat_labels[pivot_col]  not in cap_parallel_ind_series_ind_dep_mapping:
+                cap_parallel_ind_series_ind_dep_mapping[ x_hat_labels[pivot_col] ] = [label]
+            else:
+                cap_parallel_ind_series_ind_dep_mapping[ x_hat_labels[pivot_col] ].append(label)
+
+            label = x_hat_labels[pivot_col]
+        else:
+            pass
         independent_state_row_col_map[label] = [pivot_row, pivot_col]
     
-    # remaing column that are not in M0_pivots
-    # dependent variable are cols not in M0_pivots, but in m_pivots
-    # those m_pivots points to column in A matrix
+    # for index in range(len(M0_pivots)):
+    #     # assert M0_pivots[index] == m_pivots[ index + x_hat_col_offset_in_m_pivots ]
+        
+    #     pivot_col = M0_pivots[index]
+    #     pivot_row = index # by def, pivots are the first nonzero in each row
+    #     label = x_hat_labels[pivot_col]
+        
+    #     independent_state_row_col_map[label] = [pivot_row, pivot_col]
     
-    dependent_row_start = len(M0_pivots)
-    for m_pivot_col in m_pivots[x_hat_col_offset_in_m_pivots + len(x_hat_labels)]:
-        
-        M0_pivot_col = m_pivot_col - len(x_hat_labels)
-        
-        label = x_hat_labels[M0_pivot_col]
-        
-        dependent_state_row_col_map[label] = [dependent_row_start, M0_pivot_col]
-        
-        dependent_row_start += 1
+    # # remaing column that are not in M0_pivots
+    # # dependent variable are cols not in M0_pivots, but in m_pivots
+    # # those m_pivots points to column in A matrix
     
-    return independent_state_row_col_map, dependent_state_row_col_map
+    # dependent_row_start = len(M0_pivots)
+    # if len(independent_state_row_col_map)  < len(x_hat_labels):
+    #     for m_pivot_col in m_pivots[x_hat_col_offset_in_m_pivots + len(independent_state_row_col_map): ]:
+            
+    #         M0_pivot_col = m_pivot_col - len(x_hat_labels) -x_hat_col_offset_in_m_pivots
+            
+    #         label = x_hat_labels[M0_pivot_col]
+            
+    #         dependent_state_row_col_map[label] = [dependent_row_start, M0_pivot_col]
+            
+    #         dependent_row_start += 1
+    
+    
+    
+    sys_A_row_idx_map:dict[str, int]  = {}
+    sys_A_col_idx_map:dict[str, int] = {}
+    
+    sys_B_row_idx_map:dict[str, int ] = {}
+    sys_B_col_idx_map:dict[str, int] = {}
+    
+    sys_C_row_idx_map:dict[str,int] = {}
+    sys_C_col_idx_map:dict[str,int] = {}
+
+    final_sys_A_row_idx_map:dict[str, int]  = {}
+    final_sys_A_col_idx_map:dict[str, int] = {}
+    
+    final_sys_B_row_idx_map:dict[str, int ] = {}
+    final_sys_B_col_idx_map:dict[str, int] = {}
+
+    final_sys_C_row_idx_map:dict[str,int] = {}
+    final_sys_C_col_idx_map:dict[str,int] = {}
+
+
+    ind_dep_A_row_idx_map:dict[str, int] = {}
+    ind_dep_A_col_idx_map:dict[str, int] = {}
+    
+    ind_dep_B_row_idx_map:dict[str, int] = {}
+    ind_dep_B_col_idx_map:dict[str, int] = {}
+    
+    ind_dep_C_row_idx_map:dict[str, int] = {}
+    ind_dep_C_col_idx_map:dict[str, int] = {}
+    
+
+    
+
+    # the final index should be in the order define in x_hat_labe, y_label, and u_label
+    for index, y_lab in enumerate(y_labels):
+        final_sys_C_row_idx_map[y_lab] = index
+
+    for index, u_lab in enumerate(u_labels):
+        final_sys_B_col_idx_map[u_lab] = index
+    for index, x_hat_lab in enumerate(x_hat_labels):
+        final_sys_A_col_idx_map[x_hat_lab] = index
+        final_sys_A_row_idx_map[x_hat_lab] = index
+        final_sys_C_col_idx_map[x_hat_lab] = index
+        final_sys_B_row_idx_map[x_hat_lab] = index
+
+    for index, y_lab in enumerate(y_labels):
+        sys_C_row_idx_map[y_lab] = index
+        ind_dep_C_row_idx_map[y_lab] = index
+    
+    for index, u_lab in enumerate(u_labels):
+        sys_B_col_idx_map[u_lab] = index
+        ind_dep_B_col_idx_map[u_lab] = index
+
+    index = 0
+    for lab, system_row_col in independent_state_row_col_map.items():
+        ind_dep_A_row_idx_map[lab] = index
+        ind_dep_A_col_idx_map[lab] = index
+        
+        sys_A_row_idx_map[lab] = system_row_col[0]
+        sys_A_col_idx_map[lab] = system_row_col[1]
+
+        sys_B_row_idx_map[lab] = system_row_col[0]
+        ind_dep_B_row_idx_map[lab] = index
+        
+        sys_C_col_idx_map[lab] = system_row_col[1]
+        ind_dep_C_col_idx_map[lab] = index
+        
+        index +=1
+    for lab, system_row_col in dependent_state_row_col_map.items():
+        ind_dep_A_row_idx_map[lab] = index
+        ind_dep_A_col_idx_map[lab] = index
+        
+        sys_A_row_idx_map[lab] = system_row_col[0]
+        sys_A_col_idx_map[lab] = system_row_col[1]
+
+        sys_B_row_idx_map[lab] = system_row_col[0]
+        ind_dep_B_row_idx_map[lab] = index
+        
+        sys_C_col_idx_map[lab] = system_row_col[1]
+        ind_dep_C_col_idx_map[lab] = index
+        index +=1
+
+    
+    
+    
+    
+    
+    
+    return cap_parallel_ind_series_ind_dep_mapping,  independent_state_row_col_map,dependent_state_row_col_map,  \
+        sys_A_row_idx_map, sys_A_col_idx_map, ind_dep_A_row_idx_map, ind_dep_A_col_idx_map, final_sys_A_row_idx_map, final_sys_A_col_idx_map,\
+            sys_B_row_idx_map,sys_B_col_idx_map,ind_dep_B_row_idx_map,ind_dep_B_col_idx_map, final_sys_B_row_idx_map, final_sys_B_col_idx_map,\
+                sys_C_row_idx_map,sys_C_col_idx_map,ind_dep_C_row_idx_map,ind_dep_C_col_idx_map, final_sys_C_row_idx_map, final_sys_C_col_idx_map
+
+
+def update_system_matrix_to_reflect_dependency(M0: Matrix,
+                                               C1:Matrix,
+                                               A: Matrix, B: Matrix, C: Matrix, D: Matrix,
+                                               m_pivots:list[int], 
+                                               u_labels:list[str],
+                                               y_labels:list[str],
+                                               x_hat_labels: list[str], x_hat_col_offset_in_m_pivots:int,
+                                                x_hat_label_to_obj_map:dict[str, Element],
+                                                element_name_to_obj_map:dict[str, Element],
+                                                symbol_to_value_map:dict[Symbol, ],
+                                               ):
+    
+    cap_parallel_ind_series_ind_dep_mapping, independent_state_row_col_map,dependent_state_row_col_map,  \
+        sys_A_row_idx_map, sys_A_col_idx_map, ind_dep_A_row_idx_map, ind_dep_A_col_idx_map, final_sys_A_row_idx_map, final_sys_A_col_idx_map,\
+            sys_B_row_idx_map,sys_B_col_idx_map,ind_dep_B_row_idx_map,ind_dep_B_col_idx_map, final_sys_B_row_idx_map, final_sys_B_col_idx_map,\
+                sys_C_row_idx_map,sys_C_col_idx_map,ind_dep_C_row_idx_map,ind_dep_C_col_idx_map, final_sys_C_row_idx_map, final_sys_C_col_idx_map= determine_dependent_independent_state_mapping(
+
+        M0_I=M0, A_raw=A, m_pivots=m_pivots, x_hat_labels=x_hat_labels, x_hat_col_offset_in_m_pivots=x_hat_col_offset_in_m_pivots,
+        u_labels=u_labels, y_labels=y_labels
+    )
+    M0_temp= reogranize_matrix_by_row_col_mapping(M0, sys_A_row_idx_map, sys_A_col_idx_map, ind_dep_A_row_idx_map, ind_dep_A_col_idx_map)
+    A_temp = reogranize_matrix_by_row_col_mapping(A, sys_A_row_idx_map, sys_A_col_idx_map, ind_dep_A_row_idx_map, ind_dep_A_col_idx_map )
+    B_temp = reogranize_matrix_by_row_col_mapping(B,  sys_B_row_idx_map, sys_B_col_idx_map, ind_dep_B_row_idx_map, ind_dep_B_col_idx_map)
+    C_temp = reogranize_matrix_by_row_col_mapping(C,  sys_C_row_idx_map, sys_C_col_idx_map, ind_dep_C_row_idx_map, ind_dep_C_col_idx_map)
+    D_temp = D[:, :]
+
+    M0_I_res, A_res, B_res, C_res, D_res, A_dependent_res, B_dependent_res   = apply_inductance_capactiance_to_state_matrix(
+        cap_parallel_ind_series_ind_dep_mapping=cap_parallel_ind_series_ind_dep_mapping,
+         M0_I=M0_temp, A=A_temp, B=B_temp, C=C_temp, D=D_temp,
+         x_hat_label_to_obj_map=x_hat_label_to_obj_map, independent_state_number=len(independent_state_row_col_map), dependent_state_number=len(dependent_state_row_col_map),
+         symbol_to_value_map=symbol_to_value_map,
+         ind_dep_A_row_idx_map=ind_dep_A_row_idx_map,
+         ind_dep_A_col_idx_map=ind_dep_A_col_idx_map
+    )
+    
+    # now, reogranize matrix back to original form
+    
+    
+    
+    # update M0_mapping with 
+    
+    M0_final = reogranize_matrix_by_row_col_mapping(M0_I_res, ind_dep_A_row_idx_map, ind_dep_A_col_idx_map, final_sys_A_row_idx_map, final_sys_A_col_idx_map)
+    A_final = reogranize_matrix_by_row_col_mapping(A_res, ind_dep_A_row_idx_map, ind_dep_A_col_idx_map, final_sys_A_row_idx_map, final_sys_A_col_idx_map)
+    B_final = reogranize_matrix_by_row_col_mapping(B_res, ind_dep_B_row_idx_map, ind_dep_B_col_idx_map, final_sys_B_row_idx_map, final_sys_B_col_idx_map)
+    C_final = reogranize_matrix_by_row_col_mapping(C_res, ind_dep_C_row_idx_map, ind_dep_C_col_idx_map, final_sys_C_row_idx_map, final_sys_C_col_idx_map )
+    D_final = D_res[:,:]
+    
+    A_dependent_final = reogranize_matrix_by_row_col_mapping(A_dependent_res, ind_dep_A_row_idx_map, ind_dep_A_col_idx_map, final_sys_A_row_idx_map, final_sys_A_col_idx_map )
+    B_dependent_final = reogranize_matrix_by_row_col_mapping(B_dependent_res, ind_dep_B_row_idx_map, ind_dep_B_col_idx_map, final_sys_B_row_idx_map, final_sys_B_col_idx_map)
+    
+    
+    # https://web.eecs.utk.edu/~dcostine/ECE692/Fall2024/tutorials.php?topic=PLECS
+    # from the description of "State Order Reduction" here, it means the dependent source of capacitor in parallel or dependent source of inductor in series
+    # should be identical to the counter independent part
+    
+    
+    for ind_label, dependent_labels_list in cap_parallel_ind_series_ind_dep_mapping.items():
+        indep_row = final_sys_A_row_idx_map[ind_label]
+        
+        for dep_lab in dependent_labels_list:
+            dep_row = final_sys_A_row_idx_map[dep_lab]
+            A_final[dep_row, :] = A_final[indep_row, :]
+            B_final[dep_row, :] = B_final[indep_row, :]
+    
+    # apply the affect of c1 to C, D matrix
+    # given y = C1*x_hat + Cx+DU
+    # y =   ([C1*E^-1*A]+C)*x + ([C1*E*B]+D)*u
+    E = sp.zeros( len(x_hat_labels), len(x_hat_labels) )
+    
+    for cur_index, label in enumerate(x_hat_labels):
+        ele = x_hat_label_to_obj_map[label]
+
+        if isinstance(ele, Capacitor):
+            E[cur_index, cur_index] = ele.capacitance
+        else:
+            assert isinstance(ele, Inductor)
+            E[cur_index, cur_index] = ele.inductance
+            
+            for name, factor in zip(ele.mutual_inductor_names, ele.K_factors):
+                mutual_ele = element_name_to_obj_map[name]
+                mutu_ind = x_hat_labels.index( mutual_ele.element_voltage_name)
+                
+                E[cur_index, mutu_ind] = factor * sp.sqrt( ele.inductance * mutual_ele.inductance )
+    
+    E= E.subs(symbol_to_value_map)
+    
+    # given E is a identity like matrix, E^-1 == E, so skipped the E^-1 step here
+    D_final = D_final + C1 @E @B_final
+    C_final = C_final + C1@E@A_final
+    
+    
+    return M0_final, A_final, B_final, C_final, D_final, A_dependent_final, B_dependent_final
+
+
 def retrieveSystemMatrix(
     M: Matrix,
     m_pivots: list[int],
@@ -271,7 +609,7 @@ def retrieveSystemMatrix(
                 inconsistent_labels.append(lab)
                 s_row_inconsistent_count += 1
             elif i < x_hat_row_col_offset:
-                y_row_inconsistent_count += 1   #indicate dependency exist in the state variables
+                y_row_inconsistent_count += 1  
                 inconsistent_labels.append(lab)
        
             else:
@@ -362,7 +700,13 @@ def retrieveSystemMatrix(
         D_sw = zeros(D.shape[0], D.shape[1])
     else:
         D_sw = Matrix(BlockMatrix(t2_useful))
-    return s_dxdt, Sx, Su, C1, C, D, M0, A, B,C_sw,D_sw, inconsistent_labels
+        
+        
+        
+        
+        
+        
+    return s_dxdt, Sx, Su, C1, C, D, M0, A, B,C_sw,D_sw, inconsistent_labels, M_offset_info
 
 
 def detemrminte_matrix_for_dependent_state_vars(M0: Matrix, A: Matrix, B: Matrix, x_hat_labels:list[str]):
@@ -445,92 +789,6 @@ def detemrminte_matrix_for_dependent_state_vars(M0: Matrix, A: Matrix, B: Matrix
             
         
                 
-
-def determine_dependent_state_vars(M0: Matrix, A:Matrix, B:Matrix, network_matrix, sw_lab:str):
-    # sw_lab is volt/current label of the external switch that cause it
-    indenepdent_state_vars_labels = []
-    dependent_state_vars_labels = []
-    
-#     independent_state_vars_cols = []
-#     dependent_state_vars_cols = []
-    
-#     cols = M0.cols
-#     _, pivots = M0.rref()
-#     j = 0
-#     for i in range(cols):
-#         is_independent = j  < len(pivots)  and pivots[j] == i
-#         if is_independent:
-#             indenepdent_state_vars_labels.append( network_matrix.x_hat_labels[i] )  
-#             independent_state_vars_cols.append(i)
-#             j += 1
-#         else:
-#             dependent_state_vars_labels.append(network_matrix.x_hat_labels[i])
-#             dependent_state_vars_cols.append(i)
-    
-    
-#     zero_rows = []
-    
-#     for i in range(M0.rows):
-#         if M0[i,:].is_zero_matrix:
-#             zero_rows.append(i)
-#     zero_count = len(zero_rows)
-#     independent_count= len(indenepdent_state_vars_labels)
-#     dependent_count = len(dependent_state_vars_labels)
-    
-#     Adi = Matrix(zero_count, independent_count, [0]*( zero_count*independent_count ))
-#     Add_inv = Matrix(zero_count, dependent_count, [0] *(zero_count * dependent_count) )
-#     Bd = Matrix( zero_count, B.cols, [0]*(zero_count *B.cols) )  # B.cols is the number of input variable
-    
-    
-    
-#     # check if any inconsistent actually occurs
-    
-    
-#     forced_diode_switches = []
-#     for i in range(zero_count):
-        
-#         row = zero_rows[i]
-        
-#         # see if the rows of A is empty but B is not empty
-#         if A[row,:].is_zero_matrix and not B[row,:].is_zero_matrix:
-            
-#             # network_matrix.print_M_matrix()
-           
-#             # find nonzero labels of this row in the network.M matrix
-#             row_num_in_m = row + network_matrix.s_labels_size+ network_matrix.y_label_size
-            
-#             row_in_m = network_matrix.M[row_num_in_m, :]
-#             offset = network_matrix.s_labels_size + network_matrix.y_label_size + network_matrix.x_hat_label_size
-        
-        
-#             for i in range( offset,   row_in_m.cols):
-#                 if row_in_m[i] != 0:
-#                     lab = network_matrix.m_column_labels[i]
-#                     ele = network_matrix.m_column_labels_to_obj_map[lab]
-#                     if isinstance(ele, Diode):
-#                         forced_diode_switches.append(lab)
-#                     elif isinstance(ele, ExternalSwitch):
-#                         assert ele.element_current_name == sw_lab or ele.element_voltage_name == sw_lab
-#                     else:
-#                         pass
-            
-                        
-#         else:
-#             for j in range(dependent_count):
-#                 col = dependent_state_vars_cols[j]
-#                 Add_inv[i, j]  = A[row, col]
-#             for j in range(independent_count):
-#                 col = independent_state_vars_cols[j]
-#                 Adi[i,j] = A[row, col]
-            
-#             for j in range(B.cols):
-#                 Bd[i,j] = B[row, j]
-        
-
-#             Add_inv = Add_inv.inv()
-    
-#     return  forced_diode_switches, Add_inv, Adi, Bd, indenepdent_state_vars_labels, independent_state_vars_cols, dependent_state_vars_labels, dependent_state_vars_cols
-
 
 
 
