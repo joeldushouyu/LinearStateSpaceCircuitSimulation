@@ -15,7 +15,7 @@ from util import (is_rise_edge, retrieveSystemMatrix,
                   print_matrix_for_matlab_format,
                   backwardEulerIntegration, trapezoidalIntegration, 
                   detemrminte_matrix_for_dependent_state_vars,
-                  update_system_matrix_to_reflect_dependency
+                  update_system_matrix_to_reflect_dependency,radau_integration_step,tustin_integration_step
                   )
 from typing import Tuple
 import numpy as np
@@ -297,8 +297,8 @@ class StateSpaceSimulationModule(SimulationModule):
         self.__x_cur_ind = np.ndarray((self.number_of_state_variable,1), dtype=np.float64, )
         self.__x_cur_ind[:,:] = 0
         
-        self.__x_cur_dep = np.ndarray((self.number_of_state_variable,1), dtype=np.float64, )
-        self.__x_cur_dep[:,:] = 0
+        # self.__x_cur_dep = np.ndarray((self.number_of_state_variable,1), dtype=np.float64, )
+        # self.__x_cur_dep[:,:] = 0
         
         #sp.Matrix( self.number_of_state_variable, 1,  [0 for k in range(self.number_of_state_variable)])  # assume initial value of zero in the beginning
         
@@ -335,6 +335,10 @@ class StateSpaceSimulationModule(SimulationModule):
         self._B_dependent:npt.NDArray  = None
         
         
+        self.C_impulse:npt.NDArray = None
+        self.C_non_impulse:npt.NDArray= None
+        self.D_impulse:npt.NDArray = None
+        self.D_non_impulse:npt.NDArray = None
         # self.Add_inv:Matrix = None
         # self.Adi:Matrix = None
         # self.Bd:Matrix = None
@@ -443,6 +447,7 @@ class StateSpaceSimulationModule(SimulationModule):
         # #     # stiffness ratio is negotiable to change
         # #     self.integration_strategy = "stiff"
         #     print("System is very stiff")
+        print(f"Max  eig, min eig {max_eig} {min_eig}")
         if min_eig <= -2:
             self.integration_strategy = "BackwardEuler"
         else:
@@ -481,30 +486,11 @@ class StateSpaceSimulationModule(SimulationModule):
             
             self.forced_switch_mapping = self.force_triggered_events()
             
-            # # at here, determine any force-triggered events, dependent variables, and so forth before turn into numpy array
-            # M0_new, A_new, B_new, A_x_ind_filter, A_dep, B_dep, ind_lab, dep_lab = detemrminte_matrix_for_dependent_state_vars(self.M0, self.A, self.B, self.network_matrix.x_hat_labels)
-            # self.M0 = M0_new.copy()
-            # self.B = B_new.copy()
-            # self.A = A_new.copy()
-            # self.A_x_independent_filter = A_x_ind_filter.copy()
-            # self.A_dependent = A_dep.copy()
-            # self.B_dependent = B_dep.copy()
-            # self.independent_state_var_labels = ind_lab.copy()
-            # self.dependent_state_var_labels = dep_lab.copy()
-            
-            
-            # M0_value = sp.matrix2numpy(self.network_matrix.inductance_capacitance_M0.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
-            
-            # M0_value_inverse = np.linalg.inv(M0_value)
-            # self.A = M0_value_inverse@A_new
-            # self.B = M0_value_inverse@B_new
-            
-            # _, piv = self.M0.rref()
-            
             
             # filter out inconsistent labels from y _labels
             y_labels_filter = [x for x in self.network_matrix.y_labels if x not in self.network_inconsistent_labels]
-            M0_final, A_final, B_final, C_final, D_final, A_dependent_final, B_dependent_final = update_system_matrix_to_reflect_dependency(
+            M0_final, A_final, B_final, C_final, D_final, A_dependent_final, B_dependent_final, \
+                self.C_impulse, self.C_non_impulse, self.D_impulse, self.D_non_impulse= update_system_matrix_to_reflect_dependency(
                 M0=self.M0.copy(),
                 C1 = self.C1.copy(),
                 A=self.A.copy(), B=self.B.copy(), C=self.C.copy(), D=self.D.copy(),
@@ -564,7 +550,12 @@ class StateSpaceSimulationModule(SimulationModule):
                     
                             self.forced_switch_mapping.copy(),
                             self.independent_state_var_labels.copy(),
-                            self.dependent_state_var_labels.copy()
+                            self.dependent_state_var_labels.copy(),
+                            
+                            self.C_impulse.copy(),
+                            self.C_non_impulse.copy(),
+                            self.D_impulse.copy(),
+                            self.D_non_impulse.copy()
                             ]
 
             self.M_cache[key] = cache_Data
@@ -603,6 +594,11 @@ class StateSpaceSimulationModule(SimulationModule):
             self.forced_switch_mapping = cache_Data[26].copy()
             self.independent_state_var_labels = cache_Data[27].copy()
             self.dependent_state_var_labels = cache_Data[28].copy()
+            
+            self.C_impulse = cache_Data[29].copy()
+            self.C_non_impulse = cache_Data[30].copy()
+            self.D_impulse = cache_Data[31].copy()
+            self.D_non_impulse = cache_Data[32].copy()
 
             
 
@@ -943,12 +939,14 @@ class StateSpaceSimulationModule(SimulationModule):
         
         # now, check for any impulse switch or soft switch
         
-        impulse_output = self.C1@ (self.get_x_cur_with_dep() - x_cur_before_t0)
+        impulse_output = np.matmul(self.C1, (self.get_x_cur_with_dep() - x_cur_before_t0)) 
         
 
-        self.update_y_cur(self.get_x_cur_with_dep() )
-        non_impulse = self.y_cur.copy()
-
+        non_impulse  = np.matmul( self._C_iteration ,self.get_x_cur_with_dep()) +  np.matmul( self._D_iteration ,self.u)
+        # non_impulse  = np.matmul( self.C_non_impulse ,self.get_x_cur_with_dep()) +  np.matmul( self.D_non_impulse ,self.u)
+        
+        
+        swapped_flag = False
         for i in self.diode_index:
             volt_lab, I_lab = self.switch_index_label_map[i]
             diode_state = self.switch_state[i]
@@ -972,19 +970,49 @@ class StateSpaceSimulationModule(SimulationModule):
             if volt_impulse > 0 or ( diode_state==False and volt_nonimpulse>0 ):
                 self.switch_state[i] = True
                 self.swap_col_and_update(volt_lab)
+                swapped_flag = True
+                # self.update_x_cur()
+                # impulse_output = np.matmul(self.C1, (self.get_x_cur_with_dep() - x_cur_before_t0)) 
+                # non_impulse  = np.matmul( self._C_iteration ,self.get_x_cur_with_dep()) +  np.matmul( self._D_iteration ,self.u)
             elif current_impulse <0 or (diode_state == True and current_nonimpulse < 0):
                 self.switch_state[i] = False
                 self.swap_col_and_update(volt_lab)
+                swapped_flag = True
+                # self.update_x_cur()
+                # impulse_output = np.matmul(self.C1, (self.get_x_cur_with_dep() - x_cur_before_t0)) 
+                # non_impulse  = np.matmul( self._C_iteration ,self.get_x_cur_with_dep()) +  np.matmul( self._D_iteration ,self.u)
             else:
                 pass
         
-    
+        # if self.cur_system_time == 0:
+        #     impulse_occur = False
+        # else: 
+            # impulse_occur = self.M_size < self.M0.rank()
+        impulse_occur =  (len(switch_trigger_labels) > 0) or (not swapped_flag)
+        self.M_size =  self.M0.rank()
+        # self.update_y_cur(self.get_x_cur_with_dep() ,impulse_output,   (len(switch_trigger_labels) > 0) or not swapped_flag)
+        
+        # if len(switch_trigger_labels) > 0:
+        #     assert impulse_occur
+        
+        # if self.cur_system_time > 1e-5:
+        #     impulse_occur = True
+        # else:
+        #     impulse_occur = False
+        self.update_y_cur(  (self.get_x_cur_with_dep() - x_cur_before_t0) *self.iteration_frequency,    impulse_occur)
         # self.update_y_cur(self.get_x_cur_with_dep())
             
-    def update_y_cur(self, x_cur_for_y ):
+    def update_y_cur(self, imp, use_impulse= False ):
         
-        self.y_cur =  np.matmul( self._C_iteration ,x_cur_for_y) +  np.matmul( self._D_iteration ,self.u)
-    
+        if  use_impulse:
+            self.y_cur =  np.matmul( self._C_iteration ,self.get_x_cur_no_dep()) +  np.matmul( self._D_iteration ,self.u)
+        else:
+            self.y_cur =  np.matmul(self.C_non_impulse, self.get_x_cur_no_dep()) + np.matmul(self.D_non_impulse, self.u)
+            # x_hat = np.matmul(self._A_iteration, self.get_x_cur_with_dep()) + np.matmul(self._B_iteration, self.u)
+            # self.y_cur += np.matmul(self.C1,  imp)
+            
+            # self.y_cur += np.matmul(self.C_impulse, self.get_x_cur_with_dep())
+            #self.y_cur =  np.matmul(self.C_non_impulse, x_cur_for_y) + np.matmul(self.D_non_impulse, self.u)
     def get_x_hat(self,):
         return  np.matmul(self.A, self.get_x_cur_no_dep()) +np.matmul(self.B, self.u)
     def get_x_cur_no_dep(self):
@@ -999,12 +1027,15 @@ class StateSpaceSimulationModule(SimulationModule):
     def update_x_cur(self):
         # no need to get x_cur_with_dep
         # because the corresponding row of A of the depent x is all 0
-        if self.integration_strategy == "Trapezoidal":
-            x_t = trapezoidalIntegration( self.get_x_cur_no_dep(), self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency ).copy()
-        else:
-            x_t = backwardEulerIntegration(self.get_x_cur_no_dep(), self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency).copy()
-
         
+        x_before = self.get_x_cur_with_dep().copy()
+        if self.integration_strategy == "Trapezoidal":
+            x_t = trapezoidalIntegration( x_before, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency ).copy()
+        else:
+            x_t = backwardEulerIntegration(x_before, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency).copy()
+
+        # x_t = tustin_integration_step(self.get_x_cur_no_dep(), self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency).copy()
+        #x_t = radau_integration_step( self.get_x_cur_no_dep(), self._A_iteration, self._B_iteration, self.u, time_t=self.cur_system_time ,dt=1/self.iteration_frequency ).copy()
         self.__x_cur_ind =x_t
 
     def iteration(self):
@@ -1069,6 +1100,11 @@ class StateSpaceSimulationModule(SimulationModule):
         #     self.swap_col_and_update("V_S2")
         #     p = 200
         # # turn all diode to off 
+        
+        # deug, if correct topology initiall
+        # if self.cur_system_time == 0:
+        #     self.switch_state[3] = False
+        #     self.swap_col_and_update("V_D2")
         # if self.cur_system_time == 0:
         #     for i in self.diode_index:
         #         volt_lab, I_lab = self.switch_index_label_map[i]
@@ -1076,10 +1112,9 @@ class StateSpaceSimulationModule(SimulationModule):
         #             self.switch_state[i] = False
         #             self.swap_col_and_update(volt_lab)
         # the iteration process
-        x_before_t0 = self.get_x_cur_no_dep().copy()
+        x_before_t0 = self.get_x_cur_with_dep().copy()
+ 
         
-
-
         self.update_x_cur()
         # self.update_y_cur( self.get_x_cur_no_dep())
 
@@ -1114,7 +1149,7 @@ class StateSpaceSimulationModule(SimulationModule):
         #     diode_switched = self.calc_nonimpulse_response()      
 
 
-        self.M_size = self.M0.rank()
+        # self.M_size = self.M0.rank()
 
         
         self.time_t.append(self.cur_system_time)

@@ -548,12 +548,20 @@ def update_system_matrix_to_reflect_dependency(M0: Matrix,
     
     E= E.subs(symbol_to_value_map)
     
+    
+    D_non_impulse = D_final.copy()
+    C_non_impulse = C_final.copy()
     # given E is a identity like matrix, E^-1 == E, so skipped the E^-1 step here
     D_final = D_final + C1 @E @B_final
     C_final = C_final + C1@E@A_final
     
+    # debug for now
+    D_impulse = C1 @E @B_final
+    C_impulse = C1@E@A_final
     
-    return M0_final, A_final, B_final, C_final, D_final, A_dependent_final, B_dependent_final
+
+    
+    return M0_final, A_final, B_final, C_final, D_final, A_dependent_final, B_dependent_final, C_impulse, C_non_impulse, D_impulse, D_non_impulse
 
 
 def retrieveSystemMatrix(
@@ -975,6 +983,55 @@ def backwardEulerIntegration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, 
 #     return sol.y[:, -1].flatten()
 
 # @njit(parallel=True)
+
+
+
+def tustin_integration_step(x_cur: np.ndarray, A: np.ndarray, B: np.ndarray, u: np.ndarray, time_t: float) -> np.ndarray:
+    # page 47 file:///home/shouyu/Downloads/PLECS_-_User_Manual.pdf
+    
+    # if assume un, un-1 is the same
+    
+    eye_A = sp.eye(A.shape[0], A.shape[1])
+    A_d_p1 = sp.matrix2numpy( ( eye_A - (time_t/2) *A ), dtype=np.float64)
+    
+    A_d_p1_inv = np.linalg.inv(A_d_p1)
+    
+    A_d = A_d_p1_inv @ (eye_A + (time_t/2)*A )
+    
+    B_d = A_d_p1_inv @B*(time_t/2)
+    
+    return A_d*x_cur + 2*(B_d@u)  # TODO: assume un-1 and un is the same
+# Function to perform one step of Radau integration
+def radau_integration_step(x_cur: np.ndarray, A: np.ndarray, B: np.ndarray, u: np.ndarray, time_t: float, dt: float) -> np.ndarray:
+    """
+    Perform one step of numerical integration using Radau's method.
+
+    Args:
+        x_cur (np.ndarray): Current state vector (shape: (6, 1)).
+        A (np.ndarray): System matrix (shape: (6, 6)).
+        B (np.ndarray): Input matrix (shape: (6, 1)).
+        u (np.ndarray): Input vector (shape: (1, 1)).
+        time_t (float): Current time.
+        dt (float): Time step size.
+
+    Returns:
+        np.ndarray: Updated state vector after one integration step (shape: (6, 1)).
+    """
+    # Ensure x_cur is 1-dimensional
+    x_cur_flat = x_cur.flatten()
+    u_flat = u.flatten()
+    # Define the system dynamics (dx/dt = A*x + B*u)
+    def system_dynamics(t, x):
+        return A @ x + B @ u_flat  # u is a scalar (shape (1, 1))
+
+    # Define the time span for the current step
+    t_span = (time_t, time_t + dt)
+
+    # Use solve_ivp with Radau's method to integrate over the current step
+    sol = solve_ivp(system_dynamics, t_span, x_cur_flat, method='Radau')
+
+    # Return the updated state (last state from the solution) as a column vector
+    return sol.y[:, -1].reshape(-1, 1)
 def trapezoidalIntegration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, u:  np.ndarray, time_t:float):
     
     # p = 0

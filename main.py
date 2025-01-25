@@ -245,7 +245,7 @@ netList = [
 # ]
 
 # supress=False
-# end_sim_t  = 2e-3
+# end_sim_t  = 20e-6
 # switch_frequency = 100e3
 # duty_cycle = 0.5
 # supress = True
@@ -274,12 +274,14 @@ netList = [
 #     "AM2, N3, N3AM",
 #     "VM2, N3AM, N5",
 #     "D1, N3AM, N5, ON, VM2, AM2",
+#     # "VMLs1, N3, 0",
 
     
 #     "LS2, 0, N4, 968e-9, [LS0, LS1], [0.99, 0.99]",
 #     "AM3, N4, N4AM",
 #     "VM3, N4AM, N5",
 #     "D2, N4AM, N5, ON, VM3, AM3",
+#     # "VMLS2, N4, 0",
 
 #     "Rinternal, N5, N6, 0.001",
 #     "C2, N6, 0, 1000e-6",
@@ -287,7 +289,9 @@ netList = [
 #     "VM4, N6, 0",
 # ]
 
-end_sim_t  = 2e-3
+
+supress=False
+end_sim_t  =2e-3
 switch_frequency = 100e3
 duty_cycle = 0.5
 supress = True
@@ -298,38 +302,35 @@ netList = [
     f"S2, NSW, 0, OFF, {switch_frequency}, {1-duty_cycle}",
     "Rin1, NSW, NR, 0.01",
     
-    "AM4, NR, NAMLR",
-    "VM5, NR, NLR",
-    "L1, NAMLR, NLR, 60e-6",
+   
+    "L1, NR, NLR, 60e-6",
 
     
+    "VMC1, NLR, NC",
+    "C1, NLR, NC, 24e-9",
     
-    "AM5, NLR, NAMC",
-    "VM6, NLR, NC",
-    "C1, NAMC, NC, 24e-9",
-    
-    "AM6, NAMSO, 0",
-    "LS0, NC, NAMSO, 280e-6, [LS1, LS2], [0.99, 0.99]",
+    "LS0, NC, 0, 280e-6, [LS1, LS2], [0.99, 0.99]",
     "VMp, NC, 0",
     
     "LS1, N3, 0, 968e-9, [LS0, LS2], [0.99, 0.99]",
     "AMD1, N3, N3AM",
     "VMD1, N3AM, N5",
     "D1, N3AM, N5, ON, VMD1, AMD1",
-    "VMLS1, N3, 0",
+    "VMS1, N3, 0",
 
     
     "LS2, 0, N4, 968e-9, [LS0, LS1], [0.99, 0.99]",
     "AMD2, N4, N4AM",
     "VMD2, N4AM, N5",
     "D2, N4AM, N5, ON, VMD2, AMD2",
-    "VMLS2, N4, 0",
+    "VMS2, N4, 0",
 
     "Rinternal, N5, N6, 0.001",
     "C2, N6, 0, 1000e-6",
     "Rout, N6, 0, 0.48",
     "VMout, N6, 0",
 ]
+
 
 
 network_matrix = system_realization(netList,supress)
@@ -384,7 +385,7 @@ switch_oversample_message = OversamplingMessage(message_manager=message_manager)
 
 # okay, now create each individual simulation modules
 
-iteration_frequency =  max(2e3, switch_frequency*100)
+iteration_frequency =  max(5e3, switch_frequency*50)
 state_space_module = StateSpaceSimulationModule(network_matrix=network_matrix, iteration_frequency= iteration_frequency) #TODO: change later
 oversample_module =SwitchOversampleModule( network_matrix=network_matrix, sample_frequency=iteration_frequency, oversample_message=switch_oversample_message)
 
