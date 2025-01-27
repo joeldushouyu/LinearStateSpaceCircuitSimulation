@@ -1034,7 +1034,7 @@ class StateSpaceSimulationModule(SimulationModule):
         else:
             x_t = backwardEulerIntegration(x_before, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency).copy()
 
-        # x_t = tustin_integration_step(self.get_x_cur_no_dep(), self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency).copy()
+        # x_t = tustin_integration_step(x_before, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency).copy()
         #x_t = radau_integration_step( self.get_x_cur_no_dep(), self._A_iteration, self._B_iteration, self.u, time_t=self.cur_system_time ,dt=1/self.iteration_frequency ).copy()
         self.__x_cur_ind =x_t
 

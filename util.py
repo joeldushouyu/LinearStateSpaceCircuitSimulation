@@ -870,7 +870,7 @@ def backwardEulerIntegration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, 
     e_at_part = e_at_part =  np.linalg.inv(  eye_a +A*time_t*b1 ) #np.linalg.solve(eye_a + A*time_t*b1, eye_a) #e_at_part =  np.linalg.inv(  eye_a +A*time_t*b1 )
     
 
-    integ_part = time_t * e_at_part
+    integ_part = time_t * e_at_part  # simplified out (a1-b1), since (0-(-1)) == 1
     p1 = e_at_part @ x_cur 
     p2 =  integ_part@ B @ u 
     res = p1+p2
