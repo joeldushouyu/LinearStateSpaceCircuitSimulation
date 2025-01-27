@@ -51,12 +51,7 @@ def test_retrieveSystemMatrix():
     
     M0_expect = Matrix([[1,0 ],
                         [0,1]])
-    s_dxdt_expect = -1*Matrix([[0,0],
-                            [0,0]])
-    sx_expect = -1*Matrix([[-1,0],
-                        [0,0]])
-    su_expect = -1*Matrix([[0],
-                        [1]])
+
     
     C1_expect = -1* Matrix([[0,0],
                         [0,0],
@@ -98,7 +93,7 @@ def test_retrieveSystemMatrix():
     capacitor_size = 1
     inductor_size = 1
 
-    s_dxdt, Sx, Su, C1_m, C, D, M0, A, B, C_sw, D_sw, inconsistent_labels = (
+    C1_m, C, D, M0, A, B,  inconsistent_labels,M_offset_info  = (
         retrieveSystemMatrix(
             M=m,
             m_pivots =  pivots,
@@ -116,9 +111,7 @@ def test_retrieveSystemMatrix():
             redundant_offset=0
         )
     )
-    assert s_dxdt.equals(s_dxdt_expect)
-    assert Sx.equals(sx_expect)
-    assert Su.equals(su_expect)
+
     assert C1_m.equals(C1_expect)
     assert C.equals(C_expect)
     assert D.equals(D_expect)
@@ -163,12 +156,7 @@ def test_retrieveSystemMatrix():
     
     M0_expect = Matrix([[1,0],
                         [0,1]])
-    s_dxdt_expect = -Matrix([[0,0],
-                            [0,0]])
-    sx_expect = -Matrix([[0,0],
-                         [-1,0]])
-    su_expect = -Matrix([[0],
-                         [0]])
+
     C1_expect = -Matrix([[0,0],
                         [0,0],
                         [0,0],
@@ -197,7 +185,7 @@ def test_retrieveSystemMatrix():
     ])
     m, pivots = m.rref()
     # When there is conflict, switch off, diode off
-    s_dxdt, Sx, Su, C1_m, C, D, M0, A, B, C_sw, D_sw, inconsistent_labels = (
+    C1_m, C, D, M0, A, B, inconsistent_labels,M_offset_info  = (
         retrieveSystemMatrix(
             M=m,
             m_pivots =  pivots,
@@ -215,9 +203,6 @@ def test_retrieveSystemMatrix():
             redundant_offset=0
         )
     )
-    assert s_dxdt.equals(s_dxdt_expect)
-    assert Sx.equals(sx_expect)
-    assert Su.equals(su_expect)
     assert C1_m.equals(C1_expect)
     assert C.equals(C_expect)
     assert D.equals(D_expect)

@@ -12,10 +12,8 @@ from FormNetworkMatrix import NetworkMatrix
 from sympy import Matrix
 import sympy as sp
 from util import (is_rise_edge, retrieveSystemMatrix,
-                  print_matrix_for_matlab_format,
                   backwardEulerIntegration, trapezoidalIntegration, 
-                  detemrminte_matrix_for_dependent_state_vars,
-                  update_system_matrix_to_reflect_dependency,radau_integration_step,tustin_integration_step
+                  update_system_matrix_to_reflect_dependency,tustin_integration_step
                   )
 from typing import Tuple
 import numpy as np
@@ -278,8 +276,7 @@ class StateSpaceSimulationModule(SimulationModule):
         self.__x_cur_ind = np.ndarray((self.number_of_state_variable,1), dtype=np.float64, )
         self.__x_cur_ind[:,:] = 0
 
-        self.number_of_output = len(self.network_matrix.y_labels)
-        self.y_cur = np.ndarray(  (self.number_of_output, 1), dtype=np.float64)
+        self.y_cur = np.ndarray(  (self.network_matrix.u_label_size, 1), dtype=np.float64)
         self.y_cur[:, 0] = 0
 
     
@@ -289,11 +286,6 @@ class StateSpaceSimulationModule(SimulationModule):
         self.M0 :Matrix = None
         self.A :Matrix = None
         self.B :Matrix = None
-        self.S_dxdt:Matrix = None
-        self.Sx:Matrix = None
-        self.Su:Matrix = None
-        self.C_SW:Matrix = None
-        self.D_SW:Matrix = None
         self.M_size = 0
         self.M_pivots: Tuple=None
         self.integration_strategy:str=""
@@ -302,11 +294,6 @@ class StateSpaceSimulationModule(SimulationModule):
         self._B_iteration:npt.NDArray  =None
         self._C_iteration:npt.NDArray   = None
         self._D_iteration:npt.NDArray  = None
-        self._S_dxdt:npt.NDArray  = None
-        self._Sx:npt.NDArray  = None
-        self._Su:npt.NDArray  = None
-        self._C_SW:npt.NDArray =None
-        self._D_SW:npt.NDArray =None
         self._A_dependent:npt.NDArray  = None
         self._B_dependent:npt.NDArray  = None
         
@@ -315,58 +302,29 @@ class StateSpaceSimulationModule(SimulationModule):
         self.C_non_impulse:npt.NDArray= None
         self.D_impulse:npt.NDArray = None
         self.D_non_impulse:npt.NDArray = None
-        # self.Add_inv:Matrix = None
-        # self.Adi:Matrix = None
-        # self.Bd:Matrix = None
         self.A_dependent:Matrix = None
         self.B_dependent:Matrix =  None
 
         self.network_inconsistent_labels:list[str] = []
-        self.independent_state_var_labels:list[str] = []
-        self.dependent_state_var_labels:list[str] = []
-        # self.network_pivots_cols:list[int] = []
-        # self.independent_row_col_map:dict[str, list[int]] = {}
-        # self.dependent_row_col_map:dict[str, list[int]] = {}
-        
         self.forced_switch_mapping:dict[Element, list[Element]] = {}
         
         self.M_cache :dict[str, Matrix] = {}
         
         
         # ouput and debug record
-        
         self.time_t:list[float] = []
         self.y_output:list[list[float]] = []
         self.x_output:list[list[float]] = []
         
         self.switch_state_output:list[list[int]] = []
         self.switch_triggered_output:list[list[int]] = []
-        self.u_output:list[list[float]] = []
-        
         
         self.fig_count = 1
         self.initialize_data()
     
     
 
-    def update_dependent_in_xcur(self, x_cur_for_update):
-        
-        
-        part_1  =  np.matmul(self.A_x_independent_filter, x_cur_for_update) # -1 on dependent variables
-        res =   part_1    +   np.matmul( self._A_dependent, x_cur_for_update) +  np.matmul( self._B_dependent ,  self.u)
-        
-        # add back with original self.x_cir
-        res +=x_cur_for_update
-        #TODO: remove later
-        
-        for lab in self.dependent_state_var_labels:
-            ind = self.network_matrix.x_hat_labels.index(lab)
-            assert part_1[ind,0] == -x_cur_for_update[ind, 0]
-        for lab in self.independent_state_var_labels:
-            ind = self.network_matrix.x_hat_labels.index(lab)
-            assert res[ind,0] == x_cur_for_update[ind,0]
-            
-        return res
+
         
     def force_triggered_events(self )->dict[ExternalSwitch, list[Diode]]:
         # see if network inconsistent could cause by switch events
@@ -442,7 +400,7 @@ class StateSpaceSimulationModule(SimulationModule):
         if key not in self.M_cache.keys():
         
             self.network_matrix.rref_update()
-            self.S_dxdt, self.Sx, self.Su, self.C1, self.C, self.D, self.M0, self.A, self.B, self.C_SW, self.D_SW, self.network_inconsistent_labels,M_offset_info = retrieveSystemMatrix(
+            self.C1, self.C, self.D, self.M0, self.A, self.B, self.network_inconsistent_labels,M_offset_info = retrieveSystemMatrix(
                 M=self.network_matrix.M,
                 m_pivots=self.network_matrix.M_pivots,
                 m_labels=self.network_matrix.m_column_labels,
@@ -490,38 +448,24 @@ class StateSpaceSimulationModule(SimulationModule):
             self._B_iteration = sp.matrix2numpy(self.B.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
             self._C_iteration = sp.matrix2numpy(self.C.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
             self._D_iteration = sp.matrix2numpy(self.D.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
-            self._S_dxdt = sp.matrix2numpy(self.S_dxdt.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
-            self._Sx = sp.matrix2numpy(self.Sx.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
-            self._Su = sp.matrix2numpy(self.Su.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
-            self._C_SW = sp.matrix2numpy(self.C_SW.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
-            self._D_SW = sp.matrix2numpy(self.D_SW.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
+
             self._A_dependent = sp.matrix2numpy(self.A_dependent.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
             self._B_dependent = sp.matrix2numpy(self.B_dependent.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
             
             cache_Data = [
-                            self.network_matrix.M[:,:], self.S_dxdt[:,:], self.Sx[:,:],
-                            self.Su[:,:], self.C1[:,:], self.C[:,:], self.D[:,:],
+                            self.network_matrix.M[:,:], 
+                            self.C1[:,:], self.C[:,:], self.D[:,:],
                             self.M0[:,:], self.A[:,:], self.B[:,:],
-                            self.C_SW[:,:], self.D_SW[:,:],
                             self._A_iteration[:,:],
                             self._B_iteration[:,:],
                             self._C_iteration[:,:],
                             self._D_iteration[:,:],
-                            self._S_dxdt[:,:],
-                            self._Sx[:,:],
-                            self._Su[:,:],
-                            self._C_SW[:,:],
-                            self._D_SW[:,:],
                             self.network_inconsistent_labels.copy(),
                             self.A_dependent[:,:],
                             self.B_dependent[:,:],
                             self._A_dependent[:,:],
                             self._B_dependent[:,:],
-                    
                             self.forced_switch_mapping.copy(),
-                            self.independent_state_var_labels.copy(),
-                            self.dependent_state_var_labels.copy(),
-                            
                             self.C_impulse.copy(),
                             self.C_non_impulse.copy(),
                             self.D_impulse.copy(),
@@ -535,40 +479,26 @@ class StateSpaceSimulationModule(SimulationModule):
             cache_Data = self.M_cache[key]
             
             self.network_matrix.M = cache_Data[0][:,:]
-            self.S_dxdt = cache_Data[1][:,:]
-            self.Sx = cache_Data[2][:,:]
-            self.Su = cache_Data[3][:,:]
-            self.C1 = cache_Data[4][:,:]
-            self.C = cache_Data[5][:,:]
-            self.D = cache_Data[6][:,:]
-            self.M0 = cache_Data[7][:,:]  # Was missing
-            self.A = cache_Data[8][:,:]    # Was missing
-            self.B = cache_Data[9][:,:]    # Was missing
-            self.C_SW = cache_Data[10][:,:]
-            self.D_SW = cache_Data[11][:,:]
-            self._A_iteration = cache_Data[12][:,:]
-            self._B_iteration = cache_Data[13][:,:]
-            self._C_iteration = cache_Data[14][:,:]
-            self._D_iteration = cache_Data[15][:,:]
-            self._S_dxdt = cache_Data[16][:,:]
-            self._Sx = cache_Data[17][:,:]
-            self._Su = cache_Data[18][:,:]
-            self._C_SW = cache_Data[19][:,:]
-            self._D_SW = cache_Data[20][:,:]
-            self.network_inconsistent_labels = cache_Data[21].copy()
-            self.A_dependent = cache_Data[22][:,:]
-            self.B_dependent = cache_Data[23][:,:]
-            self._A_dependent = cache_Data[24][:,:]
-            self._B_dependent = cache_Data[25][:,:]
-
-            self.forced_switch_mapping = cache_Data[26].copy()
-            self.independent_state_var_labels = cache_Data[27].copy()
-            self.dependent_state_var_labels = cache_Data[28].copy()
-            
-            self.C_impulse = cache_Data[29].copy()
-            self.C_non_impulse = cache_Data[30].copy()
-            self.D_impulse = cache_Data[31].copy()
-            self.D_non_impulse = cache_Data[32].copy()
+            self.C1 = cache_Data[1][:,:]
+            self.C = cache_Data[2][:,:]
+            self.D = cache_Data[3][:,:]
+            self.M0 = cache_Data[4][:,:] 
+            self.A = cache_Data[5][:,:]   
+            self.B = cache_Data[6][:,:]   
+            self._A_iteration = cache_Data[7][:,:]
+            self._B_iteration = cache_Data[8][:,:]
+            self._C_iteration = cache_Data[9][:,:]
+            self._D_iteration = cache_Data[10][:,:]
+            self.network_inconsistent_labels = cache_Data[11].copy()
+            self.A_dependent = cache_Data[12][:,:]
+            self.B_dependent = cache_Data[13][:,:]
+            self._A_dependent = cache_Data[14][:,:]
+            self._B_dependent = cache_Data[15][:,:]
+            self.forced_switch_mapping = cache_Data[16].copy()
+            self.C_impulse = cache_Data[17].copy()
+            self.C_non_impulse = cache_Data[18].copy()
+            self.D_impulse = cache_Data[19].copy()
+            self.D_non_impulse = cache_Data[20].copy()
 
             
 
@@ -874,7 +804,6 @@ class StateSpaceSimulationModule(SimulationModule):
             x_t = backwardEulerIntegration(x_before, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency).copy()
 
         # x_t = tustin_integration_step(x_before, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency).copy()
-        #x_t = radau_integration_step( self.get_x_cur_no_dep(), self._A_iteration, self._B_iteration, self.u, time_t=self.cur_system_time ,dt=1/self.iteration_frequency ).copy()
         self.__x_cur_ind =x_t
 
     def iteration(self):
@@ -903,8 +832,6 @@ class StateSpaceSimulationModule(SimulationModule):
 
         
         self.time_t.append(self.cur_system_time)
-        
-        self.u_output.append(  self.u.tolist())
         self.switch_state_output.append (  cur_switch_state.tolist()  )
         self.switch_triggered_output.append( cur_switch_trigger.tolist())
         

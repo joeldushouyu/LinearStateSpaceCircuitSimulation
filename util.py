@@ -541,17 +541,12 @@ def retrieveSystemMatrix(
     
 
     s_row_col_offset = redundant_offset
-
     y_row_col_offset = s_labels_size +s_row_col_offset 
-    
-    # s_row_col_offset = 0
-    # y_row_col_offset = s_labels_size 
     x_hat_row_col_offset = y_labels_size + y_row_col_offset
     
     
         
     y_col_offset = s_labels_size +s_row_col_offset 
-    # y_col_offset = s_labels_size
     x_hat_col_offset = y_labels_size + y_col_offset
     x_col_offset = x_hat_row_col_offset + x_hat_labels_size
     zero_offset = x_col_offset + x_labels_size
@@ -581,7 +576,6 @@ def retrieveSystemMatrix(
                 # dependency in x  raise ValueError("Unexpected case")        
                 pass
         else:
-            pass # all good
             pivot_ind +=1
 
         if pivot_ind == len(m_pivots):
@@ -599,10 +593,6 @@ def retrieveSystemMatrix(
                      }
 
 
-    s_dxdt = -M[s_row_col_offset:y_row_col_offset, x_hat_col_offset:x_col_offset]
-    Sx = -M[s_row_col_offset:y_row_col_offset, x_col_offset:zero_offset]
-    Su = -M[s_row_col_offset:y_row_col_offset, u_col_offset:u_col_offset+voltage_source_size+current_source_size ]
-
     C1 = -M[y_row_col_offset:x_hat_row_col_offset, x_hat_col_offset:x_col_offset]
     C = -M[y_row_col_offset:x_hat_row_col_offset, x_col_offset:zero_offset]
     D = -M[y_row_col_offset:x_hat_row_col_offset, u_col_offset: u_col_offset+voltage_source_size+current_source_size]
@@ -610,150 +600,8 @@ def retrieveSystemMatrix(
     M0 = M[x_hat_row_col_offset:x_hat_row_col_offset+ x_hat_labels_size , x_hat_col_offset:x_col_offset]
     A = -M[x_hat_row_col_offset:x_hat_row_col_offset+x_hat_labels_size, x_col_offset:zero_offset]
     B = -M[x_hat_row_col_offset:x_hat_row_col_offset+x_hat_labels_size, u_col_offset: u_col_offset+voltage_source_size+current_source_size]
-    
-    #TODO: order changed
-    
-    ALL = A[0:inductor_size, 0:inductor_size]
-    ALC = A[0:inductor_size, inductor_size:]
-    ACL = A[inductor_size:, 0:inductor_size]
-    ACC = A[inductor_size:, inductor_size:]
-    
-    
-    
-    BLis = B[0:inductor_size, 0:current_source_size]
-    BLvs = B[0:inductor_size, current_source_size:]
-    BCis = B[inductor_size:, 0:current_source_size]
-    BCvs = B[inductor_size:, current_source_size:]
-    
-
-    Csw_il = Sx[:, 0:inductor_size]
-    Csw_vc = Sx[:, inductor_size:]
-    
-    Dsw_is = Su[:, 0:current_source_size]
-    Dsw_vs = Su[:, current_source_size:]
-    
-    
-    Cdsw_iL = Csw_il *ALL + Csw_vc*ACL
-    Cdsw_vC = Csw_il * ALC + Csw_vc*ACC
-    
-    
-
-    Ddsw_is = Csw_il*BLis +Csw_vc*BCis
-    Ddsw_vs = Csw_il * BLvs + Csw_vc * BCvs
-    # if current_source_size == 0:
-    #      Ddsw_vs = Csw_vc*BCvs
-    # else:
-    #     Ddsw_vs = Csw_il*BLis + Csw_vc*BCvs
-    
-    
-    # if current_source_size >0 and voltage_source_size >0:
-    t1 = [ Cdsw_iL , Cdsw_vC]
-    t2  = [  Ddsw_is , Ddsw_vs]
-    
-    t1_useful = [x for x in t1 if len(x) > 0]
-    t2_useful = [x for x in t2 if len(x) > 0]
-    
-    # C_sw = Matrix(BlockMatrix(t1_useful))
-    # D_sw = Matrix(BlockMatrix(t2_useful))
-    
-    if len(t1_useful) == 0:
-        C_sw =  zeros(  C.shape[0], C.shape[1])
-    else:
-        C_sw = Matrix(BlockMatrix(t1_useful))
-    if len(t2_useful) == 0:
-        D_sw = zeros(D.shape[0], D.shape[1])
-    else:
-        D_sw = Matrix(BlockMatrix(t2_useful))
-        
-        
-        
-        
-        
-        
-    return s_dxdt, Sx, Su, C1, C, D, M0, A, B,C_sw,D_sw, inconsistent_labels, M_offset_info
-
-
-def detemrminte_matrix_for_dependent_state_vars(M0: Matrix, A: Matrix, B: Matrix, x_hat_labels:list[str]):
-    
-
-
-    M0, pivots = M0.rref()
-    
-    independent_state_row_col_map:dict[str, list[int]] = {}
-    dependent_state_row_col_map:dict[str, list[int]] = {}
-    
-        
-    # first, process the independent, ie the pivots
-    for i  in range(len(pivots)):
-        pivot_col = pivots[i]
-        pivot_row = i   # by def, pivots are the first nonzero in each row: if pivots-> also 
-
-        label = x_hat_labels[pivot_col]
-        
-        independent_state_row_col_map[label] = [pivot_row, pivot_col]
-        
-    dependent_row_start = len(pivots)
-    for i in range(M0.cols):
-        if i not in pivots:
-            label = x_hat_labels[i]
-            dependent_state_row_col_map[label] = [dependent_row_start, i]
-            dependent_row_start += 1
-    
-
-    A_x_independent_filter = Matrix(A.rows, A.cols, [0]*(A.rows *A.cols ))  
-    A_dependent =  Matrix(A.rows, A.cols, [0]*(A.rows *A.cols ))   
-    B_dependent = Matrix(B.rows, B.cols, [0]*(B.rows *B.cols ) )   
-
-    zero_M0 = Matrix( 1, M0.cols, [0]*M0.cols )
-    zero_A = Matrix(1, A.cols, [0]*A.cols)
-    zero_B = Matrix(1, B.cols, [0]*B.cols)
-
-    A_temp = A[:,:]
-    B_temp = B[:,:]
-    M0_temp = M0[:,:]
-    
-    assert len(x_hat_labels) == M0.cols == M0.rows
-    for var_ind in range(len(x_hat_labels)):
-        var_label = x_hat_labels[var_ind]
-        
-        if var_label in independent_state_row_col_map:
-            independent_row = independent_state_row_col_map[var_label][0]
-            independent_col = independent_state_row_col_map[var_label][1]
-            assert independent_col == var_ind
-            
-            M0[var_ind, :] = M0_temp[independent_row, :  ].copy()
-            A[var_ind, :] = A_temp[independent_row, :].copy()
-            B[var_ind, :] = B_temp[independent_row, :].copy()
-        else:
-            dependent_row = dependent_state_row_col_map[var_label][0]
-            dependent_col = dependent_state_row_col_map[var_label][1]
-            assert dependent_col == var_ind
-            
-            M0[var_ind, :] = zero_M0[:, :]
-            
-            ajk =  A_temp[dependent_row, dependent_col] # 8-58
-
-            if ajk == 0:
-                factor =0
-            else:
-                factor = -(1/ajk)
-                
-            A_temp[dependent_row, dependent_col] = 0
-            
-            A_dependent[var_ind , :] = factor *  A_temp[dependent_row, :].copy()
-            B_dependent[var_ind, :] =  factor *  B_temp[dependent_row, :].copy()
-            A[var_ind, :] = zero_A[:,:].copy()
-            B[var_ind, :]  = zero_B[:,:].copy()
-            
-            A_x_independent_filter[var_ind, var_ind] = -1
-    
-    
-    return M0, A, B, A_x_independent_filter,A_dependent,B_dependent, [x for x in independent_state_row_col_map.keys()], [x for x in dependent_state_row_col_map.keys()]
-            
-            
-        
-                
-
+      
+    return  C1, C, D, M0, A, B,inconsistent_labels, M_offset_info
 
 
 def transfer_func_and_poles(A: Matrix, B: Matrix, C:Matrix, D:Matrix, symbolic_value_map):
@@ -916,52 +764,6 @@ def matrix_to_string(matrix, col_labels, row_labels):
     
     return "\n".join(output)
 
-def write_matrix_info(net, filename="matrix_output.txt"):
-
-    s_dxdt, Sx, Su, C1, C, D, M0, A, B, C_SW, D_SW = retrieveSystemMatrix(
-        M=net.M,
-        s_labels_size=net.s_labels_size,
-        y_labels_size=net.y_label_size,
-        x_hat_labels_size=net.x_hat_label_size,
-        x_labels_size=net.x_label_size,
-        y_zero_labels_size=net.y_zero_label_size,
-        s_zero_labels_size=net.s_zero_label_size,
-        capacitor_size= net.capacitor_size,
-        inductor_size=net.inductor_size,
-        voltage_source_size=net.voltage_source_size,
-        current_source_size=net.current_source_Size
-        
-    )
-    with open(filename, 'w') as f:
-        # Helper function to write both to console and file
-        def dual_print(text):
-            print(text)
-            f.write(str(text) + '\n')
-
-        # Print matrix M with labels
-        print_matrix(net.M, net.m_column_labels, ["" for x in range(net.M.shape[0])])
-        f.write("\nMatrix M with labels:\n")
-        f.write(matrix_to_string(net.M, net.m_column_labels, ["" for x in range(net.M.shape[0])]) + '\n')
-
-        # Print all other matrices
-        matrices = {
-            "s_dxdt": s_dxdt,
-            "sx": Sx,
-            "su": Su,
-            "C1": C1,
-            "C": C,
-            "D": D,
-            "M0": M0,
-            "A": A,
-            "B": B,
-            "C_SW": C_SW,
-            "D_SW": D_SW
-        }
-
-        for name, matrix in matrices.items():
-            dual_print(f"\n{name}")
-            dual_print(matrix)
-            
             
 
 def retrieve_Zsw_hat(A: Matrix, B: Matrix, C: Matrix, D: Matrix, x_hat_labels:list[str], u_labels:list[str], diode_column_labels:list[str],

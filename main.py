@@ -1,7 +1,6 @@
 from FormNetworkMatrix import system_realization, NetworkMatrix, ExternalSwitch
 from SimulationMessage import MessageManager, VoltageCurrentMessage, OversamplingMessage, SwitchMessage, SystemTimeMessage
 from Simulation import VoltageCurrentSimulationModule, SystemClockSimulationModule, SwitchSimulationModule, SwitchOversampleModule, StateSpaceSimulationModule
-from util import swapTwoColumn, retrieveSystemMatrix, parameter_for_three_wind_transformer
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -292,73 +291,56 @@ netList = [
 # ]
 
 
-# supress=False
-# end_sim_t  =2e-3
-# switch_frequency = 100e3
-# duty_cycle = 0.5
-# supress = True
-# # HALF-bridge lswitch only
-# netList = [
-#     f"Vin, NSource, 0, 400, 0",
-#     f"S1, NSource, NSW, ON, {switch_frequency}, {duty_cycle}",
-#     f"S2, NSW, 0, OFF, {switch_frequency}, {1-duty_cycle}",
-#     "Rin1, NSW, NR, 0.01",
+supress=False
+end_sim_t  =2e-3
+switch_frequency = 100e3
+duty_cycle = 0.5
+supress = True
+# HALF-bridge lswitch only
+netList = [
+    f"Vin, NSource, 0, 400, 0",
+    f"S1, NSource, NSW, ON, {switch_frequency}, {duty_cycle}",
+    f"S2, NSW, 0, OFF, {switch_frequency}, {1-duty_cycle}",
+    "Rin1, NSW, NR, 0.01",
     
    
-#     "L1, NR, NLR, 60e-6",
+    "L1, NR, NLR, 60e-6",
 
     
-#     "VMC1, NLR, NC",
-#     "C1, NLR, NC, 24e-9",
+    "VMC1, NLR, NC",
+    "C1, NLR, NC, 24e-9",
     
-#     "LS0, NC, 0, 280e-6, [LS1, LS2], [0.99, 0.99]",
-#     "VMp, NC, 0",
+    "LS0, NC, 0, 280e-6, [LS1, LS2], [0.99, 0.99]",
+    "VMp, NC, 0",
     
-#     "LS1, N3, 0, 968e-9, [LS0, LS2], [0.99, 0.99]",
-#     "AMD1, N3, N3AM",
-#     "VMD1, N3AM, N5",
-#     "D1, N3AM, N5, ON, VMD1, AMD1",
-#     "VMS1, N3, 0",
+    "LS1, N3, 0, 968e-9, [LS0, LS2], [0.99, 0.99]",
+    "AMD1, N3, N3AM",
+    "VMD1, N3AM, N5",
+    "D1, N3AM, N5, ON, VMD1, AMD1",
+    "VMS1, N3, 0",
 
     
-#     "LS2, 0, N4, 968e-9, [LS0, LS1], [0.99, 0.99]",
-#     "AMD2, N4, N4AM",
-#     "VMD2, N4AM, N5",
-#     "D2, N4AM, N5, ON, VMD2, AMD2",
-#     "VMS2, N4, 0",
+    "LS2, 0, N4, 968e-9, [LS0, LS1], [0.99, 0.99]",
+    "AMD2, N4, N4AM",
+    "VMD2, N4AM, N5",
+    "D2, N4AM, N5, ON, VMD2, AMD2",
+    "VMS2, N4, 0",
 
-#     "Rinternal, N5, N6, 0.001",
-#     "C2, N6, 0, 1000e-6",
-#     "Rout, N6, 0, 0.48",
-#     "VMout, N6, 0",
-# ]
+    "Rinternal, N5, N6, 0.001",
+    "C2, N6, 0, 1000e-6",
+    "Rout, N6, 0, 0.48",
+    "VMout, N6, 0",
+]
 
 
 
 network_matrix = system_realization(netList,supress)
-# swapTwoColumn(network_matrix.M, network_matrix.m_column_labels, network_matrix.m_column_labels_to_obj_map, network_matrix.s_labels[0])
-# swapTwoColumn(network_matrix.M, network_matrix.m_column_labels, network_matrix.m_column_labels_to_obj_map, network_matrix.s_labels[1])
-# swapTwoColumn(network_matrix.M, network_matrix.m_column_labels, network_matrix.m_column_labels_to_obj_map, network_matrix.s_labels[0])
-# network_matrix.M, pivots = network_matrix.M.rref()
-
-# S_dxdt, Sx, Su, C1, C, D, M0, A, B = retrieveSystemMatrix(network_matrix.M, network_matrix.s_labels,
-#                                                           network_matrix.y_labels, network_matrix.x_hat_labels,
-#                                                           network_matrix.x_labels, network_matrix.y_zero_labels,
-#                                                           network_matrix.s_zero_labels)
-
-
-# Add_inv, Adi, Bd = determine_dependent_state_vars(M0=M0,  A=A, B=B,x_hat_labels=network_matrix.x_hat_labels)
 
 
 
 
 
 
-
-
-
-
-# now, do some testing with 
 
 
 
@@ -441,35 +423,4 @@ system_clock_module.start_simuation(end_sim_t)
 
 # state_space_module.plot_switch_graph()
 state_space_module.plot_output_graph( )
-
-# fig1.show()
-
-# plt.show()
-
-
-
-# cProfile.run('system_clock_module.start_simuation(0.002)'  )
-
-# time_t_np_array = np.array(state_space_module.time_t)
-# u_output_np_array = np.array(state_space_module.u_output)[:,:,0]
-# switch_output_np_array = np.array(state_space_module.switch_state_output)
-# switch_trigger_np_array = np.array(state_space_module.switch_triggered_output)
-
-# y_output_np_array = np.array(state_space_module.y_output).squeeze()
-
-
-# plt.figure(1)
-# plt.subplot(211)
-# plt.plot(time_t_np_array, u_output_np_array)
-# plt.subplot(212)
-# plt.plot(time_t_np_array, switch_output_np_array)
-# plt.plot(time_t_np_array, switch_trigger_np_array)
-# plt.grid()
-# plt.show()
-
-# plt.figure(2)
-# for col in range(y_output_np_array.shape[1]):  # Plot each column
-#     plt.plot(time_t_np_array, y_output_np_array[:, col], label=f"Output {col}")
-# plt.grid()
-# plt.show()
 

@@ -21,7 +21,7 @@ import numpy as np
 import sympy as sp
 from sympy import Matrix, pi, pprint, Symbol, eye, zeros
 
-from util import print_matrix, write_matrix_info,  swapTwoColumn, retrieveSystemMatrix, transfer_func_and_poles, print_matrix_for_matlab_format
+from util import print_matrix,  swapTwoColumn, retrieveSystemMatrix, transfer_func_and_poles, print_matrix_for_matlab_format
 import ast
 import re
 class NetworkMatrix:
@@ -746,14 +746,7 @@ def system_realization(netList: list[list[str]], supress_inconsistenc=False):
             x.append(ele.element_voltage_name)
     
 
-    #TODO: debug
-    
-    # x_hat = ['I_C1', 'V_L1', 'V_LS0', 'V_LS1', 'V_LS2', 'I_C2']
-    # x = ['V_C1', 'I_L1', 'I_LS0', 'I_LS1', 'I_LS2', 'V_C2']
-    # # y = ['I_AM2', 'I_AM3','V_VM2', 'V_VM3', 'V_VM4','V_VM5', 'V_VM6', 'V_VM7','I_AM4', 'I_AM5', 'I_AM6' ]
-    # # y_zero = ['V_AM2', 'V_AM3','I_VM2', 'I_VM3', 'I_VM4','I_VM5', 'I_VM6', 'I_VM7','V_AM4', 'V_AM5', 'V_AM6']
-    # y= ['V_VMout','I_AMD1', 'I_AMD2', 'V_VMp','V_VMS1','V_VMS2', 'V_VMD1', 'V_VMD2','V_VMC1']
-    # y_zero = ['I_VMout','V_AMD1', 'V_AMD2', 'I_VMp', 'I_VMS1','I_VMS2','I_VMD1', 'I_VMD2','I_VMC1']
+
     reordered_m_labels = w + u_tilt + s + y + x_hat + x + s_zero + y_zero + u
     reordered_m_lable_obj_mapping = {}
     capacitor_count = 0
@@ -786,7 +779,8 @@ def system_realization(netList: list[list[str]], supress_inconsistenc=False):
     for i in range(len(pivots)):
         if i != pivots[i] and supress_inconsistenc:
             print("Warning: inconsistency system detected!")
-        # assert i == pivots[i]
+        else:
+            assert i == pivots[i]
 
 
     # multiple L/C to result in correct x_hat. Since ic = C*dv/dt
