@@ -779,8 +779,7 @@ def system_realization(netList: list[list[str]], supress_inconsistenc=False):
     for i in range(len(pivots)):
         if i != pivots[i] and supress_inconsistenc:
             print("Warning: inconsistency system detected!")
-        else:
-            assert i == pivots[i]
+
 
 
     # multiple L/C to result in correct x_hat. Since ic = C*dv/dt

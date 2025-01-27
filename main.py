@@ -27,13 +27,13 @@ netList = [
     "VM1, N3,0",
     "AM1, N4, N2",
 ]
-
+supress = False
 # boost network
 end_sim_t = 0.002
 switch_frequency = 50e3
 netList = [
     "Vin, N1, 0, 6, 0",
-    f"S1, N2, 0, ON, {switch_frequency}, 0.6",  #note, the switch frequency is 10 hz only
+    f"S1, N2, 0, ON, {switch_frequency}, 0.6",  
     "L1, N1, N4, 150e-6",
     "D1, N2, NAMD1, OFF, VMD1, AMD1",
     "AMD1, NAMD1, N3",
@@ -51,7 +51,7 @@ end_sim_t = 0.001
 netList = [
     
     "Vin, N1, 0, 12, 0",
-    f"S1, N1, N2-AM, ON, {switch_frequency}, 0.5",  #note, the switch frequency is 10 hz only
+    f"S1, N1, N2-AM, ON, {switch_frequency}, 0.5", 
     "L1, N2, NA, 125e-06",
     "D1, 0, NAMD1, OFF, VMD1, AMD1",
     "VMD1, 0, NAMD1",
@@ -166,6 +166,7 @@ netList = [
     "VMD1, N4, N5",
     "AMD1, N3, N4",
     "D1, N4, N5, ON, VMD1, AMD1",
+    "CD1, N4, N5, 9e-9",
     "Ro, N5, N6, 10",
     "C0, N6, 0, 100e-6",
     
@@ -369,7 +370,7 @@ switch_oversample_message = OversamplingMessage(message_manager=message_manager)
 
 # okay, now create each individual simulation modules
 
-iteration_frequency =  max(100e3, switch_frequency*50)
+iteration_frequency =  max(1e6, switch_frequency*50)
 state_space_module = StateSpaceSimulationModule(network_matrix=network_matrix, iteration_frequency= iteration_frequency) #TODO: change later
 oversample_module =SwitchOversampleModule( network_matrix=network_matrix, sample_frequency=iteration_frequency, oversample_message=switch_oversample_message)
 

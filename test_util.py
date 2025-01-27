@@ -1001,7 +1001,11 @@ def test_retrieve_Zsw_hat_simple_case():
                                   diode.element_current_name:diode, diode.element_voltage_name:diode
                                   
                                   }
-    
+    C1 = Matrix([
+            [1,1],
+            [2,2],
+            [3,3]
+    ])
     A = Matrix([
         [1,2],
         [3,4]
@@ -1025,7 +1029,36 @@ def test_retrieve_Zsw_hat_simple_case():
         
     ])
     
-    C_SW_raw, D_SW_raw, Z_Sw_A, Z_SW_B = retrieve_Zsw_hat(  A=A, B=B, C=C, D=D, x_hat_labels=x_hat_labels, u_labels=u_labels,
+    C_impulse = Matrix(
+        [
+            [2,2],
+            [3,3],
+            [4,4]
+        ]
+    )
+    D_impulse = Matrix(
+        [
+            [2,3],
+            [4,5],
+            [6,7]
+        ]
+    )
+    C_nonimpulse = Matrix([
+        [3,4],
+        [5,6],
+        [7,8]
+    ])
+    D_nonimpulse = Matrix([
+        [4,5],
+        [6,7],
+        [8,9]
+    ])
+        
+    C1_SW, C_SW, D_SW, C_impulse_SW, D_impulse_SW, C_nonimpulse_SW, D_nonimpulse_SW,  Z_Sw_A, Z_SW_B = retrieve_Zsw_hat(  A=A, B=B, C=C, D=D,
+                                                            C1=C1,
+                                                            C_impulse_matrix=C_impulse, C_nonimpulse_matrix=C_nonimpulse,
+                                                            D_impulse_matrix= D_impulse, D_nonimpulse_matrix= D_nonimpulse,                                           
+                                                            x_hat_labels=x_hat_labels, u_labels=u_labels,
                                                           diode_column_labels=diode_column_label, y_labels=y_labels,
                                                           number_of_inductor=1, number_of_current_source=1,
                                                           element_name_obj_map=element_name_obj_map,
@@ -1045,12 +1078,18 @@ def test_retrieve_Zsw_hat_simple_case():
     C_SW_raw_exp =  C[1,:]
     D_SW_raw_exp = D[1,:]
     
+    C_impulse_SW_exp = C_impulse[1,:]
+    D_impulse_SW_exp = D_impulse[1,:]
     
-    C_SW_il = C_SW_raw[:, :1]
-    C_SW_vc = C_SW_raw[:, 1:]
+    C_nonimpulse_SW_exp = C_nonimpulse[1,:]
+    D_nonimpulse_SW_exp = D_nonimpulse[1,:]
     
-    # D_sw_is = D_SW_raw[:, :number_of_current_source]
-    # D_sw_vs = D_SW_raw[:, number_of_current_source:]
+    C1_SW_exp = C1[1,:]
+    
+    C_SW_il = C_SW_raw_exp[:, :1]
+    C_SW_vc = C_SW_raw_exp[:, 1:]
+    
+
     
     C_dsw_il = C_SW_il@ALL + C_SW_vc@ACL
     C_dsw_vc = C_SW_il@ALC + C_SW_vc@ACC
@@ -1063,10 +1102,15 @@ def test_retrieve_Zsw_hat_simple_case():
     Z_Sw_A_exp = sp.BlockMatrix([ [C_dsw_il ,C_dsw_vc] ])
     Z_SW_B_exp = sp.BlockMatrix([ [D_dsw_is , D_dsw_vs]])
     
-    assert_matrix_equal(C_SW_raw_exp, C_SW_raw)
-    assert_matrix_equal(D_SW_raw_exp, D_SW_raw)
+    assert_matrix_equal(C_SW_raw_exp, C_SW)
+    assert_matrix_equal(D_SW_raw_exp, D_SW)
     assert_matrix_equal( Z_Sw_A, Z_Sw_A_exp)
     assert_matrix_equal(Z_SW_B_exp, Z_SW_B)
+    assert_matrix_equal(C_impulse_SW, C_impulse_SW_exp)
+    assert_matrix_equal(C_nonimpulse_SW, C_nonimpulse_SW_exp)
+    assert_matrix_equal(D_impulse_SW, D_impulse_SW_exp)
+    assert_matrix_equal(D_nonimpulse_SW_exp, D_nonimpulse_SW)
+    assert_matrix_equal(C1_SW, C1_SW_exp)
     
     
 
@@ -1149,8 +1193,18 @@ def test_retrieve_Zsw_hat_complex():
         [13,14,15]
 
     ])
+    C1 = C - sp.ones( C.shape[0],C.shape[1])
+    C_impulse= C+sp.ones( C.shape[0],C.shape[1])
+    C_nonimpulse = C+sp.ones( C.shape[0],C.shape[1])+sp.ones( C.shape[0],C.shape[1])
     
-    C_SW_raw, D_SW_raw, Z_Sw_A, Z_SW_B = retrieve_Zsw_hat(  A=A, B=B, C=C, D=D, x_hat_labels=x_hat_labels, u_labels=u_labels,
+    D_impulse = D+sp.ones(D.shape[0], D.shape[1])
+    D_nonimpulse = D+sp.ones(D.shape[0], D.shape[1]) + sp.ones(D.shape[0], D.shape[1])
+    
+    C1_SW, C_SW, D_SW, C_impulse_SW, D_impulse_SW, C_nonimpulse_SW, D_nonimpulse_SW,  Z_Sw_A, Z_SW_B = retrieve_Zsw_hat(  
+                                                            A=A, B=B, C=C, D=D, C1=C1,
+                                                        C_impulse_matrix=C_impulse, C_nonimpulse_matrix=C_nonimpulse,
+                                                        D_impulse_matrix=D_impulse, D_nonimpulse_matrix=D_nonimpulse,
+                                                        x_hat_labels=x_hat_labels, u_labels=u_labels,
                                                           diode_column_labels=diode_column_label, y_labels=y_labels,
                                                           number_of_inductor=3, number_of_current_source=1,
                                                           element_name_obj_map=element_name_obj_map,
@@ -1196,7 +1250,12 @@ def test_retrieve_Zsw_hat_complex():
         [10,11,12],
     ])
     
+    C_SW_impulse_exp = C_SW_raw_exp+ sp.ones(C_SW_raw_exp.shape[0], C_SW_raw_exp.shape[1] )
+    C_SW_nonimpulse_exp =  C_SW_raw_exp+ sp.ones(C_SW_raw_exp.shape[0], C_SW_raw_exp.shape[1] )+ sp.ones(C_SW_raw_exp.shape[0], C_SW_raw_exp.shape[1] )
     
+    D_SW_impulse_exp = D_SW_raw_exp+ sp.ones(D_SW_raw_exp.shape[0], D_SW_raw_exp.shape[1])
+    D_SW_nonimpulse_exp = D_SW_raw_exp +sp.ones(D_SW_raw_exp.shape[0], D_SW_raw_exp.shape[1]) + sp.ones(D_SW_raw_exp.shape[0], D_SW_raw_exp.shape[1])
+    C1_exp =  C_SW_raw_exp - sp.ones(C_SW_raw_exp.shape[0], C_SW_raw_exp.shape[1] )
     C_SW_il = Matrix(
         [
         [7,8,9],  
@@ -1222,7 +1281,12 @@ def test_retrieve_Zsw_hat_complex():
     Z_Sw_A_exp = sp.BlockMatrix([ [C_dsw_il ,C_dsw_vc] ])
     Z_SW_B_exp = sp.BlockMatrix([ [D_dsw_is ,D_dsw_vs]])
     
-    assert_matrix_equal(C_SW_raw_exp, C_SW_raw)
-    assert_matrix_equal(D_SW_raw_exp, D_SW_raw)
+    assert_matrix_equal(C_SW_raw_exp, C_SW)
+    assert_matrix_equal(D_SW_raw_exp, D_SW)
     assert_matrix_equal( Z_Sw_A, Z_Sw_A_exp)
     assert_matrix_equal(Z_SW_B_exp, Z_SW_B)
+    assert_matrix_equal(C_SW_impulse_exp, C_impulse_SW)
+    assert_matrix_equal(D_SW_impulse_exp, D_impulse_SW)
+    assert_matrix_equal(C_SW_nonimpulse_exp, C_nonimpulse_SW)
+    assert_matrix_equal(D_SW_nonimpulse_exp, D_nonimpulse_SW)
+    assert_matrix_equal(C1_SW, C1_exp)

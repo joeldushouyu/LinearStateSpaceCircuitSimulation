@@ -618,22 +618,8 @@ def transfer_func_and_poles(A: Matrix, B: Matrix, C:Matrix, D:Matrix, symbolic_v
 
 
 def backwardEulerIntegration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, u:  np.ndarray, time_t:float):
-    # p = 0
-    # q = 1
-    # a = np.float64(0)
-    #b = np.float64(-1/2)
-    # time_t = np.float64(time_t)
+
     eye_a =  np.eye(A.shape[0], dtype=np.float64)
-    
-    # e_at_part =    (  eye_a+  A*time_t*a )@    np.linalg.inv( eye_a +A*time_t*b  )    
-    
-    # # e_at_part = (  eye_a+  A*time_t*a ) * (  eye_a +A*time_t*b )**-1
-    
-    # # integ_part = time_t*(1*a-1*b) * ( eye_a + A*time_t*b ) **-1
-    
-    # integ_part = time_t*  ( a-b ) * np.linalg.inv( eye_a + A*time_t*b )
-    
-    
     
     # #https://www.cs.jhu.edu/~misha/ReadingSeminar/Papers/Moler03.pdf
     # # assume start from 0 - > result in coefficient
@@ -651,29 +637,6 @@ def backwardEulerIntegration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, 
     p2 =  integ_part@ B @ u 
     res = p1+p2
     return  res 
-    # eye_a = np.eye(A.shape[0], dtype=np.float64)
-    # solver_matrix = np.linalg.inv(eye_a - time_t * A)
-    # return solver_matrix @ (x_cur + time_t * B @ u)
-
-    # # for now, implement expm use np
-    # eye_a = np.eye(A.shape[0], dtype=np.float64)
-    # solver_matrix = np.linalg.inv(eye_a - time_t * A)
-    # return solver_matrix @ (x_cur + time_t * B @ u)
-    # https://www.cs.jhu.edu/~misha/ReadingSeminar/Papers/Moler03.pdf
-    # assume start from 0 - > result in coefficient
-    # also change to actual integration methods
-    # p =0
-    # q = 1
-    # a1 = np.float64(0)  # because does not exist
-    # b1 = np.float64(-1)
-    # e_at_part = (  eye_a  + A*time_t*a1  ) * (  eye_a +A*time_t*b1 )**-1
-    # integ_part = time_t*e_at_part
-    # p1 = e_at_part @ x_cur 
-    # p2 =  integ_part@ B @ u 
-    # res = p1+p2
-    # return  res 
-
-
 
 
 
@@ -695,26 +658,9 @@ def tustin_integration_step(x_cur: np.ndarray, A: np.ndarray, B: np.ndarray, u: 
 
 def trapezoidalIntegration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, u:  np.ndarray, time_t:float):
     
-    # p = 0
-    # q = 1
-    # a = np.float64(1/2)
-    # b = np.float64(-1/2)
-    # time_t = np.float64(time_t)
+
     eye_a =  np.eye(A.shape[0], dtype=np.float64)
-    
-    # e_at_part =    (  eye_a+  A*time_t*a )@    np.linalg.inv( eye_a +A*time_t*b  )    
-    
-    # # e_at_part = (  eye_a+  A*time_t*a ) * (  eye_a +A*time_t*b )**-1
-    
-    # # integ_part = time_t*(1*a-1*b) * ( eye_a + A*time_t*b ) **-1
-    
-    # integ_part = time_t*  ( a-b ) * np.linalg.inv( eye_a + A*time_t*b )
-    
-    
-    # p1 = e_at_part @ x_cur 
-    # p2 =  integ_part@ B @ u 
-    # res = p1+p2
-    # return  res 
+
    # https://www.cs.jhu.edu/~misha/ReadingSeminar/Papers/Moler03.pdf
     # assume start from 0 - > result in coefficient
     # but still keep same integration method
@@ -733,23 +679,7 @@ def trapezoidalIntegration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, u:
     res = p1+p2
     return  res 
     
-    # I = np.eye(A.shape[0])  # Identity matrix of size n x n
-    
-    # # Compute the matrix to invert
-    # inv_matrix = np.linalg.inv(I - (time_t / 2) * A)
-    
-    # # Compute intermediate terms
-    # term1 = (I + (time_t / 2) * A) @ x_cur  # (I + h/2 * A) * x_k
-    # term2 = (time_t / 2) * B @ ( 2*u)  # h/2 * B * (u_k + u_k+1) # assume u is the same
-    
-    # # Compute the next state
-    # x_next = inv_matrix @ (term1 + term2)
-    # return x_next
-    
-    # 
 
-    
-    
 # output
 # Helper function to convert matrix to string representation
 def matrix_to_string(matrix, col_labels, row_labels):
@@ -766,7 +696,11 @@ def matrix_to_string(matrix, col_labels, row_labels):
 
             
 
-def retrieve_Zsw_hat(A: Matrix, B: Matrix, C: Matrix, D: Matrix, x_hat_labels:list[str], u_labels:list[str], diode_column_labels:list[str],
+def retrieve_Zsw_hat(A: Matrix, B: Matrix, C: Matrix, D: Matrix,
+                    C1: Matrix, 
+                    C_impulse_matrix:Matrix, C_nonimpulse_matrix:Matrix, 
+                    D_impulse_matrix:Matrix, D_nonimpulse_matrix:Matrix,
+                    x_hat_labels:list[str], u_labels:list[str], diode_column_labels:list[str],
                     y_labels: list[str], number_of_inductor:int, number_of_current_source:int,
                     element_name_obj_map:dict[str, Element], m_column_labels_to_obj_map:dict[str, Element]):
     
@@ -806,9 +740,14 @@ def retrieve_Zsw_hat(A: Matrix, B: Matrix, C: Matrix, D: Matrix, x_hat_labels:li
     # if diode is on, look at the current of the diode
     # if diode is off, look at the voltage of the diode
     
-    C_SW_raw = sp.zeros( len(diode_column_labels), len(x_hat_labels) )
-    D_SW_raw = sp.zeros( len(diode_column_labels), len(u_labels) )
+    C_SW = sp.zeros( len(diode_column_labels), len(x_hat_labels) )
+    D_SW = sp.zeros( len(diode_column_labels), len(u_labels) )
+    C1_SW =  sp.zeros( len(diode_column_labels), len(x_hat_labels) )
+    C_impulse_SW = sp.zeros(len(diode_column_labels), len(x_hat_labels) )
+    D_impulse_SW = sp.zeros(len(diode_column_labels), len(u_labels))
 
+    C_nonimpulse_SW = sp.zeros(len(diode_column_labels), len(x_hat_labels))
+    D_nonimpulse_SW = sp.zeros(len(diode_column_labels), len(u_labels))
     for sw_index, sw in  enumerate(diode_column_labels):
         sw_ele =  m_column_labels_to_obj_map[sw]
         if isinstance(sw_ele, Diode):
@@ -817,22 +756,29 @@ def retrieve_Zsw_hat(A: Matrix, B: Matrix, C: Matrix, D: Matrix, x_hat_labels:li
                 # need to find the y rows of the voltmere
                 diode_voltmeter = element_name_obj_map[sw_ele.diode_voltmeter_name]
                 voltmeter_index = y_labels.index(diode_voltmeter.element_voltage_name)
-                C_SW_raw[sw_index, :] = C[voltmeter_index, :]
-                D_SW_raw[sw_index, :] = D[voltmeter_index, :]
+                C_SW[sw_index, :] = C[voltmeter_index, :]
+                D_SW[sw_index, :] = D[voltmeter_index, :]
+                C_impulse_SW[sw_index, :] = C_impulse_matrix[voltmeter_index, :]
+                D_impulse_SW[sw_index, :] = D_impulse_matrix[voltmeter_index, :]
+                C_nonimpulse_SW[sw_index, :] = C_nonimpulse_matrix[voltmeter_index, :]
+                D_nonimpulse_SW[sw_index, :] = D_nonimpulse_matrix[voltmeter_index, :]
+                C1_SW[sw_index, :]  = C1[voltmeter_index, :]
+                
             else:
                 # means swwitch is on
                 diode_ammeter = element_name_obj_map[sw_ele.diode_ammeter_name]
                 ammeter_index = y_labels.index(diode_ammeter.element_current_name)
-                C_SW_raw[sw_index, :] = C[ammeter_index, :]
-                D_SW_raw[sw_index, :] = D[ammeter_index, :]
+                C_SW[sw_index, :] = C[ammeter_index, :]
+                D_SW[sw_index, :] = D[ammeter_index, :]
+                C_impulse_SW[sw_index, :] = C_impulse_matrix[ammeter_index, :]
+                D_impulse_SW[sw_index, :] = D_impulse_matrix[ammeter_index, :]
+                C_nonimpulse_SW[sw_index, :] = C_nonimpulse_matrix[ammeter_index, :]
+                D_nonimpulse_SW[sw_index, :] = D_nonimpulse_matrix[ammeter_index, :]
+                C1_SW[sw_index, :]  = C1[ammeter_index, :]
+    C_SW_il = C_SW[:, :number_of_inductor]
+    C_SW_vc = C_SW[:, number_of_inductor:]
     
-    
-    C_SW_il = C_SW_raw[:, :number_of_inductor]
-    C_SW_vc = C_SW_raw[:, number_of_inductor:]
-    
-    # D_sw_is = D_SW_raw[:, :number_of_current_source]
-    # D_sw_vs = D_SW_raw[:, number_of_current_source:]
-    
+
     if number_of_current_source == 0:
         C_dsw_il = C_SW_il@ALL + C_SW_vc@ACL
         C_dsw_vc = C_SW_il@ALC + C_SW_vc@ACC
@@ -845,8 +791,8 @@ def retrieve_Zsw_hat(A: Matrix, B: Matrix, C: Matrix, D: Matrix, x_hat_labels:li
     
 
     
-    Z_Sw_A = sp.BlockMatrix([ [C_dsw_il, C_dsw_vc] ])
-    Z_SW_B = sp.BlockMatrix([ [D_dsw_is ,D_dsw_vs]])
+    Z_hat_Sw_A = sp.BlockMatrix([ [C_dsw_il, C_dsw_vc] ])
+    Z_hat_SW_B = sp.BlockMatrix([ [D_dsw_is ,D_dsw_vs]])
     
-    return C_SW_raw, D_SW_raw, Z_Sw_A, Z_SW_B
+    return C1_SW, C_SW, D_SW, C_impulse_SW, D_impulse_SW, C_nonimpulse_SW, D_nonimpulse_SW,  Z_hat_Sw_A, Z_hat_SW_B
     
