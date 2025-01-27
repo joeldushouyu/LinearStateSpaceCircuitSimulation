@@ -1,7 +1,7 @@
 import scipy.integrate
 import scipy.linalg
 from Element import (
-    Element, ExternalSwitch, Diode, Capacitor, Inductor
+    Element, ExternalSwitch, Diode, Capacitor, Inductor,VoltageCurrentSource
 )
 from typing import Tuple
 import sympy as sp
@@ -1207,3 +1207,90 @@ def write_matrix_info(net, filename="matrix_output.txt"):
         for name, matrix in matrices.items():
             dual_print(f"\n{name}")
             dual_print(matrix)
+            
+            
+
+def retrieve_Zsw_hat(A: Matrix, B: Matrix, C: Matrix, D: Matrix, x_hat_labels:list[str], u_labels:list[str], diode_column_labels:list[str],
+                    y_labels: list[str], number_of_inductor:int, number_of_current_source:int,
+                    element_name_obj_map:dict[str, Element], m_column_labels_to_obj_map:dict[str, Element]):
+    
+    
+    # assume A,B, C,D is already finalized
+    # assume source is sorted in current, voltage order
+    # assume state is sorted in inductor, capacitor order
+
+    # sanity check 
+    for ind, lab in enumerate(x_hat_labels):
+        ele = m_column_labels_to_obj_map[lab]
+        if ind < number_of_inductor:
+            assert isinstance(ele, Inductor)
+        else:
+            assert isinstance(ele, Capacitor)
+    for ind, lab in enumerate(u_labels):
+        ele = m_column_labels_to_obj_map[lab]
+        assert isinstance(ele, VoltageCurrentSource)
+        if ind < number_of_current_source:
+            assert ele.is_voltage_source is False
+        else:
+            assert ele.is_voltage_source
+
+    
+    ALL = A[:number_of_inductor, :number_of_inductor]
+    ALC = A[:number_of_inductor, number_of_inductor:]
+    ACL = A[number_of_inductor:, :number_of_inductor]
+    ACC = A[number_of_inductor:, number_of_inductor:]
+    
+
+    BLis = B[:number_of_inductor, :number_of_current_source]
+    BLvs= B[:number_of_inductor, number_of_current_source:]
+    BCis=B[number_of_inductor:, :number_of_current_source]
+    BCvs=B[number_of_inductor:, number_of_current_source:]
+    
+    # retrieve the rows of Z
+    # if diode is on, look at the current of the diode
+    # if diode is off, look at the voltage of the diode
+    
+    C_SW_raw = sp.zeros( len(diode_column_labels), len(x_hat_labels) )
+    D_SW_raw = sp.zeros( len(diode_column_labels), len(u_labels) )
+
+    for sw_index, sw in  enumerate(diode_column_labels):
+        sw_ele =  m_column_labels_to_obj_map[sw]
+        if isinstance(sw_ele, Diode):
+            if sw == sw_ele.element_voltage_name:
+                # means switch is off
+                # need to find the y rows of the voltmere
+                diode_voltmeter = element_name_obj_map[sw_ele.diode_voltmeter_name]
+                voltmeter_index = y_labels.index(diode_voltmeter.element_voltage_name)
+                C_SW_raw[sw_index, :] = C[voltmeter_index, :]
+                D_SW_raw[sw_index, :] = D[voltmeter_index, :]
+            else:
+                # means swwitch is on
+                diode_ammeter = element_name_obj_map[sw_ele.diode_ammeter_name]
+                ammeter_index = y_labels.index(diode_ammeter.element_current_name)
+                C_SW_raw[sw_index, :] = C[ammeter_index, :]
+                D_SW_raw[sw_index, :] = D[ammeter_index, :]
+    
+    
+    C_SW_il = C_SW_raw[:, :number_of_inductor]
+    C_SW_vc = C_SW_raw[:, number_of_inductor:]
+    
+    # D_sw_is = D_SW_raw[:, :number_of_current_source]
+    # D_sw_vs = D_SW_raw[:, number_of_current_source:]
+    
+    if number_of_current_source == 0:
+        C_dsw_il = C_SW_il@ALL + C_SW_vc@ACL
+        C_dsw_vc = C_SW_il@ALC + C_SW_vc@ACC
+    else:
+        C_dsw_il = C_SW_il@ALL + C_SW_vc@ACL
+        C_dsw_vc = C_SW_il@ALC + C_SW_vc@ACC
+    
+    D_dsw_is = C_SW_il@BLis + C_SW_vc@BCis
+    D_dsw_vs = C_SW_il@BLvs + C_SW_vc@BCvs
+    
+
+    
+    Z_Sw_A = sp.BlockMatrix([ [C_dsw_il, C_dsw_vc] ])
+    Z_SW_B = sp.BlockMatrix([ [D_dsw_is ,D_dsw_vs]])
+    
+    return C_SW_raw, D_SW_raw, Z_Sw_A, Z_SW_B
+    

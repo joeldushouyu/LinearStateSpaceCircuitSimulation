@@ -1,9 +1,9 @@
 
 
-from  util import retrieveSystemMatrix, update_system_matrix_to_reflect_dependency
+from  util import retrieveSystemMatrix, update_system_matrix_to_reflect_dependency, retrieve_Zsw_hat
 from sympy import Matrix, symbols
 import sympy as sp
-from FormNetworkMatrix import Inductor, Capacitor, Element
+from FormNetworkMatrix import Inductor, Capacitor, Element, Voltmeter, VoltageCurrentSource, Ammeter, Diode, ExternalSwitch
 import numpy as np
 
 import math
@@ -571,7 +571,7 @@ def test_update_system_matrix_to_reflect_dependency_system_1():
     M0, A, B, C, D,C1,  m_pivots, x_hat_labels, x_hat_col_offset_in_m_pivots, \
     u_labels, y_labels,  x_hat_label_to_obj_map,symbol_to_value_map ,\
         element_name_to_obj_map= system_one()
-    M0_final, A_final, B_final, C_final, D_final, A_dependent_final, B_dependent_final = update_system_matrix_to_reflect_dependency(
+    M0_final, A_final, B_final, C_final, D_final, A_dependent_final, B_dependent_final,C_impulse, C_non_impulse, D_impulse, D_non_impulse = update_system_matrix_to_reflect_dependency(
         
         M0=M0,
         C1=C1,
@@ -616,6 +616,19 @@ def test_update_system_matrix_to_reflect_dependency_system_1():
     A_dependent_final_expect = sp.eye(4,4)
     B_dependent_final_expect = sp.zeros(4,1)
     
+    C_non_impulse_exp = Matrix([
+    [2,3,4,5],
+    [6,7,8,9],
+    [10,11,12,13],
+    [14,15,16,17]])
+    D_non_impulse_exp =  Matrix([
+    [1],
+    [2],
+    [3],
+    [4]])
+    
+    C_impulse_exp =C1@E@A_final_exp
+    D_impulse_exp =  C1@E@B_fina_exp
     
     assert_matrix_equal(M0_final, M0_final_exp)
     assert_matrix_equal(A_final, A_final_exp)
@@ -624,6 +637,10 @@ def test_update_system_matrix_to_reflect_dependency_system_1():
     assert_matrix_equal(D_final, D_final_exp)
     assert_matrix_equal(A_dependent_final, A_dependent_final_expect)
     assert_matrix_equal(B_dependent_final, B_dependent_final_expect)
+    assert_matrix_equal(C_impulse_exp,C_impulse )
+    assert_matrix_equal(D_impulse_exp, D_impulse)
+    assert_matrix_equal(C_non_impulse, C_non_impulse_exp)
+    assert_matrix_equal(D_non_impulse_exp, D_non_impulse)
 
 def test_update_system_matrix_to_reflect_dependency_system_2():
     M0, A, B, C, D,C1_m,  m_pivots, x_hat_labels, x_hat_col_offset_in_m_pivots, \
@@ -712,10 +729,18 @@ def test_update_system_matrix_to_reflect_dependency_system_2():
     C_final_exp = sp.zeros(4,4)
     C_final_exp[:, 0:2] = C_new[:, 0:2]
     C_final_exp[:, 3] = C_new[:, 2]
+    # apply the affect of C1 on C, D matrix
+
+    C_non_impulse_exp = C_final_exp.copy()
+    D_non_impulse_exp = D_final_exp.copy()
     
-    # add the affect from C1
-    C_final_exp = C_final_exp  + C1_m @E_origin  @ A_final_expect
-    D_final_exp = D_final_exp + C1_m @ E_origin @B_final_expect
+    # apply the affect of C1 on C, D matrix
+    
+    C_final_exp += C1_m @ E_origin@A_final_expect
+    D_final_exp += C1_m @ E_origin @ B_final_expect
+    
+    C_impulse_exp = C1_m @ E_origin@A_final_expect
+    D_impulse_exp =  C1_m @ E_origin @ B_final_expect
     
     A_x2  = -1*A22_inv@A21
     B_x2 = -1*A22_inv@B2
@@ -728,14 +753,14 @@ def test_update_system_matrix_to_reflect_dependency_system_2():
     B_dependent_final_expect[2, :] = B_x2[:,:]
 
     
-    M0_final, A_final, B_final, C_final, D_final, A_dependent_final, B_dependent_final = update_system_matrix_to_reflect_dependency(
+    M0_final, A_final, B_final, C_final, D_final, A_dependent_final, B_dependent_final, C_impulse, C_non_impulse, D_impulse, D_non_impulse = update_system_matrix_to_reflect_dependency(
         
         M0=M0,
         C1=C1_m,
         A=A,B=B,C=C,D=D,m_pivots=m_pivots,x_hat_labels=x_hat_labels,
         x_hat_col_offset_in_m_pivots=x_hat_col_offset_in_m_pivots,x_hat_label_to_obj_map=x_hat_label_to_obj_map,
-        element_name_to_obj_map=element_name_to_obj_map,
         symbol_to_value_map=symbol_to_value_map,
+        element_name_to_obj_map=element_name_to_obj_map,
         u_labels=u_labels,
         y_labels=y_labels
     )
@@ -748,7 +773,10 @@ def test_update_system_matrix_to_reflect_dependency_system_2():
     assert_matrix_equal(D_final, D_final_exp)
     assert_matrix_equal(A_dependent_final, A_dependent_final_expect)
     assert_matrix_equal(B_dependent_final, B_dependent_final_expect)
-
+    assert_matrix_equal(C_impulse_exp,C_impulse )
+    assert_matrix_equal(D_impulse_exp, D_impulse)
+    assert_matrix_equal(C_non_impulse, C_non_impulse_exp)
+    assert_matrix_equal(D_non_impulse_exp, D_non_impulse)
 
 def test_update_system_matrix_to_reflect_dependency_system_3(): 
     M0, A, B, C, D,C1_m,  m_pivots, x_hat_labels, x_hat_col_offset_in_m_pivots, \
@@ -851,9 +879,17 @@ def test_update_system_matrix_to_reflect_dependency_system_3():
     
     
     # apply the affect of C1 on C, D matrix
+
+    C_non_impulse_exp = C_final_exp.copy()
+    D_non_impulse_exp = D_final_exp.copy()
+    
+    # apply the affect of C1 on C, D matrix
     
     C_final_exp += C1_m @ E_origin@A_final_expect
     D_final_exp += C1_m @ E_origin @ B_final_expect
+    
+    C_impulse_exp = C1_m @ E_origin@A_final_expect
+    D_impulse_exp =  C1_m @ E_origin @ B_final_expect
     
     A_x2  = -1*A22_inv@A21
     B_x2 = -1*A22_inv@B2
@@ -871,7 +907,8 @@ def test_update_system_matrix_to_reflect_dependency_system_3():
     B_dependent_final_expect[1, :] = B_x2[0, :]
     B_dependent_final_expect[2, :] = B_x2[1, :]
     
-    M0_final, A_final, B_final, C_final, D_final, A_dependent_final, B_dependent_final = update_system_matrix_to_reflect_dependency(
+    
+    M0_final, A_final, B_final, C_final, D_final, A_dependent_final, B_dependent_final, C_impulse, C_non_impulse, D_impulse, D_non_impulse = update_system_matrix_to_reflect_dependency(
         
         M0=M0,
         C1=C1_m,
@@ -891,9 +928,10 @@ def test_update_system_matrix_to_reflect_dependency_system_3():
     assert_matrix_equal(D_final, D_final_exp)
     assert_matrix_equal(A_dependent_final, A_dependent_final_expect)
     assert_matrix_equal(B_dependent_final, B_dependent_final_expect)
-
-
-
+    assert_matrix_equal(C_impulse_exp,C_impulse )
+    assert_matrix_equal(D_impulse_exp, D_impulse)
+    assert_matrix_equal(C_non_impulse, C_non_impulse_exp)
+    assert_matrix_equal(D_non_impulse_exp, D_non_impulse)
 
 def test_update_system_matrix_to_reflect_dependency_system_4(): 
     M0, A, B, C, D,C1_m,  m_pivots, x_hat_labels, x_hat_col_offset_in_m_pivots, \
@@ -1002,11 +1040,16 @@ def test_update_system_matrix_to_reflect_dependency_system_4():
     C_final_exp = sp.zeros(4,4)
     C_final_exp[:,1:4] =  C_new[:,:]
 
+    C_non_impulse_exp = C_final_exp.copy()
+    D_non_impulse_exp = D_final_exp.copy()
     
     # apply the affect of C1 on C, D matrix
     
     C_final_exp += C1_m @ E_origin@A_final_expect
     D_final_exp += C1_m @ E_origin @ B_final_expect
+    
+    C_impulse_exp = C1_m @ E_origin@A_final_expect
+    D_impulse_exp =  C1_m @ E_origin @ B_final_expect
     
     A_x2  = -1*A22_inv@A21
     B_x2 = -1*A22_inv@B2
@@ -1021,7 +1064,7 @@ def test_update_system_matrix_to_reflect_dependency_system_4():
     B_dependent_final_expect[0, :] = B_x2[0, :]
 
     
-    M0_final, A_final, B_final, C_final, D_final, A_dependent_final, B_dependent_final = update_system_matrix_to_reflect_dependency(
+    M0_final, A_final, B_final, C_final, D_final, A_dependent_final, B_dependent_final, C_impulse, C_non_impulse, D_impulse, D_non_impulse = update_system_matrix_to_reflect_dependency(
         
         M0=M0,
         C1=C1_m,
@@ -1041,3 +1084,261 @@ def test_update_system_matrix_to_reflect_dependency_system_4():
     assert_matrix_equal(D_final, D_final_exp)
     assert_matrix_equal(A_dependent_final, A_dependent_final_expect)
     assert_matrix_equal(B_dependent_final, B_dependent_final_expect)
+    assert_matrix_equal(C_impulse_exp,C_impulse )
+    assert_matrix_equal(D_impulse_exp, D_impulse)
+    assert_matrix_equal(C_non_impulse, C_non_impulse_exp)
+    assert_matrix_equal(D_non_impulse_exp, D_non_impulse)
+    
+
+def test_retrieve_Zsw_hat_simple_case():
+    #TODO: better test case of different number of capacitor/inductor current/voltage source
+    # simple testcase of system with 1 inductor, 1 capacitor, 1 diode, 1 external switch, 1 Voltage source, 1 current source
+    diode_am = Ammeter("AMD1", None, None)
+    diode_vm = Voltmeter("VMD1", None, None)
+    switch_vm = Voltmeter("VMSW", None, None)
+    voltage_source = VoltageCurrentSource("Vcc", None, None, 5, 0, True)
+    current_source = VoltageCurrentSource("I_in", None, None, 10, 0, False)
+    inductor = Inductor("L1",None, None, 10, None)
+    capacitor = Capacitor("C1", None, None, 10, None)
+    # sw = ExternalSwitch("S1", None, None,True,100,0.1)
+    diode = Diode("D1", None, None, False, diode_vm.name, diode_am.name)
+    
+    
+    element_name_obj_map = { diode_am.name:diode_am, diode_vm.name:diode_vm  }
+    x_hat_labels = [inductor.element_current_name, capacitor.element_voltage_name]
+    u_labels = [current_source.element_current_name, voltage_source.element_voltage_name]
+    y_labels = [diode_vm.element_voltage_name, diode_am.element_current_name, switch_vm.element_voltage_name]#y can be out of order
+    
+    # have the diode on, which need to look at the current measurement
+    diode_column_label= [diode.element_current_name]
+    m_column_labels_to_obj_map = {inductor.element_current_name: inductor, capacitor.element_voltage_name:capacitor,
+                                  current_source.element_current_name: current_source, voltage_source.element_voltage_name:voltage_source,
+                                  diode_vm.element_voltage_name:diode_vm, diode_am.element_current_name:diode_am, switch_vm.element_voltage_name:switch_vm,
+                                  diode.element_current_name:diode, diode.element_voltage_name:diode
+                                  
+                                  }
+    
+    A = Matrix([
+        [1,2],
+        [3,4]
+        
+    ])
+    
+    B= Matrix([
+        [2,3],
+        [4,5]
+    ])
+    
+    C= Matrix([
+        [3,4],
+        [5,6],
+        [7,8]
+    ])
+    D= Matrix([
+        [1,2],
+        [3,4],
+        [5,6]
+        
+    ])
+    
+    C_SW_raw, D_SW_raw, Z_Sw_A, Z_SW_B = retrieve_Zsw_hat(  A=A, B=B, C=C, D=D, x_hat_labels=x_hat_labels, u_labels=u_labels,
+                                                          diode_column_labels=diode_column_label, y_labels=y_labels,
+                                                          number_of_inductor=1, number_of_current_source=1,
+                                                          element_name_obj_map=element_name_obj_map,
+                                                          m_column_labels_to_obj_map=m_column_labels_to_obj_map
+                                                          )
+    
+    ALL = Matrix([ [1]])
+    ALC = Matrix([[2]])
+    ACL = Matrix([[3]])
+    ACC = Matrix([[4]])
+    
+    BLis = Matrix([[2]])
+    BLvs = Matrix([[3]])
+    BCis = Matrix([[4]])
+    BCvs = Matrix([[5]])
+    
+    C_SW_raw_exp =  C[1,:]
+    D_SW_raw_exp = D[1,:]
+    
+    
+    C_SW_il = C_SW_raw[:, :1]
+    C_SW_vc = C_SW_raw[:, 1:]
+    
+    # D_sw_is = D_SW_raw[:, :number_of_current_source]
+    # D_sw_vs = D_SW_raw[:, number_of_current_source:]
+    
+    C_dsw_il = C_SW_il@ALL + C_SW_vc@ACL
+    C_dsw_vc = C_SW_il@ALC + C_SW_vc@ACC
+    
+    D_dsw_is = C_SW_il@BLis + C_SW_vc@BCis
+    D_dsw_vs = C_SW_il@BLvs + C_SW_vc@BCvs
+    
+
+    
+    Z_Sw_A_exp = sp.BlockMatrix([ [C_dsw_il ,C_dsw_vc] ])
+    Z_SW_B_exp = sp.BlockMatrix([ [D_dsw_is , D_dsw_vs]])
+    
+    assert_matrix_equal(C_SW_raw_exp, C_SW_raw)
+    assert_matrix_equal(D_SW_raw_exp, D_SW_raw)
+    assert_matrix_equal( Z_Sw_A, Z_Sw_A_exp)
+    assert_matrix_equal(Z_SW_B_exp, Z_SW_B)
+    
+    
+
+
+
+
+def test_retrieve_Zsw_hat_complex():
+
+    #Two diode, 3 inductor, 1 capacitor, 2 voltage source, 1 current source
+    
+    
+    diode1_am = Ammeter("AMD1", None, None)
+    diode1_vm = Voltmeter("VMD1", None, None)
+    diode2_am = Ammeter("AMD2", None, None)
+    diode2_vm = Voltmeter("VMD2", None, None)
+    switch_vm = Voltmeter("VMSW", None, None)
+    
+    
+    voltage_source1 = VoltageCurrentSource("Vcc1", None, None, 5, 0, True)
+    voltage_source2 = VoltageCurrentSource("Vcc2", None, None, 20, 0, True)
+    current_source = VoltageCurrentSource("I_in", None, None, 10, 0, False)
+    inductor1 = Inductor("L1",None, None, 10, None)
+    inductor2 = Inductor("L2", None, None, 10e-6, None)
+    inductor3 = Inductor("L3", None, None, 1, None)
+    capacitor = Capacitor("C1", None, None, 10, None)
+    
+    diode1 = Diode("D1", None, None, False, diode1_vm.name, diode1_am.name)
+    diode2 = Diode("D2", None, None, True, diode2_vm.name, diode2_am.name)
+    
+    element_name_obj_map = { diode1_am.name:diode1_am, diode1_vm.name:diode1_vm, 
+                            diode2_am.name:diode2_am, diode2_vm.name:diode2_vm     }
+    x_hat_labels = [inductor1.element_current_name,
+                    inductor2.element_current_name, inductor3.element_current_name,
+                    capacitor.element_voltage_name]
+    u_labels = [current_source.element_current_name, voltage_source1.element_voltage_name, voltage_source2.element_voltage_name]
+    y_labels = [diode1_vm.element_voltage_name, diode1_am.element_current_name, switch_vm.element_voltage_name, 
+                diode2_vm.element_voltage_name, diode2_am.element_current_name ]#y can be out of order
+    
+    # diode 1 is on, diode2 is off
+    diode_column_label= [diode1.element_current_name, diode2.element_voltage_name]
+    m_column_labels_to_obj_map = {inductor1.element_current_name: inductor1,
+                                  inductor2.element_current_name: inductor2, inductor3.element_current_name: inductor3,
+                                  capacitor.element_voltage_name:capacitor,
+                                  current_source.element_current_name: current_source, voltage_source1.element_voltage_name:voltage_source1, voltage_source2.element_voltage_name:voltage_source2,
+                                  diode1_vm.element_voltage_name:diode1_vm, diode1_am.element_current_name:diode1_am, 
+                                  diode2_vm.element_voltage_name:diode2_vm, diode2_am.element_current_name:diode2_am,
+                                  switch_vm.element_voltage_name:switch_vm,
+                                  diode1.element_current_name:diode1, diode1.element_voltage_name:diode1,
+                                  diode2.element_current_name:diode2, diode2.element_voltage_name:diode2
+                                  
+                                  }
+    
+    A = Matrix([
+        [1,2,3,4],
+        [5,6,7,8],
+        [9,10,11,12],
+        [13,14,15,16]
+        
+    ])
+    
+    B= Matrix([
+        [2,3,4],
+        [5,6,7],
+        [8,9,10],
+        [11,12,13]
+    ])
+    
+    C= Matrix([
+        [3,4,5,6],
+        [7,8,9,10],
+        [11,12,13,14],
+        [15,16,17,18],
+        [19,20,21,22]
+    ])
+    D= Matrix([
+        [1,2,3],
+        [4,5,6],
+        [7,8,9],
+        [10,11,12],
+        [13,14,15]
+
+    ])
+    
+    C_SW_raw, D_SW_raw, Z_Sw_A, Z_SW_B = retrieve_Zsw_hat(  A=A, B=B, C=C, D=D, x_hat_labels=x_hat_labels, u_labels=u_labels,
+                                                          diode_column_labels=diode_column_label, y_labels=y_labels,
+                                                          number_of_inductor=3, number_of_current_source=1,
+                                                          element_name_obj_map=element_name_obj_map,
+                                                          m_column_labels_to_obj_map=m_column_labels_to_obj_map
+                                                          )
+    
+    ALL = Matrix([         
+        [1,2,3],
+        [5,6,7],
+        [9,10,11],])
+    ALC = Matrix([
+        [4],
+        [8],
+        [12],
+    ])
+    ACL = Matrix([
+    [13,14,15]
+    ])
+    ACC = Matrix([[16]])
+    
+    BLis = Matrix([
+        [2],
+        [5],
+        [8]
+        
+    ])
+    BLvs = Matrix([
+        
+        [3,4],
+        [6,7],
+        [9,10]
+        
+    ])
+    BCis = Matrix([[11]])
+    BCvs = Matrix([[12,13]])
+    
+    C_SW_raw_exp =Matrix([
+        [7,8,9,10],  
+        [15,16,17,18],
+    ])
+    D_SW_raw_exp = Matrix([
+        [4,5,6],
+        [10,11,12],
+    ])
+    
+    
+    C_SW_il = Matrix(
+        [
+        [7,8,9],  
+        [15,16,17],
+        ]
+    )
+    C_SW_vc = Matrix([
+        [10],  
+        [18],
+    ])
+    
+    # D_sw_is = D_SW_raw[:, :number_of_current_source]
+    # D_sw_vs = D_SW_raw[:, number_of_current_source:]
+    
+    C_dsw_il = C_SW_il@ALL + C_SW_vc@ACL
+    C_dsw_vc = C_SW_il@ALC + C_SW_vc@ACC
+    
+    D_dsw_is = C_SW_il@BLis + C_SW_vc@BCis
+    D_dsw_vs = C_SW_il@BLvs + C_SW_vc@BCvs
+    
+
+    
+    Z_Sw_A_exp = sp.BlockMatrix([ [C_dsw_il ,C_dsw_vc] ])
+    Z_SW_B_exp = sp.BlockMatrix([ [D_dsw_is ,D_dsw_vs]])
+    
+    assert_matrix_equal(C_SW_raw_exp, C_SW_raw)
+    assert_matrix_equal(D_SW_raw_exp, D_SW_raw)
+    assert_matrix_equal( Z_Sw_A, Z_Sw_A_exp)
+    assert_matrix_equal(Z_SW_B_exp, Z_SW_B)
