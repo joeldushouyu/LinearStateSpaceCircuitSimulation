@@ -9,12 +9,9 @@ from sympy import Matrix, pi, pprint, Symbol, eye, zeros, simplify, BlockMatrix
 from numba import njit, prange
 import numpy as np
 import numpy.typing as npt
-import math
 import sys
 from scipy.integrate import ode,solve_ivp
 
-
-import scipy.linalg  
 def is_rise_edge(frequency, time_t) -> bool:
     
     # assume time_t is higher resolution than frequency
@@ -109,22 +106,6 @@ def swapTwoColumn(
 
 
 
-def calculate_dependent_state_vars(M0: Matrix, x_hat_labels:list[str]):
-    
-    
-    independent_state_vars = []
-    dependent_state_vars = []
-
-    cols = M0.cols
-    _, M0_pivots = M0.rref()
-    j = 0
-    for i in range(len(cols)):
-        is_independent =  j < len(M0_pivots) and M0_pivots[j] == i
-        if is_independent:
-            independent_state_vars.append(  x_hat_labels[i]  )
-            j += 1
-        else:
-            dependent_state_vars.append(x_hat_labels[i]) 
 
 
 def reogranize_matrix_by_row_col_mapping(matrix: Matrix, old_lab_row_idx_mapping:dict[str, int], old_lab_col_idx_mapping:dict[str, int],
@@ -342,32 +323,7 @@ def determine_dependent_independent_state_mapping(M0_I: Matrix, A_raw:Matrix,  m
         else:
             pass
         independent_state_row_col_map[label] = [pivot_row, pivot_col]
-    
-    # for index in range(len(M0_pivots)):
-    #     # assert M0_pivots[index] == m_pivots[ index + x_hat_col_offset_in_m_pivots ]
-        
-    #     pivot_col = M0_pivots[index]
-    #     pivot_row = index # by def, pivots are the first nonzero in each row
-    #     label = x_hat_labels[pivot_col]
-        
-    #     independent_state_row_col_map[label] = [pivot_row, pivot_col]
-    
-    # # remaing column that are not in M0_pivots
-    # # dependent variable are cols not in M0_pivots, but in m_pivots
-    # # those m_pivots points to column in A matrix
-    
-    # dependent_row_start = len(M0_pivots)
-    # if len(independent_state_row_col_map)  < len(x_hat_labels):
-    #     for m_pivot_col in m_pivots[x_hat_col_offset_in_m_pivots + len(independent_state_row_col_map): ]:
-            
-    #         M0_pivot_col = m_pivot_col - len(x_hat_labels) -x_hat_col_offset_in_m_pivots
-            
-    #         label = x_hat_labels[M0_pivot_col]
-            
-    #         dependent_state_row_col_map[label] = [dependent_row_start, M0_pivot_col]
-            
-    #         dependent_row_start += 1
-    
+
     
     
     sys_A_row_idx_map:dict[str, int]  = {}
@@ -813,34 +769,6 @@ def transfer_func_and_poles(A: Matrix, B: Matrix, C:Matrix, D:Matrix, symbolic_v
     return transfer_func, poles,poles_roots
 
 
-# def backwardEulerIntegration(x_cur: np.ndarray, A: np.ndarray, B: np.ndarray, u: np.ndarray, time_t: float):
-#     """
-#     Implements Backward Euler integration for stiff systems
-#     Using Padé approximation with p=0, q=1
-    
-#     Args:
-#         x_cur: Current state vector
-#         A: State matrix
-#         B: Input matrix
-#         u: Input vector
-#         time_t: Time step
-#     """
-#     # Padé coefficients for p=0, q=1
-#     eye = np.eye(A.shape[0], dtype=np.float64)
-    
-#     # Compute (I - dt*A)^(-1)
-#     solver_matrix = np.linalg.inv(eye - time_t * A)
-    
-#     # State transition: x(t+dt) = (I - dt*A)^(-1) * x(t)
-#     state_transition = solver_matrix @ x_cur
-    
-#     # Input integration: dt * (I - dt*A)^(-1) * B * u
-#     input_effect = time_t * solver_matrix @ B @ u
-    
-#     return state_transition + input_effect
-
-# @njit(parallel=True)
-
 def backwardEulerIntegration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, u:  np.ndarray, time_t:float):
     # p = 0
     # q = 1
@@ -897,92 +825,7 @@ def backwardEulerIntegration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, 
     # res = p1+p2
     # return  res 
 
-# def trapezoidalIntegration(x_cur: np.ndarray, A: np.ndarray, B: np.ndarray, u: np.ndarray, time_t: float):
-#     """
-#     Performs trapezoidal integration for solving a linear, time-invariant system.
 
-#     Parameters:
-#     x_cur : np.ndarray
-#         Current state vector of the system (x_k).
-#     A : np.ndarray
-#         State matrix of the LTI system.
-#     B : np.ndarray
-#         Input matrix of the LTI system.
-#     u : np.ndarray
-#         Input vector applied to the system (u_k).
-#     time_t : float
-#         Time step size (\Delta t).
-
-#     Returns:
-#     np.ndarray
-#         Updated state vector (x_{k+1}).
-#     """
-#     eye_a =  np.eye(A.shape[0], dtype=np.float64)
-    
-#     # state_trans = scipy.linalg.expm(A *time_t)
-#     # zero_input_response = state_trans @x_cur
-    
-#     # zero_value_response =   time_t/2 *( eye_a +  state_trans ) @B @u
-    
-#     # return zero_input_response + zero_value_response
-    
-
-    
-#     # Rearranging the equation:
-#     # (I - (h/2)A)x(t+h) = (I + (h/2)A)x(t) + (h/2)B(u(t) + u(t+h))
-#     # Assuming u(t+h) ≈ u(t) for simplicity
-    
-#     solver_matrix = np.linalg.inv(eye_a - (time_t/2) * A)
-#     x_next = solver_matrix @ ((eye_a + (time_t/2) * A) @ x_cur + time_t * B @ u)
-    
-#     return x_next
-
-
-
-
-
-
-
-
-
-# def stiffSolver(x_cur: np.ndarray, A: np.ndarray, B: np.ndarray, u: np.ndarray, time_t: float) -> np.ndarray:
-#     """
-#     Solve a stiff LTI system using the Radau IIA method.
-
-#     :param x_cur: Current state vector (shape: (6,)).
-#     :param A: State matrix (shape: (6, 6)).
-#     :param B: Input matrix (shape: (6, m), where m is the number of inputs).
-#     :param u: Input vector (shape: (m,)).
-#     :param time_t: Time step for integration.
-#     :return: The state vector at the end of the time step (shape: (6,)).
-#     """
-#     # Ensure x_cur is 1-dimensional
-#     # Ensure x_cur is 1-dimensional
-#     x_cur = np.asarray(x_cur).flatten()
-
-#     # Ensure u is 1-dimensional
-#     u = np.asarray(u).flatten()
-
-#     def state_space_dynamics(t, x, u, A, B):
-#         """
-#         Compute the derivative of the state vector.
-#         :param t: Time (not used in LTI systems, but required by the solver).
-#         :param x: Current state vector (shape: (6,)).
-#         :param u: Input vector (shape: (m,)).
-#         :param A: State matrix (shape: (6, 6)).
-#         :param B: Input matrix (shape: (6, m)).
-#         :return: Derivative of the state vector (shape: (6,)).
-#         """
-#         dxdt = np.dot(A, x) + np.dot(B, u)
-#         return dxdt
-
-#     # Solve the ODE using Radau IIA
-#     sol = solve_ivp(state_space_dynamics, [0, time_t], x_cur, args=(u, A, B), method='Radau')
-
-#     # Return the final state (ensure it is 1-dimensional)
-#     return sol.y[:, -1].flatten()
-
-# @njit(parallel=True)
 
 
 
@@ -1001,37 +844,7 @@ def tustin_integration_step(x_cur: np.ndarray, A: np.ndarray, B: np.ndarray, u: 
     B_d = A_d_p1_inv @B*(time_t/2)
     
     return A_d*x_cur + 2*(B_d@u)  # TODO: assume un-1 and un is the same
-# Function to perform one step of Radau integration
-def radau_integration_step(x_cur: np.ndarray, A: np.ndarray, B: np.ndarray, u: np.ndarray, time_t: float, dt: float) -> np.ndarray:
-    """
-    Perform one step of numerical integration using Radau's method.
 
-    Args:
-        x_cur (np.ndarray): Current state vector (shape: (6, 1)).
-        A (np.ndarray): System matrix (shape: (6, 6)).
-        B (np.ndarray): Input matrix (shape: (6, 1)).
-        u (np.ndarray): Input vector (shape: (1, 1)).
-        time_t (float): Current time.
-        dt (float): Time step size.
-
-    Returns:
-        np.ndarray: Updated state vector after one integration step (shape: (6, 1)).
-    """
-    # Ensure x_cur is 1-dimensional
-    x_cur_flat = x_cur.flatten()
-    u_flat = u.flatten()
-    # Define the system dynamics (dx/dt = A*x + B*u)
-    def system_dynamics(t, x):
-        return A @ x + B @ u_flat  # u is a scalar (shape (1, 1))
-
-    # Define the time span for the current step
-    t_span = (time_t, time_t + dt)
-
-    # Use solve_ivp with Radau's method to integrate over the current step
-    sol = solve_ivp(system_dynamics, t_span, x_cur_flat, method='Radau')
-
-    # Return the updated state (last state from the solution) as a column vector
-    return sol.y[:, -1].reshape(-1, 1)
 def trapezoidalIntegration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, u:  np.ndarray, time_t:float):
     
     # p = 0
@@ -1086,66 +899,7 @@ def trapezoidalIntegration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, u:
     # return x_next
     
     # 
-def parameter_for_two_wind_transformer(L1:float, L2:float, K: float):
-    
-    ne =  math.sqrt(L2/L1) # turn ratio
-    M = K*math.sqrt(L1*L2)
-    
-    La =   (1-K)*L1
-    Lu =   K*L1
-    Lb =   (1-K)*L2
-    print(Lb)
-    print(ne**2*La)
 
-    return La, Lu, Lb, (ne)
-
-def parameter_for_two_wind_from_book(L1, L2, K):
-    
-    
-    # try another version from the paper
-    n = math.sqrt(L2 / L1)
-    La = L1
-    Lu = -(L1*(K**2 - 1))/K**2
-    
-    return La, Lu, n
-    
-    # n = K* math.sqrt(L2/L1)
-    # M = K*math.sqrt(L1*L2)
-    # La = (1-K**2)*L1
-    # Lu = K**2*L1
-    # return La, Lu, n #TODO?
-    
-
-
-def parameter_for_three_wind_transformer(Lp, L1, L2, K12, K13, K23):
-    decimal_precision = 3
-    # https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=703254
-    M12= K12*math.sqrt(Lp *L1)
-    M13 = K13*math.sqrt(Lp*L2)
-    M23 = K23*math.sqrt(L1*L2)
-    L = Matrix([[Lp, M12, M13 ], 
-                    [M12, L1, M23], 
-                    [M13, M23, L2]])
-    B = L.inv()
-    
-    n1 = 1
-    n2 = L[0,1]/L[0,0]
-    n3 = L[0,2]/L[0,0]
-    
-    l12 = -1/(n1*n2*B[0,1])
-    l13 = -1/(n1*n3*B[0,2])
-    l23 = -1/(n2*n3*B[1,2])
-    
-    L02 = (n2**2) * 1/( (1/l12) +(1/l23) )
-    L03 = (n3**2) * 1/( (1/l13) + (1/l23) )
-    
-    
-    
-    VT2_factor =[   round(L02/(n2*l12),decimal_precision), round( L02/(n2*n3*l23),decimal_precision) ]
-    VT3_factor = [ round(L03/(n3*l13),decimal_precision) , round(L03/(n2*n3*l23),decimal_precision)]
-    
-    return [round(n2,decimal_precision), round(n3,decimal_precision)], VT2_factor, VT3_factor, [Lp , L02, L03]
-    
     
     
 # output

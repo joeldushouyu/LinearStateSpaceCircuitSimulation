@@ -85,9 +85,6 @@ class SystemClockSimulationModule:
 
             
             self.system_clock_message.set_time(step * (1 / self.system_clock_frequency))
-            if step == 12 or step==13:
-                p = 20
-
             for level in self.module_level_depend_map.keys():
                 self.system_clock_message.message_manager.publish_message(level)
                 #TODO: invoke module calculation
@@ -189,8 +186,6 @@ class SwitchSimulationModule(SimulationModule):
             self.cur_switch_status = self.switch.initial_switch_state
         else:
             self.cur_switch_status = self.pwm_at_time_t(self.cur_system_time)
-        # print("switch origin publish")
-        # print(self.cur_system_time, self.cur_switch_status)
         self.switch_message.set_switch_status(
             self.cur_switch_status, self.switch.element_voltage_name, self.cur_system_time
         )
@@ -240,12 +235,10 @@ class SwitchOversampleModule(SimulationModule):
                 if self.cur_system_time  ==  0:
                     # initialize stage
                     self.switch_states_receive[index] = message.is_switch_on()
-                    # self.switch_state_send[index] = [message.is_switch_on()]
                 else:
                     # normal stage
                     self.switch_states_receive[index] = message.is_switch_on()
-                # print("oversample receive")
-                # print( self.cur_system_time, self.switch_states_receive)
+
     def publish(self, ):
         
         can_publish = self.cur_system_time ==0 or is_rise_edge(self.sample_frequency, self.cur_system_time)
@@ -253,7 +246,7 @@ class SwitchOversampleModule(SimulationModule):
 
         if can_publish:
             self.oversample_message.notify_result(self.switch_state_dict, self.switch_states_receive.copy(), self.cur_system_time)
-            # self.switch_state_send = self.switch_states_receive.copy()
+
         
 
 
@@ -269,19 +262,7 @@ class StateSpaceSimulationModule(SimulationModule):
         self.u_label_map = {u_lab: i for i, u_lab in enumerate(self.network_matrix.u_labels)}
         self.u_size = len(self.network_matrix.u_labels)
         self.u = np.ndarray( ( 1, self.u_size ), dtype=np.float64 )
-        #       sp.Matrix(  1, self.u_size, [0 for k in range(self.u_size)] )
 
-
-        
-        # self.switch_lab_map:dict[str,int] = {} # switch-label map to [is_switch_on, is_switch_triggered]
-        # self.switch_state:list[bool] = []
-        # self.switch_triggered:list[bool] = []
-        
-        # # the diode state 
-        # self.diode_lab_map: dict[str, int] = {}
-        # self.diode_state:list[bool ] = []
-        
-        
         # element label resemble in the order of s_label in self.network_matrix
         self.switch_label_index_map:dict[str, int] = {}
         self.switch_index_label_map:dict[int, (str,str)] ={}
@@ -296,16 +277,11 @@ class StateSpaceSimulationModule(SimulationModule):
         self.number_of_state_variable = len(self.network_matrix.x_labels)
         self.__x_cur_ind = np.ndarray((self.number_of_state_variable,1), dtype=np.float64, )
         self.__x_cur_ind[:,:] = 0
-        
-        # self.__x_cur_dep = np.ndarray((self.number_of_state_variable,1), dtype=np.float64, )
-        # self.__x_cur_dep[:,:] = 0
-        
-        #sp.Matrix( self.number_of_state_variable, 1,  [0 for k in range(self.number_of_state_variable)])  # assume initial value of zero in the beginning
-        
+
         self.number_of_output = len(self.network_matrix.y_labels)
         self.y_cur = np.ndarray(  (self.number_of_output, 1), dtype=np.float64)
         self.y_cur[:, 0] = 0
-        #self.y_cur = sp.Matrix(self.number_of_output, 1, [0 for k in range(self.number_of_output)]) 
+
     
         self.C: Matrix =None
         self.C1:Matrix = None
@@ -441,12 +417,11 @@ class StateSpaceSimulationModule(SimulationModule):
         max_abs = max([  abs(sp.re(x.subs(self.network_matrix.symbolic_to_value_map))  * (1/self.iteration_frequency)) for x  in eigen_value_dict.keys()])
         min_abs = min([  abs(sp.re(x.subs(self.network_matrix.symbolic_to_value_map))  * (1/self.iteration_frequency)) for x  in eigen_value_dict.keys()])
         
-        # if max_abs/min_abs > 1000:
-        # #     # means stiff system encounter
-        # #     # ration equation: https://en.wikipedia.org/wiki/Stiff_equation
-        # #     # stiffness ratio is negotiable to change
-        # #     self.integration_strategy = "stiff"
-        #     print("System is very stiff")
+        if min_abs == 0 or  max_abs/min_abs > 1000:
+        #     # means stiff system encounter
+        #     # ration equation: https://en.wikipedia.org/wiki/Stiff_equation
+        #     # stiffness ratio is negotiable to change
+            print("System is very stiff")
         print(f"Max  eig, min eig {max_eig} {min_eig}")
         if min_eig <= -2:
             self.integration_strategy = "BackwardEuler"
@@ -510,12 +485,7 @@ class StateSpaceSimulationModule(SimulationModule):
             self.D = D_final[:,:]
             self.A_dependent = A_dependent_final[:,:]
             self.B_dependent = B_dependent_final[:,:]
-            # for col in range(self.M0.shape[0]):
-            #     if col not in piv:
-            #         self.A[col,:] = 0
-            #         self.B[col, :] = 0
-            # self.A = self.M0* self.A
-            # self.B = self.M0 * self.B
+
             self._A_iteration = sp.matrix2numpy(self.A.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
             self._B_iteration = sp.matrix2numpy(self.B.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
             self._C_iteration = sp.matrix2numpy(self.C.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
@@ -693,111 +663,6 @@ class StateSpaceSimulationModule(SimulationModule):
             self.iteration()
             
 
-    
-
-
-    def calc_impulse_response(self,  switch_triggere_labels:list[str], x_cur_before_t0:np.ndarray):
-           
-        if len(self.forced_switch_mapping) > 0 and len(switch_triggere_labels) > 0:
-            for label in switch_triggere_labels:
-                switch_ele = self.network_matrix.m_column_labels_to_obj_map[label]
-                list_of_diodes = self.forced_switch_mapping[switch_ele]
-                
-                for diode in list_of_diodes:
-                    diode_index = self.switch_label_index_map[diode.element_current_name]
-                    self.switch_state[diode_index] = not self.switch_state[diode_index]
-                    self.swap_col_and_update(diode.element_voltage_name)
-            
-
-            # x_hat = np.matmul(self.A, x_cur_for_y) + np.matmul(self.B, self.u)
-            # self.update_y_cur(x_hat_term=x_hat, x_cur_for_y=x_cur_for_y)
-            
-        else:
-
-            difference = self.get_x_cur_with_dep()- x_cur_before_t0
-
-            impulse = difference.astype(np.float32)
-            
-            impulse_output = self.C1@impulse
-            # impulse = np.matmul( self._S_dxdt, difference, dtype=np.float32   ) 
-            for i in self.diode_index:
-                volt_lab, I_lab = self.switch_index_label_map[i]
-
-                diode_ele = self.network_matrix.m_column_labels_to_obj_map[volt_lab]
-                
-                assert isinstance(diode_ele, Diode)
-                vm_name = diode_ele.diode_voltmeter_name
-                am_name = diode_ele.diode_ammeter_name
-                vm_element = self.network_matrix.element_name_obj_map[vm_name]
-                vm_index =  self.network_matrix.y_labels.index(vm_element.element_voltage_name)
-                
-                am_element = self.network_matrix.element_name_obj_map[am_name]
-                am_index = self.network_matrix.y_labels.index(am_element.element_current_name)
-                
-                volt = impulse_output[vm_index]
-                current = impulse_output[am_index]
-
-                if volt > 0 and self.switch_state[i] == False: 
-                    # assert  self.switch_state[i] == False
-                    self.switch_state[i] = True
-                    self.swap_col_and_update(volt_lab)
-                elif current < 0 and self.switch_state[i] == True:
-                    # assert self.switch_state[i] == True
-                    self.switch_state[i] = False
-                    self.swap_col_and_update(volt_lab)
-                else:
-                    pass
-            
-            
-            
-            # x_hat = np.matmul(self.A, x_cur_for_y) + np.matmul(self.B, self.u)  #TODO: use impulse in output?
-            # self.update_y_cur(x_hat_term=x_hat, x_cur_for_y=x_cur_for_y)
-            # replace 
-            
-        
-        
-    def calc_nonimpulse_response(self):
-        
-        diode_switched = False
-
-
-        
-        
-        for i in self.diode_index:
-
-            volt_lab, I_lab = self.switch_index_label_map[i]
-            diode_state = self.switch_state[i]
-            diode_ele = self.network_matrix.m_column_labels_to_obj_map[volt_lab]
-            
-            assert isinstance(diode_ele, Diode)
-            vm_name = diode_ele.diode_voltmeter_name
-            am_name = diode_ele.diode_ammeter_name
-            vm_element = self.network_matrix.element_name_obj_map[vm_name]
-            vm_index =  self.network_matrix.y_labels.index(vm_element.element_voltage_name)
-            
-            am_element = self.network_matrix.element_name_obj_map[am_name]
-            am_index = self.network_matrix.y_labels.index(am_element.element_current_name)
-            
-            volt = self.y_cur[vm_index]
-            current = self.y_cur[am_index]
-        
-            # get the vm, am from y_cur
-            
-            if diode_state == False and volt>0 :
-                self.switch_state[i] = True
-                self.swap_col_and_update(volt_lab)
-                diode_switched = True
-            elif diode_state == True and current < 0 :
-                self.switch_state[i] = False
-                self.swap_col_and_update(volt_lab)
-                diode_switched = True
-            else:
-                pass
-        
-        
-        # x_hat = np.matmul(self.A, x_cur_for_y) + np.matmul(self.B, self.u)  #TODO: use impulse in output?
-        # self.update_y_cur(x_hat_term=x_hat, x_cur_for_y=x_cur_for_y)
-        return diode_switched
             
     def plot_switch_graph(self):
         time_np_array = np.array(self.time_t)
@@ -899,13 +764,7 @@ class StateSpaceSimulationModule(SimulationModule):
         fig.update_layout(
             title="Output Graph",
     
-            showlegend=True,  # Enables the legend for toggling lines
-            # legend=dict(
-            #     yanchor="top",
-            #     y=0.99,
-            #     xanchor="right",
-            #     x=-0.0001
-            # )
+            showlegend=True, 
         )
 
         # Set axis titles and tick intervals
@@ -943,7 +802,7 @@ class StateSpaceSimulationModule(SimulationModule):
         
 
         non_impulse  = np.matmul( self._C_iteration ,self.get_x_cur_with_dep()) +  np.matmul( self._D_iteration ,self.u)
-        # non_impulse  = np.matmul( self.C_non_impulse ,self.get_x_cur_with_dep()) +  np.matmul( self.D_non_impulse ,self.u)
+
         
         
         swapped_flag = False
@@ -971,48 +830,28 @@ class StateSpaceSimulationModule(SimulationModule):
                 self.switch_state[i] = True
                 self.swap_col_and_update(volt_lab)
                 swapped_flag = True
-                # self.update_x_cur()
-                # impulse_output = np.matmul(self.C1, (self.get_x_cur_with_dep() - x_cur_before_t0)) 
-                # non_impulse  = np.matmul( self._C_iteration ,self.get_x_cur_with_dep()) +  np.matmul( self._D_iteration ,self.u)
+
             elif current_impulse <0 or (diode_state == True and current_nonimpulse < 0):
                 self.switch_state[i] = False
                 self.swap_col_and_update(volt_lab)
                 swapped_flag = True
-                # self.update_x_cur()
-                # impulse_output = np.matmul(self.C1, (self.get_x_cur_with_dep() - x_cur_before_t0)) 
-                # non_impulse  = np.matmul( self._C_iteration ,self.get_x_cur_with_dep()) +  np.matmul( self._D_iteration ,self.u)
+
             else:
                 pass
         
-        # if self.cur_system_time == 0:
-        #     impulse_occur = False
-        # else: 
-            # impulse_occur = self.M_size < self.M0.rank()
+
         impulse_occur =  (len(switch_trigger_labels) > 0) or (not swapped_flag)
         self.M_size =  self.M0.rank()
-        # self.update_y_cur(self.get_x_cur_with_dep() ,impulse_output,   (len(switch_trigger_labels) > 0) or not swapped_flag)
-        
-        # if len(switch_trigger_labels) > 0:
-        #     assert impulse_occur
-        
-        # if self.cur_system_time > 1e-5:
-        #     impulse_occur = True
-        # else:
-        #     impulse_occur = False
+
         self.update_y_cur(  (self.get_x_cur_with_dep() - x_cur_before_t0) *self.iteration_frequency,    impulse_occur)
-        # self.update_y_cur(self.get_x_cur_with_dep())
-            
+
     def update_y_cur(self, imp, use_impulse= False ):
         
         if  use_impulse:
             self.y_cur =  np.matmul( self._C_iteration ,self.get_x_cur_no_dep()) +  np.matmul( self._D_iteration ,self.u)
         else:
             self.y_cur =  np.matmul(self.C_non_impulse, self.get_x_cur_no_dep()) + np.matmul(self.D_non_impulse, self.u)
-            # x_hat = np.matmul(self._A_iteration, self.get_x_cur_with_dep()) + np.matmul(self._B_iteration, self.u)
-            # self.y_cur += np.matmul(self.C1,  imp)
-            
-            # self.y_cur += np.matmul(self.C_impulse, self.get_x_cur_with_dep())
-            #self.y_cur =  np.matmul(self.C_non_impulse, x_cur_for_y) + np.matmul(self.D_non_impulse, self.u)
+
     def get_x_hat(self,):
         return  np.matmul(self.A, self.get_x_cur_no_dep()) +np.matmul(self.B, self.u)
     def get_x_cur_no_dep(self):
@@ -1039,117 +878,28 @@ class StateSpaceSimulationModule(SimulationModule):
         self.__x_cur_ind =x_t
 
     def iteration(self):
-        
-        
-        
-        # #for debug
-        # if self.cur_system_time == 0:
-        #     # # came in as  TFTT
-        #     tftt=200
-            
-        #     # swap to tfff
-        #     self.switch_state[3] = False
-        #     self.swap_col_and_update("V_D2")
-        #     self.switch_state[2] = False
-        #     self.swap_col_and_update("V_D1")
-        #     tfff=200
-            
-        #     # swap to TFTF
-        #     self.switch_state[2] = True
-        #     self.swap_col_and_update("V_D1")
-        #     tftf = 200
-            
-        #     # swap to TFFT
-        #     self.switch_state[2] = False
-        #     self.swap_col_and_update("V_D1")
-        #     self.switch_state[3] = True
-        #     self.swap_col_and_update("V_D2")
-        #     tfft = 200
 
-        #     # swap to FTFT
-        #     self.switch_state[0] = False
-        #     self.swap_col_and_update("V_S1")
-        #     self.switch_state[1] = True
-        #     self.swap_col_and_update("V_S2")
-        #     ftft = 200
-            
-        #     # swap to ftff
-        #     self.switch_state[3] = False
-        #     self.swap_col_and_update("V_D2")
-        #     ftff = 200
-            
-        #     # swap to fttf
-        #     self.switch_state[2] = True
-        #     self.swap_col_and_update("V_D1")
-        #     fttf = 200
-            
-        #     # swap to fttt
-        #     self.switch_state[3] = True
-        #     self.swap_col_and_update("V_D2")
-        #     fttt = 200
-            
-        #     # swap to fttf
-        #     self.switch_state[3] = False
-        #     self.swap_col_and_update("V_D2")
-        #     fttf = 200
-            
-        #     # swap to tftf
-        #     self.switch_state[0] = True
-        #     self.swap_col_and_update("V_S1")
-        #     self.switch_state[1] = False
-        #     self.swap_col_and_update("V_S2")
-        #     p = 200
-        # # turn all diode to off 
-        
-        # deug, if correct topology initiall
-        # if self.cur_system_time == 0:
-        #     self.switch_state[3] = False
-        #     self.swap_col_and_update("V_D2")
-        # if self.cur_system_time == 0:
-        #     for i in self.diode_index:
-        #         volt_lab, I_lab = self.switch_index_label_map[i]
-        #         if self.switch_state[i] == True:
-        #             self.switch_state[i] = False
-        #             self.swap_col_and_update(volt_lab)
-        # the iteration process
         x_before_t0 = self.get_x_cur_with_dep().copy()
  
         
         self.update_x_cur()
-        # self.update_y_cur( self.get_x_cur_no_dep())
 
 
 
         cur_switch_state = self.switch_state[self.switch_mask]
         cur_diode_state = self.switch_state[~self.switch_mask]
         cur_switch_trigger = self.switch_triggered[self.switch_mask]
-        # # record u and switch labe
-        # # self.update_x_cur()
 
-        trig = False
+
         # # for now, assume only one switch change in one time period
         switch_triggere_labels = []
         for i in range(len(self.switch_triggered)):
             if self.switch_triggered[i] :
-                # assert trig  == False
-                # print(self.cur_system_time)
-                # means this switch istriggered
                 sw_volt_lab, sw_I_lab = self.switch_index_label_map[i]
                 self.swap_col_and_update(sw_volt_lab)
                 switch_triggere_labels.append(sw_volt_lab)
-                trig = True
-     
-        # y_cur_before_update = self.y_cur.copy()
+
         self.update_internal_switch_response(switch_trigger_labels=switch_triggere_labels, x_cur_before_t0=x_before_t0)
-
-        # if self.M0.rank() < self.network_matrix.x_hat_label_size or len(self.forced_switch_mapping) > 0 :
-        #     self.calc_impulse_response( switch_triggere_labels= switch_triggere_labels, x_cur_before_t0=x_before_t0)
-        #     trig = True
-        # else:
-        #     diode_switched = self.calc_nonimpulse_response()      
-
-
-        # self.M_size = self.M0.rank()
 
         
         self.time_t.append(self.cur_system_time)

@@ -88,69 +88,25 @@ class NetworkMatrix:
         self.y_zero_label_size = y_zero_label_size
         self.u_label_size = u_label_size
         
-        # self.external_switch_labels = []
-        
-        # for i in range(len(self.s_labels)):
-        #     lab = self.s_labels[i]
-        #     ele = self.m_column_labels_to_obj_map[lab]
-        #     if isinstance(ele, ExternalSwitch):
-        #         self.external_switch_labels.append(lab)
+
     def apply_mutual_inductance_effect(self, sub_value=True):
 
-        # x_hat_col_offset = self.s_labels_size+ self.y_label_size  + self.redundant_size
-        
-        # for x_hat_index,  x_hat_lab in enumerate( self.m_column_labels[x_hat_col_offset: x_hat_col_offset+self.x_hat_label_size]):
-            
-        #     if x_hat_index +x_hat_col_offset  not in self.M_toplolgy_pivots:
-        #         continue # means is dependent matrix
-        #     ele = self.m_column_labels_to_obj_map[x_hat_lab]
-        #     if isinstance(ele, Inductor):
-        #         for mutual_index, mutual_element_name in enumerate(ele.mutual_inductor_names):
-        #             mutual_inductor_ele = self.element_name_obj_map[mutual_element_name]  
-        #             k_value = ele.K_factors[mutual_index]
-                    
-        #             mutual_inductor_col = self.m_column_labels.index( mutual_inductor_ele.element_voltage_name)
-        #             inductor_row =  self.M_toplolgy_pivots.index( x_hat_index +x_hat_col_offset) # by def, pivot's column is the first nonzero in the row
-                    
-        #             assert mutual_inductor_col < x_hat_col_offset + self.x_hat_label_size
-        #             assert inductor_row < x_hat_col_offset + self.x_hat_label_size
-                    
-        #             # rescale by 1/ele.inductor_symbol, because ele.inductor_symbol is already in the M_topolgy matrix
-        #             # after doing rref, the col of x_hat of inductor = 1, means the whole role is already scaled bye
-        #             # 1/ele.inductance already
-        #             if mutual_inductor_col in self.M_toplolgy_pivots :
-        #                 self.M[inductor_row, mutual_inductor_col ] =  k_value * sp.sqrt(ele.inductor_symbol * mutual_inductor_ele.inductor_symbol)
-                    
-        #             inductor_col = self.m_column_labels.index( ele.element_voltage_name)
-        #             self.M[inductor_row, inductor_col] = ele.inductor_symbol
-        #     elif isinstance(ele, Capacitor):
-        #         capacitor_col = self.m_column_labels.index( ele.element_current_name)
-        #         capacitor_row =  self.M_toplolgy_pivots.index( x_hat_index +x_hat_col_offset) # by def, pivot's column is the first nonzero in the row
-        #         self.M[capacitor_row, capacitor_col] = ele.capacitor_symbol
         if sub_value:
     
             self.M, self.M_pivots = self.M.rref()
-
-
 
             self.M = self.M.subs(self.symbolic_to_value_map)
     
     
     def rref_update(self):
         self.M_topology, _ = self.M_topology.rref()
-        # self.M_topology = self.M_topology.subs(self.symbolic_to_value_map)
-        # self.M, self.M_toplolgy_pivots = self.M_topology.rref(iszerofunc=lambda x:abs(x)<10**-10)
         self.M = self.M_topology.copy()
         self.apply_mutual_inductance_effect(True)
     def update_M_matrix(self, labels_to_swap:str, sub_value = True):
         
         
         swapTwoColumn(self.M_topology, self.m_column_labels, self.m_column_labels_to_obj_map, labels_to_swap )
-        # self.M_topology = self.M_topology.subs(self.symbolic_to_value_map)
-        # self.M, self.M_toplolgy_pivots = self.M_topology.rref(iszerofunc=lambda x:abs(x)<10**-10)
-        # self.M = self.M_topology[:,:].copy()
-        # self.apply_mutual_inductance_effect(sub_value)
-        
+
 
     def print_M_matrix(self ):
         print_matrix(self.M, self.m_column_labels, ["" for x in range(self.M.shape[0])])
@@ -500,12 +456,11 @@ def system_realization(netList: list[list[str]], supress_inconsistenc=False):
     )
     column_names = update_column_labels(ele_name_col_map)
     row_names = update_row_labels(node_name_row_map)
-    # # get D matrix
-    # # D = At^-1 *A
+
     A_tree_inverse = A_matrix[0 : len(row_names), 0 : len(row_names)].inv()
 
     D_matrix = A_tree_inverse * A_matrix
-    # pprint(D_matrix)
+
 
     a = len(tree_port)
     z = len(tree_nonport)
@@ -842,24 +797,6 @@ def system_realization(netList: list[list[str]], supress_inconsistenc=False):
         label = x_hat[i-offset]
         ele = reordered_m_lable_obj_mapping[label]
 
-        # if isinstance(ele, Capacitor):
-        #     #M[i,i] *= ele.capacitor_symbol
-        #     M[i,i] = ele.capacitor_symbol
-        # else:
-        #     assert isinstance(ele, Inductor)
-        #     # #M[i,i] *= ele.inductor_symbol 
-        #     M[i,i] = ele.inductor_symbol 
-            
-        #     for index, mutual_element_lab in enumerate(ele.mutual_inductor_names):
-        #         mutual_inductor_ele = ele_name_obj_map[mutual_element_lab]
-                
-        #         col_index = offset  + x_hat.index(mutual_inductor_ele.element_voltage_name)
-                
-        #         k_value =  ele.K_factors[index]
-        #         M[i, col_index] = k_value *  sp.sqrt( ele.inductor_symbol *  mutual_inductor_ele.inductor_symbol )
-
-    
-
     
     # form M0_value 
     x_hat_size = len(x_hat)
@@ -895,8 +832,6 @@ def system_realization(netList: list[list[str]], supress_inconsistenc=False):
     
     M, pivot = M.rref()
     
-    
-    # M = M.subs(symbollic_to_value_map)
     net =  NetworkMatrix(
         M_topology=M[:,:],
         m_column_labels=reordered_m_labels,
@@ -919,71 +854,10 @@ def system_realization(netList: list[list[str]], supress_inconsistenc=False):
         simpilfied=False
 
     )
-    # net.M_topology, _ = net.M_topology.rref()
+
     net.apply_mutual_inductance_effect()  # do it for the first time
-
-
-
-    # net.rref_update()
-    # M_TFTT = net.M.copy()
-    # lab_TFTT = net.m_column_labels.copy()
-    
-    # #TFTF
-    # net.update_M_matrix("V_D2", False)
-    # net.rref_update()
-    # M_TFTF = net.M.copy()
-    # lab_TFTF = net.m_column_labels.copy()
-    # #TFFF 
-    # net.update_M_matrix("V_D1", False)
-    # net.rref_update()
-    # M_TFFF = net.M.copy()
-    # lab_TFFF = net.m_column_labels.copy()
-    
-    # #TFFT
-    # net.update_M_matrix("V_D2", False)
-    # net.rref_update()
-    # M_TFFT = net.M.copy()
-    # lab_TFFT = net.m_column_labels.copy()
-    
-    # #FTTT
-    # net.update_M_matrix("V_D1", False)
-    # net.rref_update()
-    # net.update_M_matrix("I_S1", False)
-    # net.rref_update()
-    # net.update_M_matrix("I_S2", False)
-    # net.rref_update()
-    # M_FTTT= net.M.copy()
-    # lab_FTTT = net.m_column_labels.copy()
-    # #FTTF
-    # net.update_M_matrix("V_D2", False)
-    # net.rref_update()
-    # M_FTTF = net.M.copy()
-    # lab_FTTF = net.m_column_labels.copy()
-    
-    # #FTFF
-    # net.update_M_matrix("V_D1", False)
-    # net.rref_update()
-    # M_FTFF = net.M.copy()
-    # lab_FTFF = net.m_column_labels.copy()
-    # #FTFT
-    # net.update_M_matrix("V_D2", False)
-    # net.rref_update()
-    # M_FTFT = net.M.copy()
-    # lab_FTFT = net.m_column_labels.copy()
-    # p = 200
-
-
-
-
-
 
 
     return net    
     
 
-    # try to swap it
-    # swapTwoColumn(M, reordered_m_labels, reordered_m_lable_obj_mapping, "I_S1")
-    # swapTwoColumn(M, reordered_m_labels, reordered_m_lable_obj_mapping, "V_D1")
-    # M, pivot = M.rref()
-    # print("After swap")
-    # print_matrix(M, reordered_m_labels, ["" for x in range(M.shape[0])])
