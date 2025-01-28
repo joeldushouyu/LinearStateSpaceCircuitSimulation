@@ -11,6 +11,7 @@ import numpy as np
 import numpy.typing as npt
 import sys
 from scipy.integrate import ode,solve_ivp
+import math
 
 def is_rise_edge(frequency, time_t) -> bool:
     
@@ -305,10 +306,10 @@ def determine_dependent_independent_state_mapping(M0_I: Matrix, A_raw:Matrix,  m
             # there should be another 1's column in the same row
             
             M0_I_row = M0_I[pivot_row, :]
-            assert M0_I_row[pivot_col] == 1
+            assert math.isclose(M0_I_row[pivot_col] , 1)
             new_pivot_col = None
             for new_col in range(pivot_col+1,  M0_I_row.cols):
-                if M0_I_row[new_col] == 1:
+                if math.isclose( M0_I_row[new_col], 1):
                     new_pivot_col = new_col
             assert new_pivot_col is not None
             # update new pivot col, 
