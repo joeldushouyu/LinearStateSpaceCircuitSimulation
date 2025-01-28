@@ -11,11 +11,12 @@ from FormNetworkMatrix import NetworkMatrix
 
 from sympy import Matrix
 import sympy as sp
-from util import (is_rise_edge, retrieveSystemMatrix,
+from util import (print_matrix,is_rise_edge, retrieveSystemMatrix,
                   backwardEulerIntegration, trapezoidalIntegration, 
                   update_system_matrix_to_reflect_dependency,retrieve_Zsw_hat
                   )
 from typing import Tuple
+import pandas as pd
 import numpy as np
 import numpy.typing as npt
 from functools import total_ordering
@@ -724,10 +725,11 @@ class StateSpaceSimulationModule(SimulationModule):
         plt.show()
         # return fig
 
-    def plot_output_graph(self, ax1_y_ticks=None, ax2_y_ticks=None):
+    def plot_output_graph(self, ax1_y_ticks=None, ax2_y_ticks=None, outputfile_name="output.csv"):
         time_np_array = np.array(self.time_t)
         y_output_np_array = np.array(self.y_output, dtype=np.float64).squeeze()
 
+        y_output_column_names = ["time"]
         # Create subplots for current and voltage
         # Create subplots for current and voltage
         fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
@@ -745,6 +747,7 @@ class StateSpaceSimulationModule(SimulationModule):
                             mode='lines', name=f"Voltage: {ele.name}"),
                     row=1, col=1
                 )
+                y_output_column_names.append(f"Voltage: {ele.name}")
             else:
                 y_data = y_output_np_array if len(y_output_np_array.shape) == 1 else y_output_np_array[:, i]
                 fig.add_trace(
@@ -752,7 +755,7 @@ class StateSpaceSimulationModule(SimulationModule):
                             mode='lines', name=f"Current: {ele.name}"),
                     row=2, col=1
                 )
-
+                y_output_column_names.append(f"Current: {ele.name}")
         # Update layout for grids and legends
         fig.update_layout(
             title="Output Graph",
@@ -772,9 +775,14 @@ class StateSpaceSimulationModule(SimulationModule):
 
         # Display the figure
         fig.show()  
+        
+        time_np_array = time_np_array.reshape(-1, 1)
+        # for outputing
+        combined_array = np.hstack((time_np_array, y_output_np_array))
+        df = pd.DataFrame(combined_array, columns=y_output_column_names)
+        df.to_csv(outputfile_name, index=False)
 
 
-    
     def update_internal_switch_response(self, switch_trigger_labels:list[str], x_cur_before_t0:np.ndarray):
         
         
