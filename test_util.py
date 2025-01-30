@@ -1,6 +1,6 @@
 
 
-from  util import retrieveSystemMatrix, update_system_matrix_to_reflect_dependency, retrieve_Zsw_hat
+from  util import retrieveSystemMatrix, update_system_matrix_to_reflect_dependency, retrieve_Zsw_hat,assert_matrix_equal
 from sympy import Matrix, symbols
 import sympy as sp
 from FormNetworkMatrix import Inductor, Capacitor, Element, Voltmeter, VoltageCurrentSource, Ammeter, Diode, ExternalSwitch
@@ -9,27 +9,7 @@ import numpy as np
 import math
 
 
-    
-def assert_matrix_equal(matrix1: Matrix, matrix2: Matrix, tolerance: float = 1e-5) -> None:
-    """
-    Asserts that two sympy matrices are equal within a specified tolerance.
 
-    Args:
-        matrix1 (sp.Matrix): The first matrix to compare.
-        matrix2 (sp.Matrix): The second matrix to compare.
-        tolerance (float): The maximum allowed difference between corresponding elements. Default is 1e-5.
-
-    Raises:
-        AssertionError: If the matrices differ by more than the specified tolerance.
-    """
-    # Check if the matrices have the same dimensions
-    assert matrix1.shape == matrix2.shape, f"Matrices have different shapes: {matrix1.shape} != {matrix2.shape}"
-
-    # Compare each element
-    for i in range(matrix1.rows):
-        for j in range(matrix1.cols):
-            assert abs(matrix1[i, j] - matrix2[i, j]) < tolerance, \
-                f"Matrices differ at position ({i}, {j}): {matrix1[i, j]} != {matrix2[i, j]}"
 
 
 def test_retrieveSystemMatrix():

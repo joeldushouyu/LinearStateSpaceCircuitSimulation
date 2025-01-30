@@ -13,6 +13,29 @@ import sys
 from scipy.integrate import ode,solve_ivp
 import math
 
+
+    
+def assert_matrix_equal(matrix1: Matrix, matrix2: Matrix, tolerance: float = 1e-5) -> None:
+    """
+    Asserts that two sympy matrices are equal within a specified tolerance.
+
+    Args:
+        matrix1 (sp.Matrix): The first matrix to compare.
+        matrix2 (sp.Matrix): The second matrix to compare.
+        tolerance (float): The maximum allowed difference between corresponding elements. Default is 1e-5.
+
+    Raises:
+        AssertionError: If the matrices differ by more than the specified tolerance.
+    """
+    # Check if the matrices have the same dimensions
+    assert matrix1.shape == matrix2.shape, f"Matrices have different shapes: {matrix1.shape} != {matrix2.shape}"
+
+    # Compare each element
+    for i in range(matrix1.rows):
+        for j in range(matrix1.cols):
+            assert abs(matrix1[i, j] - matrix2[i, j]) < tolerance, \
+                f"Matrices differ at position ({i}, {j}): {matrix1[i, j]} != {matrix2[i, j]}"
+
 def is_rise_edge(frequency, time_t) -> bool:
     
     # assume time_t is higher resolution than frequency
@@ -420,16 +443,26 @@ def determine_dependent_independent_state_mapping(M0_I: Matrix, A_raw:Matrix,  m
 
 
 def update_system_matrix_to_reflect_dependency(M0: Matrix,
+                                               Q:Matrix,
                                                C1:Matrix,
                                                A: Matrix, B: Matrix, C: Matrix, D: Matrix,
                                                m_pivots:list[int], 
                                                u_labels:list[str],
                                                y_labels:list[str],
+                                               y_dependent_labels:list[str],
                                                x_hat_labels: list[str], x_hat_col_offset_in_m_pivots:int,
                                                 x_hat_label_to_obj_map:dict[str, Element],
                                                 element_name_to_obj_map:dict[str, Element],
                                                 symbol_to_value_map:dict[Symbol, ],
                                                ):
+    
+    
+    
+    if len(y_dependent_labels):
+        # means there is dependent in y output
+        independent_y_labels= [x for x in y_labels if x not in y_dependent_labels]
+    else:
+        independent_y_labels = y_labels    
     
     cap_parallel_ind_series_ind_dep_mapping, independent_state_row_col_map,dependent_state_row_col_map,  \
         sys_A_row_idx_map, sys_A_col_idx_map, ind_dep_A_row_idx_map, ind_dep_A_col_idx_map, final_sys_A_row_idx_map, final_sys_A_col_idx_map,\
@@ -437,7 +470,7 @@ def update_system_matrix_to_reflect_dependency(M0: Matrix,
                 sys_C_row_idx_map,sys_C_col_idx_map,ind_dep_C_row_idx_map,ind_dep_C_col_idx_map, final_sys_C_row_idx_map, final_sys_C_col_idx_map= determine_dependent_independent_state_mapping(
 
         M0_I=M0, A_raw=A, m_pivots=m_pivots, x_hat_labels=x_hat_labels, x_hat_col_offset_in_m_pivots=x_hat_col_offset_in_m_pivots,
-        u_labels=u_labels, y_labels=y_labels
+        u_labels=u_labels, y_labels=independent_y_labels
     )
     M0_temp= reogranize_matrix_by_row_col_mapping(M0, sys_A_row_idx_map, sys_A_col_idx_map, ind_dep_A_row_idx_map, ind_dep_A_col_idx_map)
     A_temp = reogranize_matrix_by_row_col_mapping(A, sys_A_row_idx_map, sys_A_col_idx_map, ind_dep_A_row_idx_map, ind_dep_A_col_idx_map )
@@ -512,11 +545,38 @@ def update_system_matrix_to_reflect_dependency(M0: Matrix,
     D_final = D_final + C1 @E @B_final
     C_final = C_final + C1@E@A_final
     
-    # debug for now
     D_impulse = C1 @E @B_final
     C_impulse = C1@E@A_final
     
+    
+    
+    # if there exist dependent y output. means Q is a fat matrix
+    # this means it is underdetermined systems of equations
+    # thus, used minimum nom solution in this case
+    
+    if len(y_dependent_labels) > 0:
+        assert len(y_dependent_labels) + len(independent_y_labels) == len(y_labels)
+        assert C.shape[0] == C1.shape[0] == len(independent_y_labels)
+        Q_np_array = np.array(Q, dtype=np.float64)
 
+
+        D_non_impulse = np.linalg.lstsq(Q_np_array, np.array(D_non_impulse, dtype=np.float64),rcond=None)[0]
+        C_non_impulse = np.linalg.lstsq(Q_np_array, np.array(C_non_impulse, dtype=np.float64),rcond=None)[0]
+
+        D_final = np.linalg.lstsq(Q_np_array,np.array(D_final, dtype=np.float64),rcond=None )[0]
+        C_final = np.linalg.lstsq(Q_np_array, np.array(C_final, dtype=np.float64),rcond=None)[0]
+        
+        D_impulse = np.linalg.lstsq(Q_np_array, np.array(D_impulse, dtype=np.float64),rcond=None)[0]
+        C_impulse = np.linalg.lstsq(Q_np_array, np.array(C_impulse, dtype=np.float64),rcond=None)[0]
+    
+
+        # convert back to sp.Matrix object
+        D_non_impulse = sp.Matrix(D_non_impulse)
+        C_non_impulse = sp.Matrix(C_non_impulse)
+        D_final = sp.Matrix(D_final)
+        C_final = sp.Matrix(C_final)
+        C_impulse = sp.Matrix(C_impulse)
+        D_impulse = sp.Matrix(D_impulse)
     
     return M0_final, A_final, B_final, C_final, D_final, A_dependent_final, B_dependent_final, C_impulse, C_non_impulse, D_impulse, D_non_impulse
 
@@ -566,11 +626,12 @@ def retrieveSystemMatrix(
             lab = m_labels[i]
             if  i < y_row_col_offset:
                 # inconsistent in switch row, which is unexpected?
-                inconsistent_labels.append(lab)
+                # inconsistent_labels.append(lab)
                 s_row_inconsistent_count += 1
+                # raise ValueError("Inconsistent in switch row")
             elif i < x_hat_row_col_offset:
                 y_row_inconsistent_count += 1  
-                inconsistent_labels.append(lab)
+                inconsistent_labels.append(lab) # means found inconsistent output variable
        
             else:
                 pivot_ind += 1
@@ -593,7 +654,7 @@ def retrieveSystemMatrix(
                      "u_col_offset":u_col_offset
                      }
 
-
+    Q = M[y_row_col_offset:x_hat_row_col_offset,  y_col_offset: x_hat_col_offset]
     C1 = -M[y_row_col_offset:x_hat_row_col_offset, x_hat_col_offset:x_col_offset]
     C = -M[y_row_col_offset:x_hat_row_col_offset, x_col_offset:zero_offset]
     D = -M[y_row_col_offset:x_hat_row_col_offset, u_col_offset: u_col_offset+voltage_source_size+current_source_size]
@@ -602,7 +663,11 @@ def retrieveSystemMatrix(
     A = -M[x_hat_row_col_offset:x_hat_row_col_offset+x_hat_labels_size, x_col_offset:zero_offset]
     B = -M[x_hat_row_col_offset:x_hat_row_col_offset+x_hat_labels_size, u_col_offset: u_col_offset+voltage_source_size+current_source_size]
       
-    return  C1, C, D, M0, A, B,inconsistent_labels, M_offset_info
+      
+    # sanity check
+    if len(inconsistent_labels) == 0:
+        assert_matrix_equal( Q, sp.eye(  y_labels_size, y_labels_size ))
+    return Q, C1, C, D, M0, A, B,inconsistent_labels, M_offset_info
 
 
 def transfer_func_and_poles(A: Matrix, B: Matrix, C:Matrix, D:Matrix, symbolic_value_map):

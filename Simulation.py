@@ -265,11 +265,11 @@ class StateSpaceSimulationModule(SimulationModule):
         # element label resemble in the order of s_label in self.network_matrix
         self.switch_label_index_map:dict[str, int] = {}
         self.switch_index_label_map:dict[int, (str,str)] ={}
-        self.switch_mask:npt.NDArray[np.bool_] =  None
+        # self.switch_mask:npt.NDArray[np.bool_] =  None
         self.diode_index:list[int] = []
         self.external_switch_index:list[int] = []
-        self.switch_state:npt.NDArray[np.bool_] = None
-        self.switch_triggered:npt.NDArray[np.bool_] = None
+        self.switch_state:list[bool] = None
+        self.switch_triggered:list[bool] = None
         
         
         # the iteration process
@@ -280,7 +280,7 @@ class StateSpaceSimulationModule(SimulationModule):
         self.y_cur = np.ndarray(  (self.network_matrix.u_label_size, 1), dtype=np.float64)
         self.y_cur[:, 0] = 0
 
-    
+        self.Q:Matrix = None
         self.C: Matrix =None
         self.C1:Matrix = None
         self.D :Matrix = None
@@ -316,7 +316,7 @@ class StateSpaceSimulationModule(SimulationModule):
         self.Z_hat_SW_B:npt.NDArray = None
         self.C1_SW:npt.NDArray = None
 
-        self.network_inconsistent_labels:list[str] = []
+        self.y_dep_labels:list[str] = []
         self.forced_switch_mapping:dict[Element, list[Element]] = {}
         
         self.M_cache :dict[str, Matrix] = {}
@@ -339,7 +339,7 @@ class StateSpaceSimulationModule(SimulationModule):
         
     def force_triggered_events(self )->dict[ExternalSwitch, list[Diode]]:
         # see if network inconsistent could cause by switch events
-        inconsistent_row_len = len(self.network_inconsistent_labels)
+        inconsistent_row_len = len(self.y_dep_labels)
         if inconsistent_row_len == 0:
             return {}
         
@@ -411,7 +411,7 @@ class StateSpaceSimulationModule(SimulationModule):
         if key not in self.M_cache.keys():
         
             self.network_matrix.rref_update()
-            self.C1, self.C, self.D, self.M0, self.A, self.B, self.network_inconsistent_labels,M_offset_info = retrieveSystemMatrix(
+            self.Q, self.C1, self.C, self.D, self.M0, self.A, self.B, self.y_dep_labels,M_offset_info = retrieveSystemMatrix(
                 M=self.network_matrix.M,
                 m_pivots=self.network_matrix.M_pivots,
                 m_labels=self.network_matrix.m_column_labels,
@@ -432,15 +432,17 @@ class StateSpaceSimulationModule(SimulationModule):
             
             
             # filter out inconsistent labels from y _labels
-            y_labels_filter = [x for x in self.network_matrix.y_labels if x not in self.network_inconsistent_labels]
+            # y_labels_filter = [x for x in self.network_matrix.y_labels if x not in self.network_inconsistent_labels]
             M0_final, A_final, B_final, C_final, D_final, A_dependent_final, B_dependent_final, \
                 self.C_impulse, self.C_non_impulse, self.D_impulse, self.D_non_impulse= update_system_matrix_to_reflect_dependency(
                 M0=self.M0.copy(),
+                Q =self.Q.copy(),
                 C1 = self.C1.copy(),
                 A=self.A.copy(), B=self.B.copy(), C=self.C.copy(), D=self.D.copy(),
                 m_pivots=self.network_matrix.M_pivots,
                 u_labels=self.network_matrix.u_labels,
-                y_labels=y_labels_filter,
+                y_labels= self.network_matrix.y_labels,
+                y_dependent_labels=self.y_dep_labels,
                 x_hat_labels=self.network_matrix.x_hat_labels,
                 x_hat_col_offset_in_m_pivots=M_offset_info["x_hat_col_offset"],
                 x_hat_label_to_obj_map=self.network_matrix.m_column_labels_to_obj_map,
@@ -463,7 +465,6 @@ class StateSpaceSimulationModule(SimulationModule):
             self._A_dependent = sp.matrix2numpy(self.A_dependent.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
             self._B_dependent = sp.matrix2numpy(self.B_dependent.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float64)
             
-
             
             
             diode_column_label = [] # if diode is on, give I_D, if diode is off, give V_D
@@ -505,7 +506,7 @@ class StateSpaceSimulationModule(SimulationModule):
                             self._B_iteration[:,:],
                             self._C_iteration[:,:],
                             self._D_iteration[:,:],
-                            self.network_inconsistent_labels.copy(),
+                            self.y_dep_labels.copy(),
                             self.A_dependent[:,:],
                             self.B_dependent[:,:],
                             self._A_dependent[:,:],
@@ -524,8 +525,8 @@ class StateSpaceSimulationModule(SimulationModule):
                             self.D_non_impulse_SW.copy(),
                             self.Z_hat_SW_A.copy(),
                             self.Z_hat_SW_B.copy(),
-                            self.C1_SW.copy()
-                            
+                            self.C1_SW.copy(),
+                            self.Q.copy()
                             ]
 
             self.M_cache[key] = cache_Data
@@ -545,7 +546,7 @@ class StateSpaceSimulationModule(SimulationModule):
             self._B_iteration = cache_Data[8][:,:]
             self._C_iteration = cache_Data[9][:,:]
             self._D_iteration = cache_Data[10][:,:]
-            self.network_inconsistent_labels = cache_Data[11].copy()
+            self.y_dep_labels = cache_Data[11].copy()
             self.A_dependent = cache_Data[12][:,:]
             self.B_dependent = cache_Data[13][:,:]
             self._A_dependent = cache_Data[14][:,:]
@@ -566,6 +567,7 @@ class StateSpaceSimulationModule(SimulationModule):
             self.Z_hat_SW_A=cache_Data[27].copy()
             self.Z_hat_SW_B=cache_Data[28].copy()
             self.C1_SW = cache_Data[29].copy()
+            self.Q = cache_Data[30].copy()
         
         
         
@@ -576,10 +578,9 @@ class StateSpaceSimulationModule(SimulationModule):
         
         s_size = len(self.network_matrix.s_labels)
         
-        self.switch_state = np.ndarray((s_size, 1), dtype=np.bool_ )
-        self.switch_triggered = np.ndarray( (s_size,1), dtype=np.bool_)
-        self.switch_mask = np.ndarray(  (s_size, 1), dtype=np.bool_)
-        
+        self.switch_state = [False] * s_size
+        self.switch_triggered = [False] * s_size 
+
         
         for i in range(s_size):
             s_lab = self.network_matrix.s_labels[i]
@@ -594,12 +595,11 @@ class StateSpaceSimulationModule(SimulationModule):
 
                 self.switch_state[ind]  =ele.initial_switch_state
                 self.switch_triggered[ind] =  False 
-                self.switch_mask[ind] = False
                 self.diode_index.append(ind)
             else:
                 self.switch_state[ind] =  None
                 self.switch_triggered[ind] = False
-                self.switch_mask[ind] = True
+  
                 self.external_switch_index.append(ind)
                 
         self.swap_col_and_update("")
@@ -635,17 +635,17 @@ class StateSpaceSimulationModule(SimulationModule):
                     for key, value in message.switch_states_map.items():
                         
                         ind = self.switch_label_index_map[key]
-                        self.switch_state[ind] = 1 if value else 0
-                        self.switch_triggered[ind] = 0
+                        self.switch_state[ind] = True if value else False
+                        self.switch_triggered[ind] = False
                        
                 else:
                     for key, value in message.switch_states_map.items():
                         ind = self.switch_label_index_map[key]
                         if value != self.switch_state[ind]:
-                            self.switch_triggered[ind] = 1
+                            self.switch_triggered[ind] = True
                         else:
-                            self.switch_triggered[ind] = 0
-                        self.switch_state[ind] = 1 if value else 0
+                            self.switch_triggered[ind] = False
+                        self.switch_state[ind] = True if value else False
                         
        
             else:
@@ -878,18 +878,32 @@ class StateSpaceSimulationModule(SimulationModule):
         # # for now, assume only one switch change in one time period
         switch_triggere_labels = []
         for i in range(len(self.switch_triggered)):
+
+
             if self.switch_triggered[i] :
+                # assert self.switch_triggered[0] is True
+                # assert self.switch_triggered[1] is True
                 sw_volt_lab, sw_I_lab = self.switch_index_label_map[i]
-                self.swap_col_and_update(sw_volt_lab)
+                if self.switch_state[i]:
+                    self.swap_col_and_update(sw_volt_lab)
+                    
+                    # debug
+                    new_ind = self.network_matrix.m_column_labels.index(sw_I_lab)
+                    assert new_ind <= self.network_matrix.redundant_size + self.network_matrix.s_labels_size
+                    
+                else:
+                    self.swap_col_and_update(sw_I_lab)
+                    new_ind = self.network_matrix.m_column_labels.index(sw_volt_lab)
+                    assert new_ind <= self.network_matrix.redundant_size + self.network_matrix.s_labels_size
                 switch_triggere_labels.append(sw_volt_lab)
 
         self.update_internal_switch_response(switch_trigger_labels=switch_triggere_labels, x_cur_before_t0=x_before_t0)
 
         
         self.time_t.append(self.cur_system_time)
-        cur_switch_state = self.switch_state[self.switch_mask]
-        cur_switch_trigger = self.switch_triggered[self.switch_mask]
-        self.switch_state_output.append (  cur_switch_state.tolist()  )
-        self.switch_triggered_output.append( cur_switch_trigger.tolist())
+        # cur_switch_state = self.switch_state[self.switch_mask]
+        # cur_switch_trigger = self.switch_triggered[self.switch_mask]
+        # self.switch_state_output.append (  cur_switch_state.tolist()  )
+        # self.switch_triggered_output.append( cur_switch_trigger.tolist())
         
         self.y_output.append(self.y_cur[:,0].tolist())

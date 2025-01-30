@@ -333,8 +333,103 @@ netList = [
     "VMout, N6, 0",
 ]
 
+# end_sim_t  = 2e-3
+# switch_frequency = 100e3
+# duty_cycle = 0.5
+# # HALF-bridge lswitch only
+# netList = [
+#     f"Vin, NSource, 0, 400, 0",
+#     # "RInternal, N1, NSource, 0",
+#     f"S1, NSource, NSW, ON, {switch_frequency}, {duty_cycle}",
+#     f"S2, NSW, 0, OFF, {switch_frequency}, {1-duty_cycle}",
+#     "Rin1, NSW, NR, 0.01",
+#     "AMRIN, NR, NRIN",
+#     "Cr, NRIN, NC, 24e-9",
+#     "Lr, NC, 0, 60e-6",
+#     "VMC, NRIN, 0",
+#     "VML, NC, 0",
 
 
+# ]
+
+# # full-wave rectifier circuit
+switch_frequency = 1000
+end_sim_t = 0.005
+
+netList = [
+    
+    "Vin, N1, N1_neg, 20, 1000",
+    "AM1-source, N1, Nt",
+    "Rt, Nt, N2, 0.01",
+    "D1, N2, NAMD1, ON, VMD1, AMD1",
+    "VMD1, N2, NAMD1",
+    "AMD1, NAMD1, N3",
+    
+    "D4, N1_neg, NAMD4, OFF, VMD4, AMD4",
+    "AMD4, NAMD4, N3",
+    "VMD4, N1_neg, NAMD4 ",
+    
+    "D3, 0, NAMD3, OFF, VMD3, AMD3",
+    "VMD3, 0, NAMD3",
+    "AMD3, NAMD3, N2",
+    
+    "D2, 0, NAMD2, ON, VMD2, AMD2",
+    "AMD2, NAMD2, N1_neg",
+    "VMD2, 0, NAMD2 ",
+    
+    "R1, N3, 0, 100",
+    "C1, N3, 0, 10e-6",
+    "VM1-C1, N3, 0",
+    # "VM2-Rt, Nt, N2",
+]
+
+
+
+
+# end_sim_t  = 400e-6
+# switch_frequency = 100e3
+# duty_cycle = 0.5
+# # HALF-bridge lswitch only
+# netList = [
+#     f"Vin, NSource, 0, 600, 0",
+#     # "RInternal, N1, NSource, 0",
+#     f"S1, NSource, NA, ON, {switch_frequency}, {duty_cycle}",
+#     f"S2, NSource, NB, OFF, {switch_frequency}, {1-duty_cycle}",
+#     f"S3, NA, 0, OFF, {switch_frequency}, {1-duty_cycle}",
+#     f"S4, NB, 0, ON, {switch_frequency}, {duty_cycle}",
+
+#     "Rr, NA, Nrr, 0.01",
+#     "Lr, Nrr, Nlr, 2e-6",
+#     # "CLR, Nrr, Nlr, 0",
+#     "Cr, Nlr, Ncr, 60e-9",
+#     "Lm, Ncr, 0, 100e-6",
+#     # "CLM, NCr, 0, 0",
+    
+#     "Lp, Ncr, 0, 400e-6, [Ls], [0.99]",
+    
+#     "Ls, NSA, NSB, 1e-6, [Lp], [0.99]",
+    
+#     "D1, NSA, ND1-AM, OFF, VMD1, AMD1",
+#     "AMD1, ND1-AM, ND1D2",
+#     "VMD1, NSA, ND1-AM",
+    
+#     "D2, NSB, ND2-AM, OFF, VMD2, AMD2",
+#     "AMD2, ND2-AM, ND1D2",
+#     "VMD2, NSB, ND2-AM",
+    
+#     "D3, 0, ND3-AM, OFF, VMD3, AMD3",
+#     "AMD3, ND3-AM, NSA",
+#     "VMD3, 0, ND3-AM",
+    
+#     "D4, 0, ND4-AM, OFF, VMD4, AMD4",
+#     "AMD4, ND4-AM, NSB",
+#     "VMD4, 0, ND4-AM",
+    
+#     "C1, ND1D2, 0, 1e-3",
+#     "R1, ND1D2, 0, 0.25",
+#     "VMout, ND1D2, 0"
+
+# ]
 network_matrix = system_realization(netList,supress)
 
 
@@ -370,7 +465,7 @@ switch_oversample_message = OversamplingMessage(message_manager=message_manager)
 
 # okay, now create each individual simulation modules
 
-iteration_frequency =  max(1e6, switch_frequency*50)
+iteration_frequency =  max(10e6, switch_frequency*50)
 state_space_module = StateSpaceSimulationModule(network_matrix=network_matrix, iteration_frequency= iteration_frequency) #TODO: change later
 oversample_module =SwitchOversampleModule( network_matrix=network_matrix, sample_frequency=iteration_frequency, oversample_message=switch_oversample_message)
 
@@ -423,5 +518,5 @@ system_clock_module.start_simuation(end_sim_t)
 
 
 # state_space_module.plot_switch_graph()
-state_space_module.plot_output_graph( )
+state_space_module.plot_output_graph(outputfile_name= "full-bridge-rectifier-rc.csv" )
 
