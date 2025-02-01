@@ -293,6 +293,7 @@ def read_netlis_description(
                     pwm_val_at_beginning_of_each_cycle,
                     float(labels[4]),
                     float(labels[5]),
+                    float(labels[6]), 
                 )
                 switch_list.append(ele)
             case "A":
@@ -746,7 +747,11 @@ def system_realization(netList: list[list[str]], supress_inconsistenc=False):
             x.append(ele.element_voltage_name)
     
 
-
+    # x_hat = ['I_C1', 'V_L1', 'V_LS0', 'V_LS1', 'V_LS2', 'I_C2']
+    # x = ['V_C1', 'I_L1', 'I_LS0', 'I_LS1', 'I_LS2', 'V_C2']
+    
+    # x_hat = ['V_Lr','I_Cr','I_C1','V_Lm','V_Lp','V_Ls']
+    # x =['I_Lr','V_Cr','V_C1','I_Lm','I_Lp','I_Ls']
     reordered_m_labels = w + u_tilt + s + y + x_hat + x + s_zero + y_zero + u
     reordered_m_lable_obj_mapping = {}
     capacitor_count = 0

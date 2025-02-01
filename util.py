@@ -12,8 +12,25 @@ import numpy.typing as npt
 import sys
 from scipy.integrate import ode,solve_ivp
 import math
-
-
+from scipy.optimize import linear_sum_assignment
+def create_cost_map(assignment_dict):
+    # Get the number of people (rows) and unique items (columns)
+    people = list(assignment_dict.keys())
+    items = sorted(set(item for sublist in assignment_dict.values() for item in sublist))
+    
+    # Initialize the cost matrix with np.inf (prohibited assignments)
+    num_people = len(people)
+    num_items = len(items)
+    cost_matrix = np.full((num_people, num_items), np.inf)
+    
+    # Fill the cost matrix with 0 for allowed assignments
+    for pep, allowed_items in assignment_dict.items():
+        person_idx = people.index(pep)
+        for item in allowed_items:
+            item_idx = items.index(item)  # Find the column index for the item
+            cost_matrix[person_idx, item_idx] = 0  # Allow the assignment
+    
+    return cost_matrix, people, items
     
 def assert_matrix_equal(matrix1: Matrix, matrix2: Matrix, tolerance: float = 1e-5) -> None:
     """
@@ -155,7 +172,7 @@ def reogranize_matrix_by_row_col_mapping(matrix: Matrix, old_lab_row_idx_mapping
 
 
 def apply_inductance_capactiance_to_state_matrix(cap_parallel_ind_series_ind_dep_mapping:dict[str,list[str]],
-                                                M0_I: Matrix, A: Matrix, B: Matrix, C: Matrix, D: Matrix, x_hat_label_to_obj_map:dict[list, Element],
+                                                M0_I: Matrix, E:Matrix, A: Matrix, B: Matrix, C: Matrix, D: Matrix, x_hat_label_to_obj_map:dict[list, Element],
                                                 independent_state_number:int, dependent_state_number:int,
                                                 symbol_to_value_map:dict[Symbol, ],
                                                 ind_dep_A_row_idx_map:dict[str, list[int]], 
@@ -164,58 +181,7 @@ def apply_inductance_capactiance_to_state_matrix(cap_parallel_ind_series_ind_dep
     
 
 
-    # update M0 based on any natual independent/dependent in M0
-    M0_I_res = sp.zeros( independent_state_number + dependent_state_number)
-    M0_I_res[:independent_state_number, :independent_state_number] = sp.eye(independent_state_number)
-    # Get M0_I to be in the same format as plexim
-    for ind_label, col in ind_dep_A_col_idx_map.items():
-        if ind_label in cap_parallel_ind_series_ind_dep_mapping:
-            for dep_lab in cap_parallel_ind_series_ind_dep_mapping[ind_label]:
-                dep_row  = ind_dep_A_row_idx_map[ dep_lab ]
-                
-                M0_I_res[dep_row, col] = 1  
 
-    E = Matrix(independent_state_number, independent_state_number, [0]*independent_state_number *independent_state_number)
-    
-    for row_lab, row_idx in ind_dep_A_row_idx_map.items():
-        for col_lab, col_idx in ind_dep_A_col_idx_map.items():
-            
-            if row_idx >= independent_state_number or col_idx >= independent_state_number:
-                continue
-            
-            
-            if  row_lab  == col_lab:
-                ele = x_hat_label_to_obj_map[row_lab]
-                if isinstance(ele, Capacitor):
-                    E[row_idx, col_idx] =ele.capacitance
-                    # apply the affect of parallel capacitor
-                    if row_lab in cap_parallel_ind_series_ind_dep_mapping:
-                        parallel_capacitor_labels:list[str] = cap_parallel_ind_series_ind_dep_mapping[row_lab]
-                        for parallel_lab in parallel_capacitor_labels:
-                            parallel_element = x_hat_label_to_obj_map[parallel_lab]
-                            assert isinstance(parallel_element, Capacitor)
-                            E[row_idx, col_idx ] += parallel_element.capacitance
-                else:
-                    assert isinstance(ele, Inductor)
-                    E[row_idx, col_idx] = ele.inductance
-                    
-                    # apply the affect of inductor in series
-                    if row_lab in cap_parallel_ind_series_ind_dep_mapping:
-                        series_inductor_labels:list[str] = cap_parallel_ind_series_ind_dep_mapping[row_lab]
-                        for ser_lab in series_inductor_labels:
-                            series_element = x_hat_label_to_obj_map[ser_lab]
-                            assert isinstance(series_element, Inductor)
-                            E[row_idx, col_idx] += series_element.inductance
-                
-            else:
-                # check for possible mutual inductance affect
-                row_ele = x_hat_label_to_obj_map[row_lab]
-                col_ele = x_hat_label_to_obj_map[col_lab]
-                
-                if isinstance(row_ele, Inductor)  and isinstance(col_ele, Inductor) and row_ele.name in col_ele.mutual_inductor_names:
-                    K_factor_ind = col_ele.mutual_inductor_names.index(row_ele.name)
-                    E[row_idx, col_idx] = col_ele.K_factors[K_factor_ind] * sp.sqrt(col_ele.inductance*row_ele.inductance)
-                    
     
     A11 = sp.matrix2numpy( A[:independent_state_number, :independent_state_number], dtype=np.float64)
     A12 = sp.matrix2numpy(A[:independent_state_number, independent_state_number:], dtype=np.float64)
@@ -228,16 +194,27 @@ def apply_inductance_capactiance_to_state_matrix(cap_parallel_ind_series_ind_dep
     C2 = sp.matrix2numpy(C[:, independent_state_number:], dtype=np.float64)
     
     
-    E = E.subs(symbol_to_value_map)
-    E_np = sp.matrix2numpy(E, dtype=np.float64)
-    E_inverse = np.linalg.inv(E_np)
+    
+    M_f = M0_I @ E
+    M_f = M_f.subs(symbol_to_value_map)
+
+    M11 = sp.matrix2numpy( M_f[:independent_state_number, :independent_state_number], dtype=np.float64  )
+    M12 = sp.matrix2numpy( M_f[:independent_state_number, independent_state_number:], dtype=np.float64  )
+
+
+
     A22_inverse = np.linalg.inv(A22)
-    A11_new = E_inverse@( A11 - A12@A22_inverse@A21)
+    test = np.linalg.inv(M11)
+    M11_12_inv = np.linalg.inv(  M11- M12@A22_inverse@A21 )
+    
+    A11_new = (M11_12_inv)  @( A11 - A12@A22_inverse@A21)
     A12_new = sp.zeros(A12.shape[0], A12.shape[1])
-    A21_new = sp.zeros(A21.shape[0], A21.shape[1])
+    A21_new = -A22_inverse@A21@A11_new
+    
+    
     A22_new = sp.zeros( A22.shape[0], A22.shape[1] )
-    B1_new = E_inverse @(B1 - A12@A22_inverse@B2)
-    B2_new = sp.zeros(B2.shape[0], B2.shape[1])
+    B1_new = M11_12_inv @(B1 - A12@A22_inverse@B2)
+    B2_new = -A22_inverse@A21@B1_new
     
     
     C1_new = C1-C2@A22_inverse@A21
@@ -269,7 +246,7 @@ def apply_inductance_capactiance_to_state_matrix(cap_parallel_ind_series_ind_dep
     B_dependent_res = sp.BlockMatrix( [  [Matrix(B1_dependent_matrix)],
                                        [ Matrix(B2_dependent_matrix)]] )
     
-    return M0_I_res, A_res, B_res, C_res, D_res, A_dependent_res, B_dependent_res                 
+    return M0_I, A_res, B_res, C_res, D_res, A_dependent_res, B_dependent_res                 
             
     
 def determine_dependent_independent_state_mapping(M0_I: Matrix, A_raw:Matrix,  m_pivots:list[int], u_labels:list[str], y_labels:list[str], x_hat_labels: list[str], x_hat_col_offset_in_m_pivots:int  ):
@@ -318,37 +295,108 @@ def determine_dependent_independent_state_mapping(M0_I: Matrix, A_raw:Matrix,  m
     
     
     
+    # for index in range(len(M0_pivots)):
+    #     # assert M0_pivots[index] == m_pivots[ index + x_hat_col_offset_in_m_pivots ]
+    #     pivot_col = M0_pivots[index]
+    #     label = x_hat_labels[pivot_col]
+    #     pivot_row = index # by def, pivots are the first nonzero in each row
+    #     if label in dependent_state_row_col_map:
+    #         # scenario where on state are idential to another state
+    #         # for example, two inductor in series or two capacitor in parallel. I_L / V_C is the same for both element
+    #         # there should be another 1's column in the same row
+            
+    #         M0_I_row = M0_I[pivot_row, :]
+    #         assert math.isclose(M0_I_row[pivot_col] , 1) or  math.isclose(M0_I_row[pivot_col] , -1)
+    #         new_pivot_col = None
+    #         for new_col in range(pivot_col+1,  M0_I_row.cols):
+    #             if math.isclose( M0_I_row[new_col], 1) or math.isclose( M0_I_row[new_col], -1) :
+    #                 if x_hat_labels[new_col] not in dependent_state_row_col_map:
+    #                     new_pivot_col = new_col
+    #                     break
+    #         assert new_pivot_col is not None
+    #         # update new pivot col, 
+    #         pivot_col = new_pivot_col  
+
+    #         if x_hat_labels[pivot_col]  not in cap_parallel_ind_series_ind_dep_mapping:
+    #             cap_parallel_ind_series_ind_dep_mapping[ x_hat_labels[pivot_col] ] = [label]
+    #         else:
+    #             cap_parallel_ind_series_ind_dep_mapping[ x_hat_labels[pivot_col] ].append(label)
+
+    #         label = x_hat_labels[pivot_col]
+    #     else:
+    #         pass
+    #     independent_state_row_col_map[label] = [pivot_row, pivot_col]
+    
+    # second step, only process the independent pivor im Mo_I that is the only non_zero value in that row
+    dep_inde_mixed_row ={}
     for index in range(len(M0_pivots)):
-        # assert M0_pivots[index] == m_pivots[ index + x_hat_col_offset_in_m_pivots ]
         pivot_col = M0_pivots[index]
         label = x_hat_labels[pivot_col]
         pivot_row = index # by def, pivots are the first nonzero in each row
-        if label in dependent_state_row_col_map:
-            # scenario where on state are idential to another state
-            # for example, two inductor in series or two capacitor in parallel. I_L / V_C is the same for both element
-            # there should be another 1's column in the same row
-            
-            M0_I_row = M0_I[pivot_row, :]
-            assert math.isclose(M0_I_row[pivot_col] , 1)
-            new_pivot_col = None
-            for new_col in range(pivot_col+1,  M0_I_row.cols):
-                if math.isclose( M0_I_row[new_col], 1):
-                    new_pivot_col = new_col
-            assert new_pivot_col is not None
-            # update new pivot col, 
-            pivot_col = new_pivot_col  
-
-            if x_hat_labels[pivot_col]  not in cap_parallel_ind_series_ind_dep_mapping:
-                cap_parallel_ind_series_ind_dep_mapping[ x_hat_labels[pivot_col] ] = [label]
-            else:
-                cap_parallel_ind_series_ind_dep_mapping[ x_hat_labels[pivot_col] ].append(label)
-
-            label = x_hat_labels[pivot_col]
+        
+        M0_I_row = M0_I[pivot_row, :]
+        
+        non_zero_val = len([x for x in M0_I_row if (not math.isclose(x, 0))])
+        
+        assert non_zero_val > 0
+        if non_zero_val == 1:
+            independent_state_row_col_map[label] = [pivot_row, pivot_col]
         else:
-            pass
-        independent_state_row_col_map[label] = [pivot_row, pivot_col]
-
+            dep_inde_mixed_row[label] = ( pivot_row, pivot_col)
+            
+    # now, last step of processing rows that have mixed pivot_row, pivot colr
+    # this is a bipartite problem, with number of node on left == number of node on right
+    # solve using the hungarian algorithm
     
+    # first, build the hungarian matrix
+    potential_pivot_row_pivot_col_mapping:dict[int, list[int]] ={}
+    potential_pivot_col = []
+    potential_pivot_row = []
+    for label, info in dep_inde_mixed_row.items():
+
+        pivot_row = info[0]
+        pivot_col = info[1]
+        M0_I_row = M0_I[pivot_row, :]
+        for new_col in reversed(range(pivot_col, M0_I_row.cols)): # start to see from backward
+            new_lab =  x_hat_labels[new_col]
+            if (not math.isclose(M0_I_row[new_col], 0) and  (new_lab not in independent_state_row_col_map) and (new_lab not in dependent_state_row_col_map) ):
+                if pivot_row not in potential_pivot_row_pivot_col_mapping:
+                    potential_pivot_row_pivot_col_mapping[pivot_row] = [new_col]
+                else:
+                    potential_pivot_row_pivot_col_mapping[pivot_row].append(new_col)
+                if new_col not in potential_pivot_col:
+                    potential_pivot_col.append(new_col)
+        potential_pivot_row.append(pivot_row)        
+    
+    assert len(potential_pivot_col) == len(potential_pivot_row_pivot_col_mapping) ==len(potential_pivot_row)
+    
+    cost_map, rows, cols = create_cost_map(potential_pivot_row_pivot_col_mapping)
+    
+    # solve the assignment problem
+    
+    row_ind, col_ind = linear_sum_assignment(cost_map)
+
+    # Check if the assignment is valid
+    total_cost = cost_map[row_ind, col_ind].sum()
+    if total_cost < np.inf:
+        pass
+        # print("Valid assignment exists!")
+        # for person, item in zip(row_ind, col_ind):
+        #     print(f"Person {person + 1} gets Item {item + 1}")
+    else:
+      
+        raise ValueError("No valid assignment exists.")
+    
+    
+    
+    # now, update them in the independent label mapping
+    for row_idx, col_idx in zip(row_ind, col_ind):
+        pivot_row = potential_pivot_row[row_idx]
+        pivot_col = potential_pivot_col[col_idx]
+        label = x_hat_labels[pivot_col]
+        
+        independent_state_row_col_map[label] = [pivot_row, pivot_col]
+    assert len(independent_state_row_col_map) + len(dependent_state_row_col_map) == len(x_hat_labels)
     
     sys_A_row_idx_map:dict[str, int]  = {}
     sys_A_col_idx_map:dict[str, int] = {}
@@ -434,7 +482,7 @@ def determine_dependent_independent_state_mapping(M0_I: Matrix, A_raw:Matrix,  m
     
     
     
-    
+    assert len(sys_A_row_idx_map) == len(sys_A_row_idx_map) == len(ind_dep_A_row_idx_map) == len(ind_dep_A_col_idx_map) == len(final_sys_A_row_idx_map) ==len(final_sys_A_col_idx_map)
     
     return cap_parallel_ind_series_ind_dep_mapping,  independent_state_row_col_map,dependent_state_row_col_map,  \
         sys_A_row_idx_map, sys_A_col_idx_map, ind_dep_A_row_idx_map, ind_dep_A_col_idx_map, final_sys_A_row_idx_map, final_sys_A_col_idx_map,\
@@ -456,6 +504,26 @@ def update_system_matrix_to_reflect_dependency(M0: Matrix,
                                                 symbol_to_value_map:dict[Symbol, ],
                                                ):
     
+    # build E base on the order of X_hat_labels
+    
+    E = sp.zeros( len(x_hat_labels), len(x_hat_labels) )
+    
+    for cur_index, label in enumerate(x_hat_labels):
+        ele = x_hat_label_to_obj_map[label]
+
+        if isinstance(ele, Capacitor):
+            E[cur_index, cur_index] = ele.capacitance
+        else:
+            assert isinstance(ele, Inductor)
+            E[cur_index, cur_index] = ele.inductance
+            
+            for name, factor in zip(ele.mutual_inductor_names, ele.K_factors):
+                mutual_ele = element_name_to_obj_map[name]
+                mutu_ind = x_hat_labels.index( mutual_ele.element_voltage_name)
+                
+                E[cur_index, mutu_ind] = factor * sp.sqrt( ele.inductance * mutual_ele.inductance )
+    
+    E= E.subs(symbol_to_value_map)
     
     
     if len(y_dependent_labels):
@@ -477,10 +545,12 @@ def update_system_matrix_to_reflect_dependency(M0: Matrix,
     B_temp = reogranize_matrix_by_row_col_mapping(B,  sys_B_row_idx_map, sys_B_col_idx_map, ind_dep_B_row_idx_map, ind_dep_B_col_idx_map)
     C_temp = reogranize_matrix_by_row_col_mapping(C,  sys_C_row_idx_map, sys_C_col_idx_map, ind_dep_C_row_idx_map, ind_dep_C_col_idx_map)
     D_temp = D[:, :]
+    
+    E_temp = reogranize_matrix_by_row_col_mapping(E, sys_A_col_idx_map, sys_A_col_idx_map, ind_dep_A_row_idx_map, ind_dep_A_col_idx_map)
 
     M0_I_res, A_res, B_res, C_res, D_res, A_dependent_res, B_dependent_res   = apply_inductance_capactiance_to_state_matrix(
         cap_parallel_ind_series_ind_dep_mapping=cap_parallel_ind_series_ind_dep_mapping,
-         M0_I=M0_temp, A=A_temp, B=B_temp, C=C_temp, D=D_temp,
+         M0_I=M0_temp, E=E_temp, A=A_temp, B=B_temp, C=C_temp, D=D_temp,
          x_hat_label_to_obj_map=x_hat_label_to_obj_map, independent_state_number=len(independent_state_row_col_map), dependent_state_number=len(dependent_state_row_col_map),
          symbol_to_value_map=symbol_to_value_map,
          ind_dep_A_row_idx_map=ind_dep_A_row_idx_map,
@@ -508,36 +578,18 @@ def update_system_matrix_to_reflect_dependency(M0: Matrix,
     # should be identical to the counter independent part
     
     
-    for ind_label, dependent_labels_list in cap_parallel_ind_series_ind_dep_mapping.items():
-        indep_row = final_sys_A_row_idx_map[ind_label]
+    # for ind_label, dependent_labels_list in cap_parallel_ind_series_ind_dep_mapping.items():
+    #     indep_row = final_sys_A_row_idx_map[ind_label]
         
-        for dep_lab in dependent_labels_list:
-            dep_row = final_sys_A_row_idx_map[dep_lab]
-            A_final[dep_row, :] = A_final[indep_row, :]
-            B_final[dep_row, :] = B_final[indep_row, :]
+    #     for dep_lab in dependent_labels_list:
+    #         dep_row = final_sys_A_row_idx_map[dep_lab]
+    #         A_final[dep_row, :] = A_final[indep_row, :]
+    #         B_final[dep_row, :] = B_final[indep_row, :]
     
     # apply the affect of c1 to C, D matrix
     # given y = C1*x_hat + Cx+DU
     # y =   ([C1*E^-1*A]+C)*x + ([C1*E*B]+D)*u
-    E = sp.zeros( len(x_hat_labels), len(x_hat_labels) )
-    
-    for cur_index, label in enumerate(x_hat_labels):
-        ele = x_hat_label_to_obj_map[label]
 
-        if isinstance(ele, Capacitor):
-            E[cur_index, cur_index] = ele.capacitance
-        else:
-            assert isinstance(ele, Inductor)
-            E[cur_index, cur_index] = ele.inductance
-            
-            for name, factor in zip(ele.mutual_inductor_names, ele.K_factors):
-                mutual_ele = element_name_to_obj_map[name]
-                mutu_ind = x_hat_labels.index( mutual_ele.element_voltage_name)
-                
-                E[cur_index, mutu_ind] = factor * sp.sqrt( ele.inductance * mutual_ele.inductance )
-    
-    E= E.subs(symbol_to_value_map)
-    
     
     D_non_impulse = D_final.copy()
     C_non_impulse = C_final.copy()
@@ -862,3 +914,39 @@ def retrieve_Zsw_hat(A: Matrix, B: Matrix, C: Matrix, D: Matrix,
     
     return C1_SW, C_SW, D_SW, C_impulse_SW, D_impulse_SW, C_nonimpulse_SW, D_nonimpulse_SW,  Z_hat_Sw_A, Z_hat_SW_B
     
+
+
+
+
+
+
+def radau_integration_step(x_cur: np.ndarray, A: np.ndarray, B: np.ndarray, u: np.ndarray, time_t: float, dt: float) -> np.ndarray:
+    """
+    Perform one step of numerical integration using Radau's method.
+
+    Args:
+        x_cur (np.ndarray): Current state vector (shape: (6, 1)).
+        A (np.ndarray): System matrix (shape: (6, 6)).
+        B (np.ndarray): Input matrix (shape: (6, 1)).
+        u (np.ndarray): Input vector (shape: (1, 1)).
+        time_t (float): Current time.
+        dt (float): Time step size.
+
+    Returns:
+        np.ndarray: Updated state vector after one integration step (shape: (6, 1)).
+    """
+    # Ensure x_cur is 1-dimensional
+    x_cur_flat = x_cur.flatten()
+    u_flat = u.flatten()
+    # Define the system dynamics (dx/dt = A*x + B*u)
+    def system_dynamics(t, x):
+        return A @ x + B @ u_flat  # u is a scalar (shape (1, 1))
+
+    # Define the time span for the current step
+    t_span = (time_t, time_t + dt)
+
+    # Use solve_ivp with Radau's method to integrate over the current step
+    sol = solve_ivp(system_dynamics, t_span, x_cur_flat, method='BDF')
+
+    # Return the updated state (last state from the solution) as a column vector
+    return sol.y[:, -1].reshape(-1, 1)

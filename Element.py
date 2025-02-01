@@ -54,12 +54,13 @@ class Voltmeter(PortElement):
         super().__init__(name, port_a, port_b)
 
 class ExternalSwitch(PortElement):
-    def __init__(self, name, port_a, port_b, pwm_value_at_each_new_cycle:bool, switch_frequency:float, duty_cycle:float):
+    def __init__(self, name, port_a, port_b, pwm_value_at_each_new_cycle:bool, switch_frequency:float, duty_cycle:float, time_delay:float):
         super().__init__(name, port_a, port_b)
         self.pwm_value_at_each_new_cycle = pwm_value_at_each_new_cycle  # true if pwm wave from hight to low for each cycle, false other wise
         self.initial_switch_state = self.pwm_value_at_each_new_cycle # assume at start of switch cycle at t = 0
         self.switch_frequency = switch_frequency
         self.duty_cycle = duty_cycle
+        self.time_delay = time_delay
 class Diode(PortElement):
     def __init__(self, name, port_a, port_b, initial_switch_state:bool, diode_voltmeter_name:str, diode_ammeter_name:str):
         super().__init__(name, port_a, port_b)

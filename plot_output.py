@@ -28,7 +28,7 @@ def plot_csv_columns(csv_file1, csv_file2, x_col1, y_col1, x_col2, y_col2, title
     # Show the plot
     plt.show()
 
-# # Example usage
+# # # Example usage
 # csv_file1 = "Half-bridge-llc.csv"
 # csv_file2 = "half-bridge-plec.csv"
 # x_col1 = 0  
@@ -141,72 +141,125 @@ def plot_csv_columns(csv_file1, csv_file2, x_col1, y_col1, x_col2, y_col2, title
 
 
 
-# full bridge rectifier rc
-csv_file1 = "full-bridge-rectifier-rc.csv"
-csv_file2 = "full-bridge-rectifice-rc-plec.csv"
-x_col1 = 0  
-y_col1 = 1
-x_col2 = 0  
-y_col2 = 1  
-plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "AM1-source")
+# # full bridge rectifier rc
+# csv_file1 = "full-bridge-rectifier-rc.csv"
+# csv_file2 = "full-bridge-rectifice-rc-plec.csv"
+# x_col1 = 0  
+# y_col1 = 1
+# x_col2 = 0  
+# y_col2 = 1  
+# plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "AM1-source")
  
  
-x_col1 = 0  
-y_col1 = 2
-x_col2 = 0  
-y_col2 = 2  
-plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "AMD1")
+# x_col1 = 0  
+# y_col1 = 2
+# x_col2 = 0  
+# y_col2 = 2  
+# plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "AMD1")
 
-x_col1 = 0  
-y_col1 = 3
-x_col2 = 0  
-y_col2 = 3  
-plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "AMD4")
+# x_col1 = 0  
+# y_col1 = 3
+# x_col2 = 0  
+# y_col2 = 3  
+# plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "AMD4")
 
-x_col1 = 0  
-y_col1 = 4
-x_col2 = 0  
-y_col2 = 4  
-plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "AMD3")
+# x_col1 = 0  
+# y_col1 = 4
+# x_col2 = 0  
+# y_col2 = 4  
+# plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "AMD3")
 
-x_col1 = 0  
-y_col1 = 5
-x_col2 = 0  
-y_col2 = 5  
-plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "AMD2")
+# x_col1 = 0  
+# y_col1 = 5
+# x_col2 = 0  
+# y_col2 = 5  
+# plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "AMD2")
 
-x_col1 = 0  
-y_col1 = 6
-x_col2 = 0  
-y_col2 = 6  
-plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "VMD1")
+# x_col1 = 0  
+# y_col1 = 6
+# x_col2 = 0  
+# y_col2 = 6  
+# plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "VMD1")
 
-x_col1 = 0  
-y_col1 = 7
-x_col2 = 0  
-y_col2 = 7  
-plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "VMD4")
+# x_col1 = 0  
+# y_col1 = 7
+# x_col2 = 0  
+# y_col2 = 7  
+# plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "VMD4")
 
-x_col1 = 0  
-y_col1 = 8
-x_col2 = 0  
-y_col2 = 8  
-plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "VMD3")
+# x_col1 = 0  
+# y_col1 = 8
+# x_col2 = 0  
+# y_col2 = 8  
+# plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "VMD3")
 
+# x_col1 = 0  
+# y_col1 = 9
+# x_col2 = 0  
+# y_col2 = 9  
+# plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "VMD2")
+
+# x_col1 = 0  
+# y_col1 = 10
+# x_col2 = 0  
+# y_col2 = 10 
+# plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "VM1-C1")
+
+# x_col1 = 0  
+# y_col1 = 11
+# x_col2 = 0  
+# y_col2 = 11 
+# plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "VM12-Rt")
+
+# # # Example usage
+# csv_file1 = "full-bridge-llc-simplified.csv"
+# csv_file2 = "full-bridge-llc-simplified-plec.csv"
+# x_col1 = 0  
+# y_col1 = 5
+# x_col2 = 0  
+# y_col2 = 1  
+
+# plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "VMout")
+
+
+# x_col1 = 0  
+# y_col1 = 3
+# x_col2 = 0  
+# y_col2 = 2
+# plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "VMD1")
+
+# x_col1 = 0  
+# y_col1 = 4
+# x_col2 = 0  
+# y_col2 = 3
+# plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "VMD2")
+
+# x_col1 = 0  
+# y_col1 = 1
+# x_col2 = 0  
+# y_col2 = 4
+# plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "AMD1")
+
+# x_col1 = 0  
+# y_col1 = 2
+# x_col2 = 0  
+# y_col2 = 5
+# plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "AMD2")
+
+
+
+
+
+
+
+# # 
+csv_file1 = "full-bridge-llc.csv"
+csv_file2 = "full-bridge-llc-plec.csv"
 x_col1 = 0  
 y_col1 = 9
 x_col2 = 0  
-y_col2 = 9  
-plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "VMD2")
+y_col2 = 1  
 
-x_col1 = 0  
-y_col1 = 10
-x_col2 = 0  
-y_col2 = 10 
-plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "VM1-C1")
+plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "VMout")
 
-x_col1 = 0  
-y_col1 = 11
-x_col2 = 0  
-y_col2 = 11 
-plot_csv_columns(csv_file1, csv_file2, 0, y_col1, 0, y_col2, "VM12-Rt")
+

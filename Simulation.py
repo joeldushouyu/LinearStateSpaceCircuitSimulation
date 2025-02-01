@@ -13,7 +13,7 @@ from sympy import Matrix
 import sympy as sp
 from util import (print_matrix,is_rise_edge, retrieveSystemMatrix,
                   backwardEulerIntegration, trapezoidalIntegration, 
-                  update_system_matrix_to_reflect_dependency,retrieve_Zsw_hat
+                  update_system_matrix_to_reflect_dependency,retrieve_Zsw_hat,tustin_integration_step, radau_integration_step
                   )
 from typing import Tuple
 import pandas as pd
@@ -160,19 +160,43 @@ class SwitchSimulationModule(SimulationModule):
         self.switch_message = switch_message
         self.message_level_dependent = 1
         
-    def pwm_at_time_t(self, time_t) -> bool:
+    # def pwm_at_time_t(self, time_t) -> bool:
+    #     period = 1 / self.switch.switch_frequency  # Period of the PWM signal
+    #     time_in_period =  math.fmod( time_t , period)  # Time within the current PWM period
+    #     high_duration = (
+    #         self.switch.duty_cycle * period
+    #     )  # Duration of the "high" state in one period
+
+    #     val =  time_in_period < high_duration
+    #     if self.switch.pwm_value_at_each_new_cycle:
+    #         return val
+    #     else:
+    #         return not val
+    def pwm_at_time_t(self, time_t, delay: float = 0.0) -> bool:
+        """
+        Calculate the PWM signal state at a given time, with an optional delay.
+
+        :param time_t: The time at which to evaluate the PWM signal.
+        :param delay: The delay to apply to the PWM signal (default is 0.0).
+        :return: True if the PWM signal is high at time_t, False otherwise.
+        """
         period = 1 / self.switch.switch_frequency  # Period of the PWM signal
-        time_in_period =  math.fmod( time_t , period)  # Time within the current PWM period
+        time_with_delay = time_t - delay  # Apply the delay to the input time
+
+        # Handle negative time_with_delay by wrapping it into the PWM period
+        if time_with_delay < 0:
+            time_with_delay += period * math.ceil(abs(time_with_delay) / period)
+
+        time_in_period = math.fmod(time_with_delay, period)  # Time within the current PWM period
         high_duration = (
             self.switch.duty_cycle * period
         )  # Duration of the "high" state in one period
 
-        val =  time_in_period < high_duration
+        val = time_in_period < high_duration
         if self.switch.pwm_value_at_each_new_cycle:
             return val
         else:
             return not val
-
 
     def update(self, message):
         # only accept systemtime message
@@ -184,7 +208,7 @@ class SwitchSimulationModule(SimulationModule):
         if self.cur_system_time == 0:
             self.cur_switch_status = self.switch.initial_switch_state
         else:
-            self.cur_switch_status = self.pwm_at_time_t(self.cur_system_time)
+            self.cur_switch_status = self.pwm_at_time_t(self.cur_system_time, self.switch.time_delay)
         self.switch_message.set_switch_status(
             self.cur_switch_status, self.switch.element_voltage_name, self.cur_system_time
         )
@@ -786,15 +810,15 @@ class StateSpaceSimulationModule(SimulationModule):
     def update_internal_switch_response(self, switch_trigger_labels:list[str], x_cur_before_t0:np.ndarray):
         
         
-        if len(self.forced_switch_mapping) > 0 and len(switch_trigger_labels) > 0:
-            for label in switch_trigger_labels:
-                switch_ele = self.network_matrix.m_column_labels_to_obj_map[label]
-                list_of_diodes = self.forced_switch_mapping[switch_ele]
+        # if len(self.forced_switch_mapping) > 0 and len(switch_trigger_labels) > 0:
+        #     for label in switch_trigger_labels:
+        #         switch_ele = self.network_matrix.m_column_labels_to_obj_map[label]
+        #         list_of_diodes = self.forced_switch_mapping[switch_ele]
                 
-                for diode in list_of_diodes:
-                    diode_index = self.switch_label_index_map[diode.element_current_name]
-                    self.switch_state[diode_index] = not self.switch_state[diode_index]
-                    self.swap_col_and_update(diode.element_voltage_name)
+        #         for diode in list_of_diodes:
+        #             diode_index = self.switch_label_index_map[diode.element_current_name]
+        #             self.switch_state[diode_index] = not self.switch_state[diode_index]
+        #             self.swap_col_and_update(diode.element_voltage_name)
 
         
         # now, check for any impulse switch or soft switch
@@ -865,7 +889,8 @@ class StateSpaceSimulationModule(SimulationModule):
         else:
             x_t = backwardEulerIntegration(x_before, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency).copy()
 
-        # x_t = tustin_integration_step(x_before, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency).copy()
+        #x_t = tustin_integration_step(x_before, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency).copy()
+        #x_t = radau_integration_step( x_before, self._A_iteration, self._B_iteration, self.u,   time_t=self.cur_system_time,dt=1/self.iteration_frequency ).copy()
         self.__x_cur_ind =x_t
 
     def iteration(self):
@@ -901,9 +926,14 @@ class StateSpaceSimulationModule(SimulationModule):
 
         
         self.time_t.append(self.cur_system_time)
-        # cur_switch_state = self.switch_state[self.switch_mask]
-        # cur_switch_trigger = self.switch_triggered[self.switch_mask]
-        # self.switch_state_output.append (  cur_switch_state.tolist()  )
-        # self.switch_triggered_output.append( cur_switch_trigger.tolist())
+        cur_switch_state =[]
+        cur_switch_trigger =[]
+        
+        for i, val in self.switch_index_label_map.items():
+            if i not in self.diode_index:
+                cur_switch_state.append(self.switch_state[i])
+                cur_switch_trigger.append(self.switch_triggered[i])
+        self.switch_state_output.append (  cur_switch_state)
+        self.switch_triggered_output.append( cur_switch_trigger)
         
         self.y_output.append(self.y_cur[:,0].tolist())
