@@ -426,7 +426,7 @@ class StateSpaceSimulationModule(SimulationModule):
         
     def swap_col_and_update(self, label_to_Swap:str):
         if label_to_Swap != "":
-            self.network_matrix.update_M_matrix(label_to_Swap, False)
+            self.network_matrix.swap_M_matrix_columns(label_to_Swap)
         # do a cache
         
 

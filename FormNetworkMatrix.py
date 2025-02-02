@@ -31,7 +31,7 @@ class NetworkMatrix:
         m_column_labels: list[str],
         m_colmn_labels_to_obj_map: dict[str, Element],
         element_name_obj_map:dict[str, Element],
-        symbolic_to_value_map:dict[str, float],
+        symbolic_to_value_map:dict[sp.Symbol, float],
         s_label_size:int,
         y_label_size:int,
         x_hat_label_size:int,
@@ -44,9 +44,50 @@ class NetworkMatrix:
         voltage_source_size:int,
         current_source_size:int,
         redundant_size:int,
-        inductance_capacitance_M0:Matrix,
         simpilfied = True,
     ):
+        """Object contain informations about the circuit network topology.
+
+        Parameters
+        ----------
+        M_topology : Matrix
+            Initial network topolgy matrix. Equation 11 in Antonio Massarini's "An efficient algorithm for ..."
+        m_column_labels : list[str]
+            Label for each column in M_topology matrix. The label are ordered as described in Equation 9 of Antonio Massarini's "An efficient algorithm for ..."
+        m_colmn_labels_to_obj_map : dict[str, Element]
+            Mapping of label to corresponding Element object.
+        element_name_obj_map : dict[str, Element]
+            Mapping of element name to Element object.
+        symbolic_to_value_map : dict[sp.Symbol, float]
+            Mapping of sp.Symbol to the actual value.
+        s_label_size : int
+            Number of switch/diode.
+        y_label_size : int
+            Number of Ammeter/Voltmeter.
+        x_hat_label_size : int
+            Number of state derivation variable.
+        x_label_size : int
+            Number of state variable.
+        s_zero_label_size : int
+            Number of zero valued switch variable, see Equation 10 in Antonio MAssarini's "An efficient algorithm for ..."
+        y_zero_label_size : int
+            Number of zero valued meterm variable, see Equation 10 in Antonio MAssarini's "An efficient algorithm for ..."
+        u_label_size : int
+            Number of inputs.
+        capactior_size : int
+            _description_
+        inductor_size : int
+            _description_
+        voltage_source_size : int
+            _description_
+        current_source_size : int
+            _description_
+        redundant_size : int
+            Redundant offset row&columns size in the M_topology matrix. If redundant_size == 0, means M_toplogy matrix is in the Equation (13) form.
+            Otherwise, it means the M_topology matrix is in Equation (11) form of "Antonio Massarini's "An efficient algorithm for..."
+        simpilfied : bool, optional
+            If true, indicate M_toploy matrix is in Equation (13), else means M_toplogy is in equation (11) form of Antonio Massarini's "An efficient algorithm for ..."
+        """
         
         if simpilfied:
             M_topology = M_topology[redundant_size:, redundant_size:]
@@ -65,10 +106,9 @@ class NetworkMatrix:
         self.current_source_Size = current_source_size
         
         
-        self.inductance_capacitance_M0 = inductance_capacitance_M0
         
         # M_topology describe the topology relation between matrix
-        # M is the matrix after apply mutual inductance effect between inductors
+        # M is the matrix of M_toplolgy after doing rref() for the current toplogy
         self.M ,  self.M_toplolgy_pivots = M_topology.rref()
         self.M_topology = M_topology[:,:]
         self.M, self.M_pivots = self.M.rref()
@@ -88,22 +128,27 @@ class NetworkMatrix:
         self.y_zero_label_size = y_zero_label_size
         self.u_label_size = u_label_size
         
-
-    def apply_mutual_inductance_effect(self, sub_value=True):
-
-        if sub_value:
     
-            self.M, self.M_pivots = self.M.rref()
 
-            self.M = self.M.subs(self.symbolic_to_value_map)
-    
-    
     def rref_update(self):
+        """Update the network matrix topology after column swapped.
+        """
         self.M_topology, _ = self.M_topology.rref()
         self.M = self.M_topology.copy()
-        self.apply_mutual_inductance_effect(True)
-    def update_M_matrix(self, labels_to_swap:str, sub_value = True):
         
+        self.M, self.M_pivots = self.M.rref()
+
+        self.M = self.M.subs(self.symbolic_to_value_map)
+    
+        
+    def swap_M_matrix_columns(self, labels_to_swap:str):
+        """Swap the voltage/current column of element with its current/voltage column in self.M_topology matrix.
+
+        Parameters
+        ----------
+        labels_to_swap : str
+            Voltage/Current label of the element.
+        """
         
         swapTwoColumn(self.M_topology, self.m_column_labels, self.m_column_labels_to_obj_map, labels_to_swap )
 
@@ -146,7 +191,23 @@ class NetworkMatrix:
     def u_labels(self):
         offset = self.redundant_size + self.s_labels_size+ self.y_label_size + self.x_hat_label_size + self.x_label_size + self.s_zero_label_size + self.y_zero_label_size
         return self.m_column_labels[offset: ]
+    
+    
+    
+    
 def update_column_labels(element_col_map: dict[str, int]) -> list[str]:
+    """Return column labels(key of the 'element_col_map') sorted in ascending order
+
+    Parameters
+    ----------
+    element_col_map : dict[str, int]
+        _description_
+
+    Returns
+    -------
+    list[str]
+        Sorted column labels.
+    """
     sorted_ele_col = [
         k for k, v in sorted(element_col_map.items(), key=lambda item: item[1])
     ]
@@ -161,14 +222,32 @@ def update_row_labels(node_row_map: dict[str, int]) -> list[str]:
 def reorder_matrix_by_colum_label(
     matrix: Matrix, new_col_name: list[str], ele_name_col_map: dict[str, int]
 ) -> Matrix:
+    """Reorders the columns of a matrix based on provided column names.
+
+    This function rearranges the columns of the input matrix according to
+    the specified order of column names. The mapping from element names
+    to their new positions is maintained through the `ele_name_col_map`.
+
+    Parameters
+    ----------
+    matrix : Matrix
+        The input 2D array or DataFrame to be reordered.
+    new_col_name : list[str]
+        List of new column names in the desired order.
+    ele_name_col_map : dict[str, int]
+        Mapping from element names (keys) to their corresponding column indices.
+
+    Returns
+    -------
+    Matrix
+        The matrix with columns reordered according to `new_col_name`.
+
+    Note
+    ----
+    This function creates a temporary copy of the input matrix and modifies it in place.
+    """
     m_temp = matrix[:, :]
-    # assert len(new_col_name) == len(ele_name_col_map)
-
-
-        
     for col in range(len(new_col_name)):
-        if col == 4:
-            p = 20
         new_ele_name = new_col_name[col]
 
         matrix[:, col] = m_temp[:, ele_name_col_map[new_ele_name]]
@@ -179,7 +258,6 @@ def reorder_matrix_by_colum_label(
 def read_netlis_description(
     netList: list[list[str]],
     node_name_obj_map: dict[str, Node],
-    node_name_row_map: dict[str, int],
     ele_name_obj_map: dict[str, Element],
     ele_name_col_map: dict[str, int],
     symbollic_to_value_map: dict[Symbol:float],
@@ -188,6 +266,34 @@ def read_netlis_description(
     inductor_capacitor_list: list[Inductor | Capacitor],
     meter_list: list[Voltmeter | Ammeter],
 ):
+    """Extract the circuit elements from list of description string.
+
+    Parameters
+    ----------
+    netList : list[list[str]]
+        List of circuit elements.
+    node_name_obj_map : dict[str, Node]
+        Mapping of node name to Node object.
+    ele_name_obj_map : dict[str, Element]
+        Mapping of element name to Element object. 
+    ele_name_col_map : dict[str, int]
+        Mapping of element name to column index of the incident matrix.
+    symbollic_to_value_map : dict[Symbol:float]
+        Mapping of sp.Symbol to value.
+    switch_list : list[ExternalSwitch  |  Diode]
+        List of all switch/diode.
+    source_list : list[VoltageCurrentSource]
+        List of voltage/current sources.
+    inductor_capacitor_list : list[Inductor  |  Capacitor]
+        List of inductors/capacitors.
+    meter_list : list[Voltmeter  |  Ammeter]
+        List of Voltmeter/Ammeter.
+
+    Raises
+    ------
+    ValueError
+        When unknown element is found in "netList"
+    """
     for i in range(len(netList)):
         desc = netList[i]
         # labels = [s.strip() for s in desc.split(",")]
@@ -322,6 +428,26 @@ def gen_incident_matrix(
     ele_name_obj_map: dict[str, Element],
     ele_name_col_map: dict[str, int],
 ) -> Tuple[Matrix, list[str], list[str], list[str], list[str]]:
+    """Retrive A(incident) matrix and rearrange element into either tree/cotree port/non-port
+    
+    For detail, refer to chapter 4 and 6-5-2 of "Computer-Aided Analysis of Electronic Circuits" by Leon-o-Chua and Pen-Min-Lin.
+
+    Parameters
+    ----------
+    node_name_obj_map : dict[str, Node]
+        Mapping of node element to Node object.
+    node_name_row_map : dict[str, int]
+        mapping of node element to row index in the A matrix.
+    ele_name_obj_map : dict[str, Element]
+        mapping of element name to Element object.
+    ele_name_col_map : dict[str, int]
+        mapping of element name to column index in the A matrix.
+
+    Returns
+    -------
+    Tuple[Matrix, list[str], list[str], list[str], list[str]]
+        Incident matrix, tree port elements, co-tree port element, tree non-port element, co-tree non-port element.
+    """
     A_matrix = sp.Matrix(
         len(node_name_obj_map) - 1,
         len(ele_name_obj_map),
@@ -410,8 +536,21 @@ def gen_incident_matrix(
     return A_matrix, tree_port, cotree_port, tree_nonport, cotree_nonport
 
 
-def system_realization(netList: list[list[str]], supress_inconsistenc=False):
-    
+def system_realization(netList: list[list[str]], supress_inconsistenc=False)->NetworkMatrix:
+    """Retrieve the circuit network toplolgy from netList variable
+
+    Parameters
+    ----------
+    netList : list[list[str]]
+        List of elements in the newtork
+    supress_inconsistenc : bool, optional
+        _description_, by default False
+
+    Returns
+    -------
+    NetworkMatrix
+        Circuit Network
+    """
     
     #TODO: instead of the supress inconsistence parameter
     # check for cutset, loop, and connectivy of the graph
@@ -435,7 +574,6 @@ def system_realization(netList: list[list[str]], supress_inconsistenc=False):
     read_netlis_description(
         netList=netList,
         node_name_obj_map=node_name_obj_map,
-        node_name_row_map=node_name_row_map,
         ele_name_obj_map=ele_name_obj_map,
         ele_name_col_map=ele_name_col_map,
         symbollic_to_value_map=symbollic_to_value_map,
@@ -460,7 +598,7 @@ def system_realization(netList: list[list[str]], supress_inconsistenc=False):
 
     A_tree_inverse = A_matrix[0 : len(row_names), 0 : len(row_names)].inv()
 
-    D_matrix = A_tree_inverse * A_matrix
+    D_matrix = A_tree_inverse * A_matrix  #(3-30) equation in Leo-chua's book
 
 
     a = len(tree_port)
@@ -473,7 +611,7 @@ def system_realization(netList: list[list[str]], supress_inconsistenc=False):
     D_zy: Matrix = D_cotree[a:, 0:y]
     D_zb: Matrix = D_cotree[a:, y:]
 
-    # now, forming the F matrix in 6-66 chua
+    # now, forming the F matrix in Leo-chua's book (6-66) 
 
     # add iz
     iz_labels = []
@@ -654,12 +792,14 @@ def system_realization(netList: list[list[str]], supress_inconsistenc=False):
         m_labels = iy_labels + vz_labels + ia_labels + vb_labels + ib_labels + va_labels
         m_labels_mapping = {m_labels[i]: i for i in range(len(m_labels))}
 
+    
+    # At this point, M matrix is define exactly as (6-67) in the book by Leon-o-chu and pen-lin, and a (8) in Antonio Massarini and Ugo Reeggiani "An efficient Algorithm for the formulation of state equations ..."
     # now reorder the m_label matrix
 
     # the order is w, u_tilt, s, y, x_hat, x, 0, u
     # w is all nonport element [iy, vz]
     w = iy_labels + vz_labels
-    #TODO: debug only
+
     def sort_for_u(item1:VoltageCurrentSource, item2:VoltageCurrentSource): # current source first
         if item1.is_voltage_source == False and item2.is_voltage_source:
             return -1
@@ -681,7 +821,6 @@ def system_realization(netList: list[list[str]], supress_inconsistenc=False):
             return 1
         else:
             return 0
-    #TODO: debug only
     def sort_for_capacitor_inductor(item1:Element, item2:Element):
         if isinstance(item1, Inductor) and isinstance(item2, Capacitor):
             return -1
@@ -698,7 +837,7 @@ def system_realization(netList: list[list[str]], supress_inconsistenc=False):
                     else:
                         return 1
             return 0
-    # generate util, u
+
     u_tilt = []
     u = []
     y = []
@@ -707,12 +846,11 @@ def system_realization(netList: list[list[str]], supress_inconsistenc=False):
     s_zero = []
     x_hat = []
     x = []
-    source_list.sort(key=cmp_to_key(sort_for_u))
-    meter_list.sort(key = cmp_to_key(sort_for_meter))
-    switch_list.sort(key=cmp_to_key(sort_for_switch))
-    inductor_capacitor_list.sort(key=cmp_to_key(sort_for_capacitor_inductor))
-    #u: current source, then voltage source
-    #x: inductor, then capacitor
+    source_list.sort(key=cmp_to_key(sort_for_u))  # current sources first, than voltages source
+    meter_list.sort(key = cmp_to_key(sort_for_meter)) # Ammeters, than voltmeters
+    switch_list.sort(key=cmp_to_key(sort_for_switch)) # External Switches, then diodes
+    inductor_capacitor_list.sort(key=cmp_to_key(sort_for_capacitor_inductor)) # indocutors, than capacitors
+
     
     for ele in source_list:
         if  not ele.is_voltage_source:  # current source
@@ -782,53 +920,14 @@ def system_realization(netList: list[list[str]], supress_inconsistenc=False):
     print(pivots)
     # ensure pivots are in consective order
     for i in range(len(pivots)):
-        if i != pivots[i] and supress_inconsistenc:
-            print("Warning: inconsistency system detected!")
+        if i != pivots[i]:
+            if supress_inconsistenc:
+                print("Warning: inconsistency system detected!")
+            else:
+                raise ValueError("Network inconsistency detect for initial circuit topology")
 
-
-
-    # multiple L/C to result in correct x_hat. Since ic = C*dv/dt
-    #page 349 of Chua, section 4
-    offset = len(w + u_tilt + s + y)
-    
-    for i in range(offset, offset+len(x_hat)):
-        label = x_hat[i-offset]
-        ele = reordered_m_lable_obj_mapping[label]
-
-    
-    # form M0_value 
-    x_hat_size = len(x_hat)
-    Inductance_capacitance_M0 = Matrix(  x_hat_size, x_hat_size, [0]*x_hat_size*x_hat_size )
-    x_hat_col_row_map = {}
-    
-    for ind, lab in enumerate(x_hat):
-        x_hat_col_row_map[lab] = ind
-    
-    
-    for lab in x_hat:
-        ele = reordered_m_lable_obj_mapping[lab]
-        ele_index = x_hat_col_row_map[lab]
-        if isinstance(ele, Capacitor):
-            Inductance_capacitance_M0[ele_index, ele_index] =ele.capacitor_symbol
-        else:
-            assert isinstance(ele, Inductor)
-            Inductance_capacitance_M0[ele_index, ele_index] = ele.inductor_symbol
-            
-            if len(ele.K_factors) > 0: # means have mutual affect
-                for index ,(mutual_name, factor) in enumerate( zip(ele.mutual_inductor_names, ele.K_factors) ):
-                    mutual_obj= ele_name_obj_map[mutual_name]
-                    mutual_index = x_hat_col_row_map[mutual_obj.element_voltage_name]
-                    Inductance_capacitance_M0[ele_index, mutual_index] = factor* sp.sqrt(ele.inductor_symbol*mutual_obj.inductor_symbol)
-    
-                         
-
-    
     print_matrix(M, reordered_m_labels, ["" for x in range(M.shape[0])])
 
-    
-    
-    
-    M, pivot = M.rref()
     
     net =  NetworkMatrix(
         M_topology=M[:,:],
@@ -848,12 +947,11 @@ def system_realization(netList: list[list[str]], supress_inconsistenc=False):
         voltage_source_size=voltage_source_count,
         current_source_size=current_source_count,
         redundant_size= len(w+u_tilt),
-        inductance_capacitance_M0=Inductance_capacitance_M0,
         simpilfied=False
 
     )
 
-    net.apply_mutual_inductance_effect()  # do it for the first time
+    net.rref_update()  # do it for the first time
 
 
     return net    
