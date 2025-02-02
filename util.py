@@ -380,19 +380,15 @@ def determine_dependent_independent_state_mapping(M0_I: Matrix, A_raw:Matrix,  m
     total_cost = cost_map[row_ind, col_ind].sum()
     if total_cost < np.inf:
         pass
-        # print("Valid assignment exists!")
-        # for person, item in zip(row_ind, col_ind):
-        #     print(f"Person {person + 1} gets Item {item + 1}")
     else:
-      
         raise ValueError("No valid assignment exists.")
     
     
     
     # now, update them in the independent label mapping
     for row_idx, col_idx in zip(row_ind, col_ind):
-        pivot_row = potential_pivot_row[row_idx]
-        pivot_col = potential_pivot_col[col_idx]
+        pivot_row = rows[row_idx]
+        pivot_col = cols[col_idx]
         label = x_hat_labels[pivot_col]
         
         independent_state_row_col_map[label] = [pivot_row, pivot_col]
