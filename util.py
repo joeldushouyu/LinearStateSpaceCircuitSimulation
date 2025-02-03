@@ -993,6 +993,53 @@ def backwardEulerIntegration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, 
     res = p1+p2
     return  res 
 
+def pade_0_2_integration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, u:  np.ndarray, time_t:float):
+
+    eye_a =  np.eye(A.shape[0], dtype=np.float64)
+    
+    # #https://www.cs.jhu.edu/~misha/ReadingSeminar/Papers/Moler03.pdf
+    # # assume start from 0 - > result in coefficient
+    # # but still keep same integration method
+    # # but simplify alot, major issue with previous is did not use the inverse library of np
+    p =0
+    q = 1
+    a1 = np.float64(0)  # because does not exist
+    b1 = np.float64(-1)  #NOTE: new factor from the website
+    b2 = 1/2
+    
+    e_at_part = e_at_part =  np.linalg.inv(  eye_a +A*time_t*b1 + np.linalg.matrix_power(A*time_t,2)*b2 ) #np.linalg.solve(eye_a + A*time_t*b1, eye_a) #e_at_part =  np.linalg.inv(  eye_a +A*time_t*b1 )
+    
+
+    integ_part = time_t * -1 * ( eye_a*b1 + A*time_t*b2 ) @e_at_part  # simplified out (a1-b1), since (0-(-1)) == 1
+    p1 = e_at_part @ x_cur 
+    p2 =  integ_part@ B @ u 
+    res = p1+p2
+    return  res 
+def pade_0_3_integration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, u:  np.ndarray, time_t:float):
+
+    eye_a =  np.eye(A.shape[0], dtype=np.float64)
+    
+    # #https://www.cs.jhu.edu/~misha/ReadingSeminar/Papers/Moler03.pdf
+    # # assume start from 0 - > result in coefficient
+    # # but still keep same integration method
+    # # but simplify alot, major issue with previous is did not use the inverse library of np
+    p =0
+    q = 1
+    a1 = np.float64(0)  # because does not exist
+    b1 = np.float64(-1)  #NOTE: new factor from the website
+    b2 = 1/2
+    b3= -1/3
+    
+    e_at_part = e_at_part =  np.linalg.inv(  eye_a +A*time_t*b1 + np.linalg.matrix_power(A*time_t,2)*b2 
+                                           + np.linalg.matrix_power(A*time_t, 3)*b3
+                                           ) #np.linalg.solve(eye_a + A*time_t*b1, eye_a) #e_at_part =  np.linalg.inv(  eye_a +A*time_t*b1 )
+    
+
+    integ_part = time_t * -1 * ( eye_a*b1 + A*time_t*b2 +np.linalg.matrix_power(A*time_t,2)*b3 ) @e_at_part  # simplified out (a1-b1), since (0-(-1)) == 1
+    p1 = e_at_part @ x_cur 
+    p2 =  integ_part@ B @ u 
+    res = p1+p2
+    return  res 
 
 
 def tustin_integration_step(x_cur: np.ndarray, A: np.ndarray, B: np.ndarray, u: np.ndarray, time_t: float) -> np.ndarray:

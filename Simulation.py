@@ -13,7 +13,9 @@ from sympy import Matrix
 import sympy as sp
 from util import (print_matrix,is_rise_edge, retrieveSystemMatrix,
                   backwardEulerIntegration, trapezoidalIntegration, 
-                  update_system_matrix_to_reflect_dependency,retrieve_Zsw_hat,tustin_integration_step, radau_integration_step
+                  update_system_matrix_to_reflect_dependency,retrieve_Zsw_hat,tustin_integration_step, radau_integration_step,
+                  pade_0_3_integration,
+                  pade_0_2_integration
                   )
 from typing import Tuple
 import pandas as pd
@@ -172,25 +174,36 @@ class SwitchSimulationModule(SimulationModule):
     #         return val
     #     else:
     #         return not val
-    def pwm_at_time_t(self, time_t, delay: float = 0.0) -> bool:
-        """
-        Calculate the PWM signal state at a given time, with an optional delay.
+    # def pwm_at_time_t(self, time_t, delay: float = 0.0) -> bool:
+    #     """
+    #     Calculate the PWM signal state at a given time, with an optional delay.
 
-        :param time_t: The time at which to evaluate the PWM signal.
-        :param delay: The delay to apply to the PWM signal (default is 0.0).
-        :return: True if the PWM signal is high at time_t, False otherwise.
-        """
+    #     :param time_t: The time at which to evaluate the PWM signal.
+    #     :param delay: The delay to apply to the PWM signal (default is 0.0).
+    #     :return: True if the PWM signal is high at time_t, False otherwise.
+    #     """
+    #     period = 1 / self.switch.switch_frequency  # Period of the PWM signal
+    #     time_with_delay = time_t - delay  # Apply the delay to the input time
+
+    #     # Handle negative time_with_delay by wrapping it into the PWM period
+    #     if time_with_delay < 0:
+    #         time_with_delay = 0
+
+    #     time_in_period = math.fmod(time_with_delay, period)  # Time within the current PWM period
+    #     high_duration = (
+    #         self.switch.duty_cycle * period
+    #     )  # Duration of the "high" state in one period
+
+    #     val = time_in_period < high_duration
+    #     if self.switch.pwm_value_at_each_new_cycle:
+    #         return val
+    #     else:
+    #         return not val
+    def pwm_at_time_t(self, time_t, delay=0) -> bool:
         period = 1 / self.switch.switch_frequency  # Period of the PWM signal
-        time_with_delay = time_t - delay  # Apply the delay to the input time
-
-        # Handle negative time_with_delay by wrapping it into the PWM period
-        if time_with_delay < 0:
-            time_with_delay += period * math.ceil(abs(time_with_delay) / period)
-
-        time_in_period = math.fmod(time_with_delay, period)  # Time within the current PWM period
-        high_duration = (
-            self.switch.duty_cycle * period
-        )  # Duration of the "high" state in one period
+        adjusted_time = time_t - delay  # Apply the delay
+        time_in_period = math.fmod(adjusted_time, period)  # Time within the current PWM period
+        high_duration = self.switch.duty_cycle * period  # Duration of the "high" state in one period
 
         val = time_in_period < high_duration
         if self.switch.pwm_value_at_each_new_cycle:
@@ -394,34 +407,69 @@ class StateSpaceSimulationModule(SimulationModule):
 
             
                
-    
     def choose_intergation_strategy(self):
         # numerical oscillation (not system oscillation) will always occur for any real eigenvalue < 0
         
         # use trapezoidal  by default
         # use backward euler if real eigenvalue < -2 
-        temp = self.A.subs(self.network_matrix.symbolic_to_value_map)
-        eigen_value_dict = temp.eigenvals()
+        temp = self.A.subs(self.network_matrix.symbolic_to_value_map).copy()
+        temp = temp* (1/self.iteration_frequency)
+
         
-        
-        min_eig = min(  [  sp.re(x.subs(self.network_matrix.symbolic_to_value_map))  * (1/self.iteration_frequency) for x  in eigen_value_dict.keys()])
-        max_eig =  max(  [  sp.re(x.subs(self.network_matrix.symbolic_to_value_map))  * (1/self.iteration_frequency) for x  in eigen_value_dict.keys()])
-        
-        max_abs = max([  abs(sp.re(x.subs(self.network_matrix.symbolic_to_value_map))  * (1/self.iteration_frequency)) for x  in eigen_value_dict.keys()])
-        min_abs = min([  abs(sp.re(x.subs(self.network_matrix.symbolic_to_value_map))  * (1/self.iteration_frequency)) for x  in eigen_value_dict.keys()])
-        
-        if min_abs == 0 or  max_abs/min_abs > 1000:
-        #     # means stiff system encounter
-        #     # ration equation: https://en.wikipedia.org/wiki/Stiff_equation
-        #     # stiffness ratio is negotiable to change
-            print("System is very stiff")
-        print(f"Max  eig, min eig {max_eig} {min_eig}")
-        if min_eig <= -2:
-            self.integration_strategy = "BackwardEuler"
+        # Step 2: Check stability (eigenvalues within [-1, 1])
+        eigenvalues = np.linalg.eigvals(sp.matrix2numpy(temp, dtype=np.float64))
+        stability = all(abs(eig) <= 1 for eig in eigenvalues)
+
+        # Step 3: Check stiffness (large spread of eigenvalue magnitudes)
+        min_eig = min(eigenvalues)
+        max_eig = max(eigenvalues)
+        min_eig_mag = min(np.abs(eigenvalues))
+        max_eig_mag = max(np.abs(eigenvalues))
+        stiffness = True if min_eig_mag==0 else  (max_eig_mag / min_eig_mag) > 10
+
+        # Output results
+        if all(abs(eig) <= 1 for eig in eigenvalues):
+            print("Stable")
+            self.integration_strategy= "Trapezoidal"
         else:
-            self.integration_strategy = "Trapezoidal"
+            print("Unstable")
+            self.integration_strategy= "BackwardEuler"
+        self.integration_strategy= "Trapezoidal"
+        print("Eigenvalues:", eigenvalues)
+        print("Stiffness:", stiffness)
+        # if min( min_eig, max_eig  )  <= -2:
+        # self.integration_strategy = "BackwardEuler"
+        # else:
+        #self.integration_strategy = "Trapezoidal"
             
         print(f"***********using {self.integration_strategy} *****************")
+    # def choose_intergation_strategy(self):
+    #     # numerical oscillation (not system oscillation) will always occur for any real eigenvalue < 0
+        
+    #     # use trapezoidal  by default
+    #     # use backward euler if real eigenvalue < -2 
+    #     temp = self.A.subs(self.network_matrix.symbolic_to_value_map)
+    #     eigen_value_dict = temp.eigenvals()
+        
+
+    #     min_eig = min(  [  sp.re(x.subs(self.network_matrix.symbolic_to_value_map))  * (1/self.iteration_frequency) for x  in eigen_value_dict.keys()])
+    #     max_eig =  max(  [  sp.re(x.subs(self.network_matrix.symbolic_to_value_map))  * (1/self.iteration_frequency) for x  in eigen_value_dict.keys()])
+        
+    #     max_abs = max([  abs(sp.re(x.subs(self.network_matrix.symbolic_to_value_map))  * (1/self.iteration_frequency)) for x  in eigen_value_dict.keys()])
+    #     min_abs = min([  abs(sp.re(x.subs(self.network_matrix.symbolic_to_value_map))  * (1/self.iteration_frequency)) for x  in eigen_value_dict.keys()])
+        
+    #     if min_abs == 0 or  max_abs/min_abs > 1000:
+    #     #     # means stiff system encounter
+    #     #     # ration equation: https://en.wikipedia.org/wiki/Stiff_equation
+    #     #     # stiffness ratio is negotiable to change
+    #         print("System is very stiff")
+    #     print(f"Max  eig, min eig {max_eig} {min_eig}")
+    #     if min_eig <= -2:
+    #         self.integration_strategy = "BackwardEuler"
+    #     else:
+    #         self.integration_strategy = "Trapezoidal"
+            
+    #     print(f"***********using {self.integration_strategy} *****************")
         
         
     def swap_col_and_update(self, label_to_Swap:str):
@@ -883,12 +931,15 @@ class StateSpaceSimulationModule(SimulationModule):
         # no need to get x_cur_with_dep
         # because the corresponding row of A of the depent x is all 0
         
-        x_before = self.get_x_cur_with_dep().copy()
-        if self.integration_strategy == "Trapezoidal":
-            x_t = trapezoidalIntegration( x_before, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency ).copy()
-        else:
-            x_t = backwardEulerIntegration(x_before, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency).copy()
-
+        x_before = self.get_x_cur_no_dep().copy()
+        # if self.integration_strategy == "Trapezoidal":
+        #x_t = trapezoidalIntegration( x_before, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency ).copy()
+        # else:
+        #     x_t = backwardEulerIntegration(x_before, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency).copy()
+        # 
+        #x_t = pade_0_3_integration( x_before, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency ).copy()
+        
+        x_t = pade_0_2_integration( x_before, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency ).copy()
         #x_t = tustin_integration_step(x_before, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency).copy()
         #x_t = radau_integration_step( x_before, self._A_iteration, self._B_iteration, self.u,   time_t=self.cur_system_time,dt=1/self.iteration_frequency ).copy()
         self.__x_cur_ind =x_t

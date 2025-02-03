@@ -476,6 +476,7 @@ def gen_incident_matrix(
     # do rref to get the pivot columns of A
     _, pivots = A_matrix.rref()
     # print(pivots)
+    assert len(pivots) == A_matrix.shape[0]
 
     # reorder the column of A according to the pivots
 
@@ -912,7 +913,7 @@ def system_realization(netList: list[list[str]], supress_inconsistenc=False)->Ne
         
     reorder_matrix_by_colum_label(M, reordered_m_labels, m_labels_mapping)
 
-    M = M.subs(symbollic_to_value_map)
+    # M = M.subs(symbollic_to_value_map)
 
     
     # do any rref on M matrix
