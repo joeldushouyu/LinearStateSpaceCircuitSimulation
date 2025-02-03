@@ -446,7 +446,7 @@ switch_frequency = 100e3
 duty_cycle = 0.5
 # Full bridge LLc circuit
 netList = [
-    f"Vin, NVIN, 0, 100, 0",
+    f"Vin, NVIN, 0, 600, 0",
     # "Rvsource, Nv, NVIN, 0.001",
     "VMLp, NVIN, 0",
     "ICIS-1, 0, NVIN, -1, AMS1",  # note, negative because of how we measure the current
@@ -463,8 +463,8 @@ netList = [
     f"S3, NBSource, NA, OFF, {switch_frequency}, {1-duty_cycle}, 0.0",
     # "CS2, NBSource, NA, 9e-9",
 
-    "Rr, NA, Nrr, 0.01",
-    "Lr, Nrr, Nlr, 2e-6",
+    # "Rr, NA, Nrr, 0.01",
+    "Lr, NA, Nlr, 2e-6",
     "AMLr, Nlr, NlrAM",
     # "Rlr, Nrr, Nlr, 1e-6",
     "Cr, NlrAM, Ncr, 60e-9",
@@ -478,7 +478,7 @@ netList = [
     "AMD1, N3, N3AM",
     "VMD1, N3AM, ND1D2",
     "D1, N3AM, ND1D2, ON, VMD1, AMD1",
-    "CD1, N3AM, ND1D2, 6e-9",
+    "CD1, N3AM, ND1D2, 0.1e-9",
     # # "VMS1, N3, 0",
 
     
@@ -486,7 +486,7 @@ netList = [
     "AMD2, N4, N4AM",
     "VMD2, N4AM, ND1D2",
     "D2, N4AM, ND1D2, OFF, VMD2, AMD2",
-    "CD2, N4AM, ND1D2, 6e-9",
+    "CD2, N4AM, ND1D2, 0.1e-9",
     # # "VMS2, N4, 0",
   
     # "RINternal, ND1D2, nf, 0.0001",
@@ -522,7 +522,7 @@ switch_oversample_message = OversamplingMessage(message_manager=message_manager)
 
 # okay, now create each individual simulation modules
 
-iteration_frequency =  max(6e6, switch_frequency*30)
+iteration_frequency =  max(4.5e6, switch_frequency*30)
 state_space_module = StateSpaceSimulationModule(network_matrix=network_matrix, iteration_frequency= iteration_frequency) #TODO: change later
 oversample_module =SwitchOversampleModule( network_matrix=network_matrix, sample_frequency=iteration_frequency, oversample_message=switch_oversample_message)
 
