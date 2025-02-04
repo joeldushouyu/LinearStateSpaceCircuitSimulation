@@ -175,7 +175,55 @@ def HalfBridgeComparsion():
                       x_col3=x_col3, y_col3=y_col3,
                       title="VMS2"
                       )
-HalfBridgeComparsion()
+
+def FullBridgeComparsion():
+    csv_file1 = "full-bridge-llc.csv"
+    csv_file2 = "full-bridge-llc-plec.csv"
+    csv_file3 = "fullBridgeMatlab.csv"
+    
+    
+    x_col1 = 0
+    x_col2 = 0
+    x_col3 = 0
+    
+    y_col1 = 11
+    y_col2 = 1
+    y_col3 = 1
+    plot_csv_3columns(csv_file1=csv_file1, csv_file2=csv_file2, csv_file3=csv_file3,
+                      x_col1=x_col1, y_col1=y_col1,
+                      x_col2=x_col2, y_col2=y_col2,
+                      x_col3=x_col3, y_col3=y_col3,
+                      title="Vout"
+                      )
+    y_col1 = 8
+    y_col2 = 10
+    y_col3 = 3
+    plot_csv_3columns(csv_file1=csv_file1, csv_file2=csv_file2, csv_file3=csv_file3,
+                      x_col1=x_col1, y_col1=y_col1,
+                      x_col2=x_col2, y_col2=y_col2,
+                      x_col3=x_col3, y_col3=y_col3,
+                      title="VCr"
+                      )
+    y_col1 = 6
+    y_col2 = 12
+    y_col3 = 2
+    plot_csv_3columns(csv_file1=csv_file1, csv_file2=csv_file2, csv_file3=csv_file3,
+                      x_col1=x_col1, y_col1=y_col1,
+                      x_col2=x_col2, y_col2=y_col2,
+                      x_col3=x_col3, y_col3=y_col3,
+                      title="Io"
+                      )
+    y_col1 = 3
+    y_col2 = 11
+    y_col3 = 4
+    plot_csv_3columns(csv_file1=csv_file1, csv_file2=csv_file2, csv_file3=csv_file3,
+                      x_col1=x_col1, y_col1=y_col1,
+                      x_col2=x_col2, y_col2=y_col2,
+                      x_col3=x_col3, y_col3=y_col3,
+                      title="ILr"
+                      )
+# HalfBridgeComparsion()
+FullBridgeComparsion()
 
 # # # Example usage
 # csv_file1 = "Half-bridge-llc.csv"
