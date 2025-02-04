@@ -878,6 +878,9 @@ class StateSpaceSimulationModule(SimulationModule):
 
         non_impulse_val = np.matmul( self.C_SW ,self.get_x_cur_with_dep()) +  np.matmul( self.D_SW ,self.u)
         
+        
+        z_hat = np.matmul(self.Z_hat_SW_A, self.get_x_cur_with_dep()) + np.matmul(self.Z_hat_SW_B, self.u)
+        z_next = z_hat*(1/self.iteration_frequency) + non_impulse_val
         swapped_flag = False
     
     
@@ -890,10 +893,14 @@ class StateSpaceSimulationModule(SimulationModule):
   
             
             if volt_impulse > 0 or ( diode_state==False and volt_nonimpulse>0 ):
+                # if volt_impulse ==0 and z_next[diode_count] < 0:
+                #     continue
                 self.switch_state[i] = True
                 self.swap_col_and_update(volt_lab)
                 swapped_flag = True
             elif current_impulse <0 or (diode_state == True and current_nonimpulse < 0):
+                # if current_impulse == 0 and z_next[diode_count] > 0:
+                #     continue
                 self.switch_state[i] = False
                 self.swap_col_and_update(volt_lab)
                 swapped_flag = True
@@ -912,9 +919,9 @@ class StateSpaceSimulationModule(SimulationModule):
     def update_y_cur(self, use_impulse= False ):
         
         if  use_impulse:
-            self.y_cur =  np.matmul( self._C_iteration ,self.get_x_cur_no_dep()) +  np.matmul( self._D_iteration ,self.u)
+            self.y_cur =  np.matmul( self._C_iteration ,self.get_x_cur_with_dep()) +  np.matmul( self._D_iteration ,self.u)
         else:
-            self.y_cur =  np.matmul(self.C_non_impulse, self.get_x_cur_no_dep()) + np.matmul(self.D_non_impulse, self.u)
+            self.y_cur =  np.matmul(self.C_non_impulse, self.get_x_cur_with_dep()) + np.matmul(self.D_non_impulse, self.u)
 
     def get_x_hat(self,):
         return  np.matmul(self.A, self.get_x_cur_no_dep()) +np.matmul(self.B, self.u)
@@ -931,7 +938,7 @@ class StateSpaceSimulationModule(SimulationModule):
         # no need to get x_cur_with_dep
         # because the corresponding row of A of the depent x is all 0
         
-        x_before = self.get_x_cur_no_dep().copy()
+        x_before = self.get_x_cur_with_dep().copy()
         # if self.integration_strategy == "Trapezoidal":
         #x_t = trapezoidalIntegration( x_before, self._A_iteration, self._B_iteration, self.u, time_t=1/self.iteration_frequency ).copy()
         # else:
