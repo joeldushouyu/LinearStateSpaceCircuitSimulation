@@ -472,9 +472,10 @@ class StateSpaceSimulationModule(SimulationModule):
     #     print(f"***********using {self.integration_strategy} *****************")
         
         
-    def swap_col_and_update(self, label_to_Swap:str):
-        if label_to_Swap != "":
-            self.network_matrix.swap_M_matrix_columns(label_to_Swap)
+    def swap_col_and_update(self, label_to_Swap:list[str]):
+        if len(label_to_Swap) >0:
+            for lab in label_to_Swap:
+                self.network_matrix.swap_M_matrix_columns(lab)
         # do a cache
         
 
@@ -674,7 +675,7 @@ class StateSpaceSimulationModule(SimulationModule):
   
                 self.external_switch_index.append(ind)
                 
-        self.swap_col_and_update("")
+        self.swap_col_and_update([])
         self.M_size = self.M0.rank()
         
         self.choose_intergation_strategy()
@@ -878,13 +879,11 @@ class StateSpaceSimulationModule(SimulationModule):
 
         non_impulse_val = np.matmul( self.C_SW ,self.get_x_cur_with_dep()) +  np.matmul( self.D_SW ,self.u)
         
-        
-        z_hat = np.matmul(self.Z_hat_SW_A, self.get_x_cur_with_dep()) + np.matmul(self.Z_hat_SW_B, self.u)
-        z_next = z_hat*(1/self.iteration_frequency) + non_impulse_val
         swapped_flag = False
     
     
         diode_count = 0
+        
         for i in self.diode_index:
             volt_lab, I_lab = self.switch_index_label_map[i]
             diode_state = self.switch_state[i]
@@ -893,16 +892,12 @@ class StateSpaceSimulationModule(SimulationModule):
   
             
             if volt_impulse > 0 or ( diode_state==False and volt_nonimpulse>0 ):
-                # if volt_impulse ==0 and z_next[diode_count] < 0:
-                #     continue
                 self.switch_state[i] = True
-                self.swap_col_and_update(volt_lab)
+                self.swap_col_and_update([volt_lab])
                 swapped_flag = True
             elif current_impulse <0 or (diode_state == True and current_nonimpulse < 0):
-                # if current_impulse == 0 and z_next[diode_count] > 0:
-                #     continue
                 self.switch_state[i] = False
-                self.swap_col_and_update(volt_lab)
+                self.swap_col_and_update([volt_lab])
                 swapped_flag = True
 
             else:
@@ -923,14 +918,15 @@ class StateSpaceSimulationModule(SimulationModule):
         else:
             self.y_cur =  np.matmul(self.C_non_impulse, self.get_x_cur_with_dep()) + np.matmul(self.D_non_impulse, self.u)
 
-    def get_x_hat(self,):
-        return  np.matmul(self.A, self.get_x_cur_no_dep()) +np.matmul(self.B, self.u)
-    def get_x_cur_no_dep(self):
-        return self.__x_cur_ind
+    # def get_x_hat(self,):
+    #     return  np.matmul(self.A, self.get_x_cur_no_dep()) +np.matmul(self.B, self.u)
+    # def get_x_cur_no_dep(self):
+    #     return self.__x_cur_ind
     
 
     def get_x_cur_with_dep(self):
-        return (self._A_dependent@ self.get_x_cur_no_dep() + self._B_dependent@self.u)
+        return (self._A_dependent@  self.__x_cur_ind + self._B_dependent@self.u)
+        return self.__x_cur_ind.copy()
 
 
 
@@ -960,25 +956,17 @@ class StateSpaceSimulationModule(SimulationModule):
 
         # # for now, assume only one switch change in one time period
         switch_triggere_labels = []
+        
+        list_to_swap = []
         for i in range(len(self.switch_triggered)):
-
-
             if self.switch_triggered[i] :
-                # assert self.switch_triggered[0] is True
-                # assert self.switch_triggered[1] is True
                 sw_volt_lab, sw_I_lab = self.switch_index_label_map[i]
                 if self.switch_state[i]:
-                    self.swap_col_and_update(sw_volt_lab)
-                    
-                    # debug
-                    new_ind = self.network_matrix.m_column_labels.index(sw_I_lab)
-                    assert new_ind <= self.network_matrix.redundant_size + self.network_matrix.s_labels_size
-                    
+                    list_to_swap.append(sw_volt_lab)
                 else:
-                    self.swap_col_and_update(sw_I_lab)
-                    new_ind = self.network_matrix.m_column_labels.index(sw_volt_lab)
-                    assert new_ind <= self.network_matrix.redundant_size + self.network_matrix.s_labels_size
+                    list_to_swap.append(sw_I_lab)
                 switch_triggere_labels.append(sw_volt_lab)
+        self.swap_col_and_update(list_to_swap)
 
         self.update_internal_switch_response(switch_trigger_labels=switch_triggere_labels, x_cur_before_t0=x_before_t0)
 

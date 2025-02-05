@@ -222,8 +222,8 @@ def FullBridgeComparsion():
                       x_col3=x_col3, y_col3=y_col3,
                       title="ILr"
                       )
-# HalfBridgeComparsion()
-FullBridgeComparsion()
+HalfBridgeComparsion()
+# FullBridgeComparsion()
 
 # # # Example usage
 # csv_file1 = "Half-bridge-llc.csv"

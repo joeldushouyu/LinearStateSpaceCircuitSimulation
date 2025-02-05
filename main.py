@@ -294,159 +294,159 @@ netList = [
 
 
 
-# # full-wave rectifier circuit
-switch_frequency = 1000
-end_sim_t = 0.005
+# # # full-wave rectifier circuit
+# switch_frequency = 1000
+# end_sim_t = 0.005
 
-netList = [
+# netList = [
     
-    "Vin, N1, N1_neg, 20, 1000",
-    "AM1-source, N1, Nt",
-    "Rt, Nt, N2, 0.01",
-    "D1, N2, NAMD1, ON, VMD1, AMD1",
-    "VMD1, N2, NAMD1",
-    "AMD1, NAMD1, N3",
+#     "Vin, N1, N1_neg, 20, 1000",
+#     "AM1-source, N1, Nt",
+#     "Rt, Nt, N2, 0.01",
+#     "D1, N2, NAMD1, ON, VMD1, AMD1",
+#     "VMD1, N2, NAMD1",
+#     "AMD1, NAMD1, N3",
     
-    "D4, N1_neg, NAMD4, OFF, VMD4, AMD4",
-    "AMD4, NAMD4, N3",
-    "VMD4, N1_neg, NAMD4 ",
+#     "D4, N1_neg, NAMD4, OFF, VMD4, AMD4",
+#     "AMD4, NAMD4, N3",
+#     "VMD4, N1_neg, NAMD4 ",
     
-    "D3, 0, NAMD3, OFF, VMD3, AMD3",
-    "VMD3, 0, NAMD3",
-    "AMD3, NAMD3, N2",
+#     "D3, 0, NAMD3, OFF, VMD3, AMD3",
+#     "VMD3, 0, NAMD3",
+#     "AMD3, NAMD3, N2",
     
-    "D2, 0, NAMD2, ON, VMD2, AMD2",
-    "AMD2, NAMD2, N1_neg",
-    "VMD2, 0, NAMD2 ",
+#     "D2, 0, NAMD2, ON, VMD2, AMD2",
+#     "AMD2, NAMD2, N1_neg",
+#     "VMD2, 0, NAMD2 ",
     
-    "R1, N3, 0, 100",
-    "C1, N3, 0, 10e-6",
-    "VM1-C1, N3, 0",
-    # "VM2-Rt, Nt, N2",
-]
+#     "R1, N3, 0, 100",
+#     "C1, N3, 0, 10e-6",
+#     "VM1-C1, N3, 0",
+#     # "VM2-Rt, Nt, N2",
+# ]
 
 
 
-# the system modelin is unstable, require x250 iteration. Thus do some simplification
+# # the system modelin is unstable, require x250 iteration. Thus do some simplification
+# # end_sim_t  = 1e-3
+# # switch_frequency = 100e3
+# # duty_cycle = 0.5
+# # # Full bridge LLc circuit
+# # netList = [
+# #     f"Vin, NSource, 0, 600, 0",
+# #     f"S1, NSource, NA, ON, {switch_frequency}, {duty_cycle}, 0.0",
+# #     f"S2, NSource, NB, OFF, {switch_frequency}, {1-duty_cycle}, 0.0",
+# #     f"S3, NA, 0, OFF, {switch_frequency}, {1-duty_cycle}, 0.0",
+# #     f"S4, NB, 0, ON, {switch_frequency}, {duty_cycle}, 0.0",
+
+# #     "Rr, NA, Nrr, 0.01",
+# #     "Lr, Nrr, Nlr, 2e-6",
+# #     # "Rlr, Nrr, Nlr, 1e-6",
+# #     "Cr, Nlr, Ncr, 60e-9",
+# #     "Lm, Ncr, NB, 100e-6",
+
+# #     # "VMout, Ncr, 0"
+
+# #     "Lp, Ncr, NB, 400e-6, [Ls], [0.99]",
+# #     "RLP, Ncr, NB, 1e7",
+    
+    
+# #     "Ls, NSA, NSB, 1e-6, [Lp], [0.99]",
+
+# #     "D1, ND1AM, ND1D2, OFF, VMD1, AMD1",
+# #     "AMD1, NSA, ND1AM",
+# #     "VMD1, ND1AM, ND1D2",
+
+
+    
+# #     "D2, ND2AM, ND1D2, OFF, VMD2, AMD2",
+# #     "AMD2, NSB, ND2AM",
+# #     "VMD2, ND2AM, ND1D2",
+
+    
+# #     "D3, ND3AM, NSA, OFF, VMD3, AMD3",
+# #     "AMD3, 0, ND3AM",
+# #     "VMD3, ND3AM, NSA",
+
+
+    
+# #     "D4, ND4AM, NSB, OFF, VMD4, AMD4",
+# #     "AMD4, 0, ND4AM",
+# #     "VMD4, ND4AM, NSB",
+
+  
+# #     # "RINternal, ND1D2, nf, 0.0001",
+# #     "C1, ND1D2, 0, 1e-3",
+# #     "R1, ND1D2, 0, 0.25",
+# #     "VMout, ND1D2, 0"
+
+# # ]
+
+
+
+
+# # another simplification here
+
+
 # end_sim_t  = 1e-3
 # switch_frequency = 100e3
 # duty_cycle = 0.5
 # # Full bridge LLc circuit
 # netList = [
-#     f"Vin, NSource, 0, 600, 0",
+#     f"Vin, NVIN, 0, 600, 0",
+
+    
+#     # for idea transformer of turning ration 1:1:1
+#     "VMLp, NVIN, 0",
+#     "ICIS-1, 0, NVIN, -1, AMS1",  # note, negative because of how we measure the current
+#     "ICIS-2, 0, NVIN, 1, AMS2",
+    
+    
+#     "VCVS-1, NA-AM, 0, 1, VMLp",
+#     "AMS1, NA-AM, NSource",
 #     f"S1, NSource, NA, ON, {switch_frequency}, {duty_cycle}, 0.0",
-#     f"S2, NSource, NB, OFF, {switch_frequency}, {1-duty_cycle}, 0.0",
-#     f"S3, NA, 0, OFF, {switch_frequency}, {1-duty_cycle}, 0.0",
-#     f"S4, NB, 0, ON, {switch_frequency}, {duty_cycle}, 0.0",
+
+
+#     "VCVS-2, 0, NA-BM, 1, VMLp",
+#     "AMS2, NA-BM, NBSource",
+#     f"S3, NBSource, NA, OFF, {switch_frequency}, {duty_cycle}, 0.0",
+
 
 #     "Rr, NA, Nrr, 0.01",
 #     "Lr, Nrr, Nlr, 2e-6",
-#     # "Rlr, Nrr, Nlr, 1e-6",
-#     "Cr, Nlr, Ncr, 60e-9",
-#     "Lm, Ncr, NB, 100e-6",
-
-#     # "VMout, Ncr, 0"
-
-#     "Lp, Ncr, NB, 400e-6, [Ls], [0.99]",
-#     "RLP, Ncr, NB, 1e7",
-    
-    
-#     "Ls, NSA, NSB, 1e-6, [Lp], [0.99]",
-
-#     "D1, ND1AM, ND1D2, OFF, VMD1, AMD1",
-#     "AMD1, NSA, ND1AM",
-#     "VMD1, ND1AM, ND1D2",
-
+#     "AMLr, Nlr, NlrAM",
+#     "Cr, NlrAM, Ncr, 60e-9",
+#     "VMCr, NlrAM, Ncr",
+#     "Lm, Ncr, 0, 100e-6",
 
     
-#     "D2, ND2AM, ND1D2, OFF, VMD2, AMD2",
-#     "AMD2, NSB, ND2AM",
-#     "VMD2, ND2AM, ND1D2",
+#     "LS0, Ncr, 0, 400e-6, [LS1, LS2], [0.99, 0.99]",
+    
+#     "LS1, N3, 0, 1e-6, [LS0, LS2], [0.99, 0.99]",
+#     "AMD1, N3, N3AM",
+#     "VMD1, N3AM, ND1D2",
+#     "D1, N3AM, ND1D2, OFF, VMD1, AMD1",
+#     "CD1, N3AM, ND1D2, 0.1e-12",
+#     # "RCD1, N3AM, ND1D2, 100e6",
+#     # # "VMS1, N3, 0",
 
     
-#     "D3, ND3AM, NSA, OFF, VMD3, AMD3",
-#     "AMD3, 0, ND3AM",
-#     "VMD3, ND3AM, NSA",
-
-
-    
-#     "D4, ND4AM, NSB, OFF, VMD4, AMD4",
-#     "AMD4, 0, ND4AM",
-#     "VMD4, ND4AM, NSB",
-
+#     "LS2, 0, N4, 1e-6, [LS0, LS1], [0.99, 0.99]",
+#     "AMD2, N4, N4AM",
+#     "VMD2, N4AM, ND1D2",
+#     "D2, N4AM, ND1D2, OFF, VMD2, AMD2",
+#     "CD2, N4AM, ND1D2, 0.1e-12",
+#     # "RCD2, N4AM, ND1D2, 100e6",
+#     # # "VMS2, N4, 0",
   
 #     # "RINternal, ND1D2, nf, 0.0001",
+
 #     "C1, ND1D2, 0, 1e-3",
-#     "R1, ND1D2, 0, 0.25",
-#     "VMout, ND1D2, 0"
+#     "AMOut, ND1D2, Nout",
+#     "R1, Nout, 0, 0.25",
+#     "VMout, Nout, 0"
 
 # ]
-
-
-
-
-# another simplification here
-
-
-end_sim_t  = 1e-3
-switch_frequency = 100e3
-duty_cycle = 0.5
-# Full bridge LLc circuit
-netList = [
-    f"Vin, NVIN, 0, 600, 0",
-
-    
-    # for idea transformer of turning ration 1:1:1
-    "VMLp, NVIN, 0",
-    "ICIS-1, 0, NVIN, -1, AMS1",  # note, negative because of how we measure the current
-    "ICIS-2, 0, NVIN, 1, AMS2",
-    
-    
-    "VCVS-1, NA-AM, 0, 1, VMLp",
-    "AMS1, NA-AM, NSource",
-    f"S1, NSource, NA, ON, {switch_frequency}, {duty_cycle}, 0.0",
-
-
-    "VCVS-2, 0, NA-BM, 1, VMLp",
-    "AMS2, NA-BM, NBSource",
-    f"S3, NBSource, NA, OFF, {switch_frequency}, {duty_cycle}, 0.0",
-
-
-    "Rr, NA, Nrr, 0.01",
-    "Lr, Nrr, Nlr, 2e-6",
-    "AMLr, Nlr, NlrAM",
-    "Cr, NlrAM, Ncr, 60e-9",
-    "VMCr, NlrAM, Ncr",
-    "Lm, Ncr, 0, 100e-6",
-
-    
-    "LS0, Ncr, 0, 400e-6, [LS1, LS2], [0.99, 0.99]",
-    
-    "LS1, N3, 0, 1e-6, [LS0, LS2], [0.99, 0.99]",
-    "AMD1, N3, N3AM",
-    "VMD1, N3AM, ND1D2",
-    "D1, N3AM, ND1D2, OFF, VMD1, AMD1",
-    "CD1, N3AM, ND1D2, 0.1e-12",
-    # "RCD1, N3AM, ND1D2, 100e6",
-    # # "VMS1, N3, 0",
-
-    
-    "LS2, 0, N4, 1e-6, [LS0, LS1], [0.99, 0.99]",
-    "AMD2, N4, N4AM",
-    "VMD2, N4AM, ND1D2",
-    "D2, N4AM, ND1D2, OFF, VMD2, AMD2",
-    "CD2, N4AM, ND1D2, 0.1e-12",
-    # "RCD2, N4AM, ND1D2, 100e6",
-    # # "VMS2, N4, 0",
-  
-    # "RINternal, ND1D2, nf, 0.0001",
-
-    "C1, ND1D2, 0, 1e-3",
-    "AMOut, ND1D2, Nout",
-    "R1, Nout, 0, 0.25",
-    "VMout, Nout, 0"
-
-]
 
 
 network_matrix = system_realization(netList,supress)
@@ -527,5 +527,5 @@ system_clock_module.start_simuation(end_sim_t)
 
 
 # state_space_module.plot_switch_graph()
-state_space_module.plot_output_graph(outputfile_name= "full-bridge-llc.csv" )
+state_space_module.plot_output_graph(outputfile_name= "Half-bridge-llc.csv" )
 
