@@ -162,43 +162,6 @@ class SwitchSimulationModule(SimulationModule):
         self.switch_message = switch_message
         self.message_level_dependent = 1
         
-    # def pwm_at_time_t(self, time_t) -> bool:
-    #     period = 1 / self.switch.switch_frequency  # Period of the PWM signal
-    #     time_in_period =  math.fmod( time_t , period)  # Time within the current PWM period
-    #     high_duration = (
-    #         self.switch.duty_cycle * period
-    #     )  # Duration of the "high" state in one period
-
-    #     val =  time_in_period < high_duration
-    #     if self.switch.pwm_value_at_each_new_cycle:
-    #         return val
-    #     else:
-    #         return not val
-    # def pwm_at_time_t(self, time_t, delay: float = 0.0) -> bool:
-    #     """
-    #     Calculate the PWM signal state at a given time, with an optional delay.
-
-    #     :param time_t: The time at which to evaluate the PWM signal.
-    #     :param delay: The delay to apply to the PWM signal (default is 0.0).
-    #     :return: True if the PWM signal is high at time_t, False otherwise.
-    #     """
-    #     period = 1 / self.switch.switch_frequency  # Period of the PWM signal
-    #     time_with_delay = time_t - delay  # Apply the delay to the input time
-
-    #     # Handle negative time_with_delay by wrapping it into the PWM period
-    #     if time_with_delay < 0:
-    #         time_with_delay = 0
-
-    #     time_in_period = math.fmod(time_with_delay, period)  # Time within the current PWM period
-    #     high_duration = (
-    #         self.switch.duty_cycle * period
-    #     )  # Duration of the "high" state in one period
-
-    #     val = time_in_period < high_duration
-    #     if self.switch.pwm_value_at_each_new_cycle:
-    #         return val
-    #     else:
-    #         return not val
     def pwm_at_time_t(self, time_t, delay=0) -> bool:
         period = 1 / self.switch.switch_frequency  # Period of the PWM signal
         adjusted_time = time_t - delay  # Apply the delay
@@ -243,13 +206,8 @@ class SwitchOversampleModule(SimulationModule):
 
         # dictionary of both current/voltage label of switch to a list[] contain the switch states
         
-        
         self.switch_state_dict: dict[str,int] = {}  # switch_voltage_label map to index in array
         self.switch_states_receive:list[bool | None] = [None] * len(self.network_matrix.external_switch_labels)
-        # self.switch_state_send:list[bool|None] = [None] * len(self.network_matrix.external_switch_labels)
-        
-        # need to have two list of switch state. Because it is not possible to have signal reflected
-        # instantly at the rise edge 
         
         for i in range(len(self.network_matrix.external_switch_labels)):
             s_lab = self.network_matrix.s_labels[i]
@@ -437,40 +395,7 @@ class StateSpaceSimulationModule(SimulationModule):
         self.integration_strategy= "Trapezoidal"
         print("Eigenvalues:", eigenvalues)
         print("Stiffness:", stiffness)
-        # if min( min_eig, max_eig  )  <= -2:
-        # self.integration_strategy = "BackwardEuler"
-        # else:
-        #self.integration_strategy = "Trapezoidal"
-            
-        print(f"***********using {self.integration_strategy} *****************")
-    # def choose_intergation_strategy(self):
-    #     # numerical oscillation (not system oscillation) will always occur for any real eigenvalue < 0
-        
-    #     # use trapezoidal  by default
-    #     # use backward euler if real eigenvalue < -2 
-    #     temp = self.A.subs(self.network_matrix.symbolic_to_value_map)
-    #     eigen_value_dict = temp.eigenvals()
-        
 
-    #     min_eig = min(  [  sp.re(x.subs(self.network_matrix.symbolic_to_value_map))  * (1/self.iteration_frequency) for x  in eigen_value_dict.keys()])
-    #     max_eig =  max(  [  sp.re(x.subs(self.network_matrix.symbolic_to_value_map))  * (1/self.iteration_frequency) for x  in eigen_value_dict.keys()])
-        
-    #     max_abs = max([  abs(sp.re(x.subs(self.network_matrix.symbolic_to_value_map))  * (1/self.iteration_frequency)) for x  in eigen_value_dict.keys()])
-    #     min_abs = min([  abs(sp.re(x.subs(self.network_matrix.symbolic_to_value_map))  * (1/self.iteration_frequency)) for x  in eigen_value_dict.keys()])
-        
-    #     if min_abs == 0 or  max_abs/min_abs > 1000:
-    #     #     # means stiff system encounter
-    #     #     # ration equation: https://en.wikipedia.org/wiki/Stiff_equation
-    #     #     # stiffness ratio is negotiable to change
-    #         print("System is very stiff")
-    #     print(f"Max  eig, min eig {max_eig} {min_eig}")
-    #     if min_eig <= -2:
-    #         self.integration_strategy = "BackwardEuler"
-    #     else:
-    #         self.integration_strategy = "Trapezoidal"
-            
-    #     print(f"***********using {self.integration_strategy} *****************")
-        
         
     def swap_col_and_update(self, label_to_Swap:list[str]):
         if len(label_to_Swap) >0:
@@ -505,7 +430,6 @@ class StateSpaceSimulationModule(SimulationModule):
             
             
             # filter out inconsistent labels from y _labels
-            # y_labels_filter = [x for x in self.network_matrix.y_labels if x not in self.network_inconsistent_labels]
             M0_final, A_final, B_final, C_final, D_final, A_dependent_final, B_dependent_final, \
                 self.C_impulse, self.C_non_impulse, self.D_impulse, self.D_non_impulse= update_system_matrix_to_reflect_dependency(
                 M0=self.M0.copy(),
@@ -859,24 +783,10 @@ class StateSpaceSimulationModule(SimulationModule):
     def update_internal_switch_response(self, switch_trigger_labels:list[str], x_cur_before_t0:np.ndarray):
         
         
-        # if len(self.forced_switch_mapping) > 0 and len(switch_trigger_labels) > 0:
-        #     for label in switch_trigger_labels:
-        #         switch_ele = self.network_matrix.m_column_labels_to_obj_map[label]
-        #         list_of_diodes = self.forced_switch_mapping[switch_ele]
-                
-        #         for diode in list_of_diodes:
-        #             diode_index = self.switch_label_index_map[diode.element_current_name]
-        #             self.switch_state[diode_index] = not self.switch_state[diode_index]
-        #             self.swap_col_and_update(diode.element_voltage_name)
 
-        
         # now, check for any impulse switch or soft switch
         
-        # impulse_output = np.matmul(self.C1, (self.get_x_cur_with_dep() - x_cur_before_t0)) 
         impulse_val = np.matmul(self.C1_SW, (self.get_x_cur_with_dep() - x_cur_before_t0))
-
-        # non_impulse  = np.matmul( self._C_iteration ,self.get_x_cur_with_dep()) +  np.matmul( self._D_iteration ,self.u)
-
         non_impulse_val = np.matmul( self.C_SW ,self.get_x_cur_with_dep()) +  np.matmul( self.D_SW ,self.u)
         
         swapped_flag = False
@@ -926,7 +836,6 @@ class StateSpaceSimulationModule(SimulationModule):
 
     def get_x_cur_with_dep(self):
         return (self._A_dependent@  self.__x_cur_ind + self._B_dependent@self.u)
-        return self.__x_cur_ind.copy()
 
 
 
