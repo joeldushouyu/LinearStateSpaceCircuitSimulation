@@ -16,6 +16,15 @@ from scipy.optimize import linear_sum_assignment
 
 
 
+def int_to_binary_list(n, length):
+    # Convert the integer to a binary string with the specified length
+    binary_str = format(n, f'0{length}b')
+    
+    # Convert the binary string to a list of booleans
+    bool_list = [bit == '1' for bit in binary_str]
+    int_list = [  0 if (not state) else 1 for state in bool_list ]
+    return bool_list, int_list
+
 def create_cost_map(assignment_dict:dict[int:list[int]]):
     """Creates a cost matrix based on allowed assignments between people and items.
 
@@ -745,6 +754,9 @@ def update_system_matrix_to_reflect_dependency(M0: Matrix,
         M0_I=M0, A_raw=A, m_pivots=m_pivots, x_hat_labels=x_hat_labels, x_hat_col_offset_in_m_pivots=x_hat_col_offset_in_m_pivots,
         u_labels=u_labels, y_labels=independent_y_labels
     )
+                
+    independent_state_labels_list = [  x for x in independent_state_row_col_map.keys()]
+    dependent_state_labels_list = [x for x in dependent_state_row_col_map.keys()]                
     M0_temp= reogranize_matrix_by_row_col_mapping(M0, sys_A_row_idx_map, sys_A_col_idx_map, ind_dep_A_row_idx_map, ind_dep_A_col_idx_map)
     A_temp = reogranize_matrix_by_row_col_mapping(A, sys_A_row_idx_map, sys_A_col_idx_map, ind_dep_A_row_idx_map, ind_dep_A_col_idx_map )
     B_temp = reogranize_matrix_by_row_col_mapping(B,  sys_B_row_idx_map, sys_B_col_idx_map, ind_dep_B_row_idx_map, ind_dep_B_col_idx_map)
@@ -826,7 +838,9 @@ def update_system_matrix_to_reflect_dependency(M0: Matrix,
     else:
         assert_matrix_equal(Q, sp.eye(len(y_labels))) # assert Q to be a identity matrix
     
-    return M0_final, A_final, B_final, C_final, D_final, A_dependent_final, B_dependent_final, C_impulse, C_non_impulse, D_impulse, D_non_impulse
+    
+
+    return M0_final, A_final, B_final, C_final, D_final, A_dependent_final, B_dependent_final, C_impulse, C_non_impulse, D_impulse, D_non_impulse,independent_state_labels_list, dependent_state_labels_list
 
 
 def retrieveSystemMatrix(

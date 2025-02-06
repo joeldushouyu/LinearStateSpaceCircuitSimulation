@@ -33,7 +33,7 @@ end_sim_t = 0.002
 switch_frequency = 50e3
 netList = [
     "Vin, N1, 0, 6, 0",
-    f"S1, N2, 0, ON, {switch_frequency}, 0.6",  
+    f"S1, N2, 0, ON, {switch_frequency}, 0.6, 0.0",  
     "L1, N1, N4, 150e-6",
     "D1, N2, NAMD1, OFF, VMD1, AMD1",
     "AMD1, NAMD1, N3",

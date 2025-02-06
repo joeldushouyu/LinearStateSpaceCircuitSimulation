@@ -156,38 +156,38 @@ class NetworkMatrix:
     def print_M_matrix(self ):
         print_matrix(self.M, self.m_column_labels, ["" for x in range(self.M.shape[0])])
         
-    @cached_property
+    @property
     def external_switch_labels(self):
         return [     lab for lab in self.s_labels if isinstance(self.m_column_labels_to_obj_map[lab], ExternalSwitch)      ]
-    @cached_property
+    @property
     def s_labels(self):
         
 
         return self.m_column_labels[ self.redundant_size : self.s_labels_size + self.redundant_size]
 
-    @cached_property
+    @property
     def y_labels(self):
         offset = self.redundant_size + self.s_labels_size
         return self.m_column_labels[offset: offset+ self.y_label_size]
 
-    @cached_property
+    @property
     def x_hat_labels(self):
         offset = self.redundant_size+ self.s_labels_size+ self.y_label_size
         return self.m_column_labels[offset: offset+ self.x_hat_label_size]
-    @cached_property
+    @property
     def x_labels(self):
         offset = self.redundant_size+self.s_labels_size+ self.y_label_size + self.x_hat_label_size
         return self.m_column_labels[offset: offset + self.x_label_size]
-    @cached_property
+    @property
     def s_zero_labels(self):
         offset = self.redundant_size + self.s_labels_size+ self.y_label_size + self.x_hat_label_size + self.x_label_size
         return self.m_column_labels[offset: offset+  self.s_zero_label_size]
-    @cached_property
+    @property
     def y_zero_labels(self):
         offset = self.redundant_size + self.s_labels_size+ self.y_label_size + self.x_hat_label_size + self.x_label_size + self.s_zero_label_size
         
         return self.m_column_labels[offset: offset + self.y_zero_label_size]
-    @cached_property
+    @property
     def u_labels(self):
         offset = self.redundant_size + self.s_labels_size+ self.y_label_size + self.x_hat_label_size + self.x_label_size + self.s_zero_label_size + self.y_zero_label_size
         return self.m_column_labels[offset: ]
