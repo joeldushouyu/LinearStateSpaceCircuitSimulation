@@ -929,20 +929,40 @@ class StateSpaceSimulationModule(SimulationModule):
         df = pd.DataFrame(combined_array, columns=y_output_column_names)
         df.to_csv(outputfile_name, index=False)
 
+    def get_x_hat(self,):
+        return  np.matmul(self.A, self.get_x_cur_with_dep()) +np.matmul(self.B, self.u)
+    def handle_external_switch(self, x_cur_before_t0 ):
+        
+        switch_triggere_labels = []
+        
+        list_to_swap = []
+        for i in range(len(self.switch_triggered)):
+            if self.switch_triggered[i] :
+                sw_volt_lab, sw_I_lab = self.switch_index_label_map[i]
+                if self.switch_state[i]:
+                    list_to_swap.append(sw_volt_lab)
+                else:
+                    list_to_swap.append(sw_I_lab)
+                switch_triggere_labels.append(sw_volt_lab)  
+        if len(list_to_swap) > 0:
+            self.swap_col_and_update(list_to_swap)
+            self.update_x_cur_with_dep()
+        
+        # impulse response of internal diode
+        impulse_val = np.matmul(self.C1_SW, (self.get_x_cur_with_dep()- x_cur_before_t0))
+        return len(switch_triggere_labels) , impulse_val
 
-    def update_internal_switch_response(self, switch_trigger_labels:list[str], x_cur_before_t0:np.ndarray,
-                                        impulse_C, non_impulse_C, non_impulse_D
+    def handle_diode_soft_switch(self,non_impulse_C, non_impulse_D, x_for_update):
+        non_impulse_val = np.matmul( non_impulse_C ,x_for_update) +  np.matmul( non_impulse_D ,self.u)
+        return non_impulse_val
+    
+    
+    
+    def update_both_impulse_non_impulse(self, impulse_val, non_impulse_val
                                         ):
         
-        
+    
 
-        # now, check for any impulse switch or soft switch
-        
-        # impulse_val = np.matmul(self.C1_SW, (self.get_x_cur_with_dep() - x_cur_before_t0))
-        # non_impulse_val = np.matmul( self.C_SW ,self.get_x_cur_with_dep()) +  np.matmul( self.D_SW ,self.u)
-        
-        impulse_val = np.matmul(impulse_C, (self.get_x_cur_with_dep()- x_cur_before_t0))
-        non_impulse_val = np.matmul( non_impulse_C ,self.get_x_cur_with_dep()) +  np.matmul( non_impulse_D ,self.u)
         swapped_flag = False
     
     
@@ -970,20 +990,23 @@ class StateSpaceSimulationModule(SimulationModule):
         
         if len(labels_to_swap) > 0:
             self.swap_col_and_update(labels_to_swap)
-            self.update_x_cur_with_dep() #TODO: necessary?
+            # self.update_x_cur_with_dep() #TODO: could also do it everytime
             swapped_flag = True
+            self.update_x_cur_with_dep()
+            
+        return swapped_flag
 
-        impulse_occur =  (len(switch_trigger_labels) > 0) or (not swapped_flag)
-        self.M_size =  self.M0.rank()
+        # impulse_occur =  (len(switch_trigger_labels) > 0) or (not swapped_flag)
+        # self.M_size =  self.M0.rank()
 
-        self.update_y_cur(  impulse_occur)
+        # self.update_y_cur(  impulse_occur)
 
-    def update_y_cur(self, use_impulse= False ):
+    def update_y_cur(self, C_impulse_iteration, D_impulse_iteration, C_non_impulse_iteration, D_non_impulse_iteration, x_for_update, use_impulse= False ):
         
         if  use_impulse:
-            self.y_cur =  np.matmul( self._C_iteration ,self.get_x_cur_with_dep()) +  np.matmul( self._D_iteration ,self.u)
+            self.y_cur =  np.matmul( C_impulse_iteration ,x_for_update) +  np.matmul( D_impulse_iteration ,self.u)
         else:
-            self.y_cur =  np.matmul(self.C_non_impulse, self.get_x_cur_with_dep()) + np.matmul(self.D_non_impulse, self.u)
+            self.y_cur =  np.matmul(C_non_impulse_iteration, x_for_update) + np.matmul(D_non_impulse_iteration, self.u)
 
 
 
@@ -1021,35 +1044,61 @@ class StateSpaceSimulationModule(SimulationModule):
 
         x_before_t0 = self.get_x_cur_with_dep().copy()
  
+        C_impulse_iteration = self._C_iteration.copy()
+        D_impulse_iteration = self._D_iteration.copy()
+        C_non_impulse_iteration = self.C_non_impulse.copy()
+        D_non_impulse_iteration  = self.D_non_impulse.copy()
         
         self.iterative_x()
         self.update_x_cur_with_dep()
-        switch_triggere_labels = []
+        # switch_triggere_labels = []
         
-        list_to_swap = []
-        for i in range(len(self.switch_triggered)):
-            if self.switch_triggered[i] :
-                sw_volt_lab, sw_I_lab = self.switch_index_label_map[i]
-                if self.switch_state[i]:
-                    list_to_swap.append(sw_volt_lab)
-                else:
-                    list_to_swap.append(sw_I_lab)
-                switch_triggere_labels.append(sw_volt_lab)  
-        if len(list_to_swap) > 0:
-            self.swap_col_and_update(list_to_swap)
+        # non_impulse_C = self.C_SW.copy()
+        # non_impulse_D = self.D_SW.copy() 
+        
+        #TODO: predict C1_SW?
+        switch_change_occur, impulse_value = self.handle_external_switch(x_cur_before_t0=x_before_t0)
+        non_impulse_C = self.C_SW.copy() #buck example does not allow it to be 
+        non_impulse_D = self.D_SW.copy() 
+        
+        non_impulse_value = self.handle_diode_soft_switch(non_impulse_C=non_impulse_C, non_impulse_D=non_impulse_D, x_for_update=self.get_x_cur_with_dep()) # Halfbridge llc demo
+        
+        
+        
+        diode_change_occur = self.update_both_impulse_non_impulse(impulse_val=impulse_value, non_impulse_val=non_impulse_value)
+        
+
+        
+        # if diode_change_occur or switch_change_occur:
+        #     self.update_x_cur_with_dep()
+        
+        
+        # self.update_x_cur_with_dep()
+        # C_impulse_iteration = self._C_iteration.copy()
+        # D_impulse_iteration = self._D_iteration.copy()
+        # C_non_impulse_iteration = self.C_non_impulse.copy()
+        # D_non_impulse_iteration  = self.D_non_impulse.copy()
+        # the output part
+        if switch_change_occur or not diode_change_occur:
+            # impulse version with switch, or with no diode change
+            self.update_y_cur(use_impulse=True, C_impulse_iteration=C_impulse_iteration, D_impulse_iteration=D_impulse_iteration,
+                              C_non_impulse_iteration=C_non_impulse_iteration, D_non_impulse_iteration=D_non_impulse_iteration, x_for_update=x_before_t0
+                              )
+        else:
+            self.update_y_cur(use_impulse=False, C_impulse_iteration=C_impulse_iteration, D_impulse_iteration=D_impulse_iteration,
+                              C_non_impulse_iteration=C_non_impulse_iteration, D_non_impulse_iteration=D_non_impulse_iteration, x_for_update=x_before_t0
+                              )
             
-            
-    
-        impulse_C = self.C1_SW
-        non_impulse_C = self.C_SW
-        non_impulse_D = self.D_SW  
-        self.update_internal_switch_response(switch_trigger_labels=switch_triggere_labels, 
-                                             x_cur_before_t0=x_before_t0,
-                                             impulse_C=impulse_C,
-                                             non_impulse_C=non_impulse_C,
-                                             non_impulse_D=non_impulse_D
+            # self.y_cur += np.matmul(self.C_impulse,  self.get_x_cur_with_dep(), dtype=np.float64)
+        
+
+        # self.update_both_impulse_non_impulse(switch_trigger_labels=switch_triggere_labels, 
+        #                                      x_cur_before_t0=x_before_t0,
+        #                                      impulse_C=impulse_C,
+        #                                      non_impulse_C=non_impulse_C,
+        #                                      non_impulse_D=non_impulse_D
                                              
-                                             )
+        #                                      )
 
         self.time_t.append(self.cur_system_time)
         cur_switch_state =[]

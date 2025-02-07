@@ -52,7 +52,7 @@ netList = [
     
     "Vin, N1, 0, 12, 0",
     "Rin, N1, N1r, 0.001",
-    f"S1, N1r, N2-AM, ON, {switch_frequency}, 0.5, 0.0", 
+    f"S1, N1r, N2-AM, ON, {switch_frequency}, 0.8, 0.0", 
     "L1, N2, NA, 125e-06",
     "D1, 0, NAMD1, OFF, VMD1, AMD1",
     "VMD1, 0, NAMD1",
@@ -68,184 +68,184 @@ netList = [
 
 
 
-# RC filter demo
-# demonstrate if Resistor in cotree-nonport case
-switch_frequency = 120
-end_sim_t = 0.1
-netList = [
-    f"Vin, N1, 0, 10, {switch_frequency}",
-    "R1, N1, N2, 10",
-    "C1, N2, 0, 100e-6",
-    "AM1, N2, N2-R",
-    "R2, N2-R, 0, 1e3",
-    "VM1, N2, 0",
+# # RC filter demo
+# # demonstrate if Resistor in cotree-nonport case
+# switch_frequency = 120
+# end_sim_t = 0.1
+# netList = [
+#     f"Vin, N1, 0, 10, {switch_frequency}",
+#     "R1, N1, N2, 10",
+#     "C1, N2, 0, 100e-6",
+#     "AM1, N2, N2-R",
+#     "R2, N2-R, 0, 1e3",
+#     "VM1, N2, 0",
     
-]
+# ]
 
 
-# # # # # full-wave rectifier circuit
-# # # switch_frequency = 1000
-# # # end_sim_t = 0.005
-# # # netList = [
+# # # # # # # full-wave rectifier circuit
+# # # # # switch_frequency = 1000
+# # # # # end_sim_t = 0.005
+# # # # # netList = [
     
-# # #     "Vin, N1, N4, 100, 1000",
-# # #     "L1, N1, N5, 125e-6",
+# # # # #     "Vin, N1, N4, 100, 1000",
+# # # # #     "L1, N1, N5, 125e-6",
 
-# # #     "D1, N2, N3, ON",
-# # #     "D2, 0, N4, ON",
-# # #     "D3, 0, N2, OFF",
-# # #     "R1, N3, 0, 1e3",
-# # #     "VM1-R1, N3, 0",
-# # #     "AM1-L, N5, N2",
-# # #     "D4, N4, N3, OFF",
-# # # ]
+# # # # #     "D1, N2, N3, ON",
+# # # # #     "D2, 0, N4, ON",
+# # # # #     "D3, 0, N2, OFF",
+# # # # #     "R1, N3, 0, 1e3",
+# # # # #     "VM1-R1, N3, 0",
+# # # # #     "AM1-L, N5, N2",
+# # # # #     "D4, N4, N3, OFF",
+# # # # # ]
 
-# # simplified half-bridge, capactiro,resistor parallel circuit
-switch_frequency = 1000
-end_sim_t = 0.005
-netList = [
+# # # simplified half-bridge, capactiro,resistor parallel circuit
+# switch_frequency = 1000
+# end_sim_t = 0.005
+# netList = [
     
-    "Vin, N1, 0, 20, 1000",
-    "AM1-L, N1, Nt",
-    "Rt, Nt, N2, 0.01",
-    "D1, N2, NAMD1, ON, VMD1, AMD1",
-    "VMD1, N2, NAMD1",
-    "AMD1, NAMD1, N3",
-    "D3, 0, NAMD3, OFF, VMD2, AMD2",
-    "VMD2, 0, NAMD3",
-    "AMD2, NAMD3, N2",
-    "R1, N3, 0, 10e3",
-    "C1, N3, 0, 10e-6",
-    "VM1-C1, N3, 0",
-    "VM2-Rt, Nt, N2",
-]
-supress=False
+#     "Vin, N1, 0, 20, 1000",
+#     "AM1-L, N1, Nt",
+#     "Rt, Nt, N2, 0.01",
+#     "D1, N2, NAMD1, ON, VMD1, AMD1",
+#     "VMD1, N2, NAMD1",
+#     "AMD1, NAMD1, N3",
+#     "D3, 0, NAMD3, OFF, VMD2, AMD2",
+#     "VMD2, 0, NAMD3",
+#     "AMD2, NAMD3, N2",
+#     "R1, N3, 0, 10e3",
+#     "C1, N3, 0, 10e-6",
+#     "VM1-C1, N3, 0",
+#     "VM2-Rt, Nt, N2",
+# ]
+# supress=False
 
 
 
-end_sim_t  = 0.1
-switch_frequency = 60
+# end_sim_t  = 0.1
+# switch_frequency = 60
 
-# 3 winding transformer with simple resisto
-netList = [
+# # 3 winding transformer with simple resisto
+# netList = [
     
-    f"Vin, N1, 0, 200, {switch_frequency}",
-    "R1, N1, N2, 10",
-    "LS0, N2, 0, 200e-6, [LS1, LS2], [0.99, 0.99]",
-    "RS0, N2, 0, 100e3",
-    "VM-p, N2, 0",
+#     f"Vin, N1, 0, 200, {switch_frequency}",
+#     "R1, N1, N2, 10",
+#     "LS0, N2, 0, 200e-6, [LS1, LS2], [0.99, 0.99]",
+#     "RS0, N2, 0, 100e3",
+#     "VM-p, N2, 0",
 
 
-    "LS1, N3, 0, 400e-6, [LS0, LS2], [0.99, 0.99]",
-    # "RS1, N3, 0, 1",
-    "R2, N3, 0, 100e3",
-    "VM-S1, N3, 0",
+#     "LS1, N3, 0, 400e-6, [LS0, LS2], [0.99, 0.99]",
+#     # "RS1, N3, 0, 1",
+#     "R2, N3, 0, 100e3",
+#     "VM-S1, N3, 0",
     
-    "LS2, 0, N4, 400e-6, [LS0, LS1], [0.99, 0.99]",
-    # "RS2, 0, N4, 1",
-    "R3, N4, 0, 100e3",
-    "VM-S2, N4, 0",
+#     "LS2, 0, N4, 400e-6, [LS0, LS1], [0.99, 0.99]",
+#     # "RS2, 0, N4, 1",
+#     "R3, N4, 0, 100e3",
+#     "VM-S2, N4, 0",
 
-    # "RNA, NA, 0, 0.0001",
+#     # "RNA, NA, 0, 0.0001",
 
-]
+# ]
 
 
 
-end_sim_t  = 0.2
-switch_frequency = 60
+# end_sim_t  = 0.2
+# switch_frequency = 60
 
-# 2 winding transformer with RLC modeling
-netList = [
+# # 2 winding transformer with RLC modeling
+# netList = [
     
-    f"Vin, N1, 0, 200, {switch_frequency}",
-    "R1, N1, N2, 1",
-    "LS0, N2, 0, 200e-6, [LS1], [0.99]",
+#     f"Vin, N1, 0, 200, {switch_frequency}",
+#     "R1, N1, N2, 1",
+#     "LS0, N2, 0, 200e-6, [LS1], [0.99]",
 
-    "LS1, N3, 0, 400e-6, [LS0], [0.99]",
+#     "LS1, N3, 0, 400e-6, [LS0], [0.99]",
 
-    "VMD1, N4, N5",
-    "AMD1, N3, N4",
-    "D1, N4, N5, ON, VMD1, AMD1",
-    "CD1, N4, N5, 9e-9",
-    "Ro, N5, N6, 10",
-    "C0, N6, 0, 100e-6",
+#     "VMD1, N4, N5",
+#     "AMD1, N3, N4",
+#     "D1, N4, N5, ON, VMD1, AMD1",
+#     "CD1, N4, N5, 9e-9",
+#     "Ro, N5, N6, 10",
+#     "C0, N6, 0, 100e-6",
     
-    "VMRC, N5, 0",
-    "VMC, N6, 0",
-    
-
-
-]
-
-
-
-
-
-
-
-supress = True
-end_sim_t  = 0.2
-switch_frequency = 60
-
-# 3 winding transformer with RLC modeling
-netList = [
-    
-    f"Vin, N1, 0, 200, {switch_frequency}",
-    "R1, N1, N2, 1",
-    "LS0, N2, 0, 200e-6, [LS1, LS2], [0.99, 0.99]",
-    "RS0, N2, 0, 100e3",
-    "VM-p, N2, 0",
-
-
-    "LS1, N3, 0, 400e-6, [LS0, LS2], [0.99, 0.99]",
-    "AMD1, N3, N3AM",
-    "VMD1, N3AM, N5",
-    "D1, N3AM, N5, ON, VMD1, AMD1",
-    # "CD1, N3AM, N5, 9e-9",
-    "VMLS1, N3, 0",
+#     "VMRC, N5, 0",
+#     "VMC, N6, 0",
     
 
 
+# ]
+
+
+
+
+
+
+
+# supress = True
+# end_sim_t  = 0.5
+# switch_frequency = 60
+# # use backward euler for unstable system
+# # 3 winding transformer with RLC modeling
+# netList = [
     
-    "LS2, 0, N4, 400e-6, [LS0, LS1], [0.99, 0.99]",
-    "AMD2, N4, N4AM",
-    "VMD2, N4AM, N5",
-    "D2, N4AM, N5, ON, VMD2, AMD2",
-    # "CD2, N4AM, N5, 9e-9",
-    "VMLS2, N4, 0",
+#     f"Vin, N1, 0, 200, {switch_frequency}",
+#     "R1, N1, N2, 1",
+#     "LS0, N2, 0, 200e-6, [LS1, LS2], [0.99, 0.99]",
+#     "RS0, N2, 0, 100e3",
+#     "VM-p, N2, 0",
+
+
+#     "LS1, N3, 0, 400e-6, [LS0, LS2], [0.99, 0.99]",
+#     "AMD1, N3, N3AM",
+#     "VMD1, N3AM, N5",
+#     "D1, N3AM, N5, ON, VMD1, AMD1",
+#     "CD1, N3AM, N5, 9e-9",
+#     "VMLS1, N3, 0",
     
-    "Rinternal, N5, N6, 0.001",
-    "Cout, N6, 0, 100e-6",
-    "Rout, N6, 0, 10e3",
+
+
     
-    "VMout, N6, 0",
+#     "LS2, 0, N4, 400e-6, [LS0, LS1], [0.99, 0.99]",
+#     "AMD2, N4, N4AM",
+#     "VMD2, N4AM, N5",
+#     "D2, N4AM, N5, ON, VMD2, AMD2",
+#     "CD2, N4AM, N5, 9e-9",
+#     "VMLS2, N4, 0",
+    
+#     "Rinternal, N5, N6, 0.001",
+#     "Cout, N6, 0, 100e-6",
+#     "Rout, N6, 0, 10e3",
+    
+#     "VMout, N6, 0",
 
 
 
-]
+# ]
 
 
 
 
-end_sim_t  = 2e-3
-switch_frequency = 100e3
-duty_cycle = 0.5
-# HALF-bridge lswitch only
-netList = [
-    f"Vin, NSource, 0, 400, 0",
-    # "RInternal, N1, NSource, 0",
-    f"S1, NSource, NSW, ON, {switch_frequency}, {duty_cycle}, 0",
-    f"S2, NSW, 0, ON, {switch_frequency}, {1-duty_cycle}, {(1/switch_frequency)*duty_cycle}",
-    "Rin1, NSW, NR, 0.01",
-    "AMRIN, NR, NRIN",
-    "Cr, NRIN, NC, 24e-9",
-    "Lr, NC, 0, 60e-6",
-    "VMC, NRIN, 0",
-    "VML, NC, 0",
+# # end_sim_t  = 2e-3
+# # switch_frequency = 100e3
+# # duty_cycle = 0.5
+# # # HALF-bridge lswitch only
+# # netList = [
+# #     f"Vin, NSource, 0, 400, 0",
+# #     # "RInternal, N1, NSource, 0",
+# #     f"S1, NSource, NSW, ON, {switch_frequency}, {duty_cycle}, 0",
+# #     f"S2, NSW, 0, ON, {switch_frequency}, {1-duty_cycle}, {(1/switch_frequency)*duty_cycle}",
+# #     "Rin1, NSW, NR, 0.01",
+# #     "AMRIN, NR, NRIN",
+# #     "Cr, NRIN, NC, 24e-9",
+# #     "Lr, NC, 0, 60e-6",
+# #     "VMC, NRIN, 0",
+# #     "VML, NC, 0",
 
 
-]
+# # ]
 
 
 supress=False
@@ -297,7 +297,7 @@ netList = [
 # # # full-wave rectifier circuit
 # switch_frequency = 1000
 # end_sim_t = 0.005
-
+# # unstable system, so use backward euler 
 # netList = [
     
 #     "Vin, N1, N1_neg, 20, 1000",
@@ -327,60 +327,60 @@ netList = [
 
 
 
-# # the system modelin is unstable, require x250 iteration. Thus do some simplification
-# # end_sim_t  = 1e-3
-# # switch_frequency = 100e3
-# # duty_cycle = 0.5
-# # # Full bridge LLc circuit
-# # netList = [
-# #     f"Vin, NSource, 0, 600, 0",
-# #     f"S1, NSource, NA, ON, {switch_frequency}, {duty_cycle}, 0.0",
-# #     f"S2, NSource, NB, OFF, {switch_frequency}, {1-duty_cycle}, 0.0",
-# #     f"S3, NA, 0, OFF, {switch_frequency}, {1-duty_cycle}, 0.0",
-# #     f"S4, NB, 0, ON, {switch_frequency}, {duty_cycle}, 0.0",
+# # # the system modelin is unstable, require x250 iteration. Thus do some simplification
+# # # end_sim_t  = 1e-3
+# # # switch_frequency = 100e3
+# # # duty_cycle = 0.5
+# # # # Full bridge LLc circuit
+# # # netList = [
+# # #     f"Vin, NSource, 0, 600, 0",
+# # #     f"S1, NSource, NA, ON, {switch_frequency}, {duty_cycle}, 0.0",
+# # #     f"S2, NSource, NB, OFF, {switch_frequency}, {1-duty_cycle}, 0.0",
+# # #     f"S3, NA, 0, OFF, {switch_frequency}, {1-duty_cycle}, 0.0",
+# # #     f"S4, NB, 0, ON, {switch_frequency}, {duty_cycle}, 0.0",
 
-# #     "Rr, NA, Nrr, 0.01",
-# #     "Lr, Nrr, Nlr, 2e-6",
-# #     # "Rlr, Nrr, Nlr, 1e-6",
-# #     "Cr, Nlr, Ncr, 60e-9",
-# #     "Lm, Ncr, NB, 100e-6",
+# # #     "Rr, NA, Nrr, 0.01",
+# # #     "Lr, Nrr, Nlr, 2e-6",
+# # #     # "Rlr, Nrr, Nlr, 1e-6",
+# # #     "Cr, Nlr, Ncr, 60e-9",
+# # #     "Lm, Ncr, NB, 100e-6",
 
-# #     # "VMout, Ncr, 0"
+# # #     # "VMout, Ncr, 0"
 
-# #     "Lp, Ncr, NB, 400e-6, [Ls], [0.99]",
-# #     "RLP, Ncr, NB, 1e7",
+# # #     "Lp, Ncr, NB, 400e-6, [Ls], [0.99]",
+# # #     "RLP, Ncr, NB, 1e7",
     
     
-# #     "Ls, NSA, NSB, 1e-6, [Lp], [0.99]",
+# # #     "Ls, NSA, NSB, 1e-6, [Lp], [0.99]",
 
-# #     "D1, ND1AM, ND1D2, OFF, VMD1, AMD1",
-# #     "AMD1, NSA, ND1AM",
-# #     "VMD1, ND1AM, ND1D2",
-
-
-    
-# #     "D2, ND2AM, ND1D2, OFF, VMD2, AMD2",
-# #     "AMD2, NSB, ND2AM",
-# #     "VMD2, ND2AM, ND1D2",
-
-    
-# #     "D3, ND3AM, NSA, OFF, VMD3, AMD3",
-# #     "AMD3, 0, ND3AM",
-# #     "VMD3, ND3AM, NSA",
+# # #     "D1, ND1AM, ND1D2, OFF, VMD1, AMD1",
+# # #     "AMD1, NSA, ND1AM",
+# # #     "VMD1, ND1AM, ND1D2",
 
 
     
-# #     "D4, ND4AM, NSB, OFF, VMD4, AMD4",
-# #     "AMD4, 0, ND4AM",
-# #     "VMD4, ND4AM, NSB",
+# # #     "D2, ND2AM, ND1D2, OFF, VMD2, AMD2",
+# # #     "AMD2, NSB, ND2AM",
+# # #     "VMD2, ND2AM, ND1D2",
+
+    
+# # #     "D3, ND3AM, NSA, OFF, VMD3, AMD3",
+# # #     "AMD3, 0, ND3AM",
+# # #     "VMD3, ND3AM, NSA",
+
+
+    
+# # #     "D4, ND4AM, NSB, OFF, VMD4, AMD4",
+# # #     "AMD4, 0, ND4AM",
+# # #     "VMD4, ND4AM, NSB",
 
   
-# #     # "RINternal, ND1D2, nf, 0.0001",
-# #     "C1, ND1D2, 0, 1e-3",
-# #     "R1, ND1D2, 0, 0.25",
-# #     "VMout, ND1D2, 0"
+# # #     # "RINternal, ND1D2, nf, 0.0001",
+# # #     "C1, ND1D2, 0, 1e-3",
+# # #     "R1, ND1D2, 0, 0.25",
+# # #     "VMout, ND1D2, 0"
 
-# # ]
+# # # ]
 
 
 
@@ -474,7 +474,7 @@ switch_oversample_message = OversamplingMessage(message_manager=message_manager)
 
 # okay, now create each individual simulation modules
 
-iteration_frequency =  max(10e3, switch_frequency*50)
+iteration_frequency =  max(10e3, switch_frequency*30)
 state_space_module = StateSpaceSimulationModule(network_matrix=network_matrix, iteration_frequency= iteration_frequency) #TODO: change later
 oversample_module =SwitchOversampleModule( network_matrix=network_matrix, sample_frequency=iteration_frequency, oversample_message=switch_oversample_message)
 
