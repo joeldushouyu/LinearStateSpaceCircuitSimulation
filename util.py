@@ -790,20 +790,19 @@ def update_system_matrix_to_reflect_dependency(M0: Matrix,
     
     # apply the affect of c1 to C, D matrix
     # given y = C1*x_hat + Cx+DU
-    # y =   ([C1*E^-1*A]+C)*x + ([C1*E*B]+D)*u
+    # y =  C1 * E *x_hat + Cx+Du, because in paper, it assumed E already factored into C1
 
-    
     D_non_impulse = D_final.copy()
     C_non_impulse = C_final.copy()
-    # given E is a identity like matrix, E^-1 == E, so skipped the E^-1 step here
-    D_final = D_final + C1 @E @B_final
-    C_final = C_final + C1@E@A_final
-    
+
+
     D_impulse = C1 @E @B_final
     C_impulse = C1@E@A_final
     
     
-    
+    D_final = D_final + D_impulse
+    C_final = C_final + C_impulse
+     
     
     # step to simplify 
     # Qy = Cx+Du

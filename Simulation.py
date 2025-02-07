@@ -948,8 +948,10 @@ class StateSpaceSimulationModule(SimulationModule):
             self.swap_col_and_update(list_to_swap)
             self.update_x_cur_with_dep()
         
-        # impulse response of internal diode
-        impulse_val = np.matmul(self.C1_SW, (self.get_x_cur_with_dep()- x_cur_before_t0))
+            # impulse response of internal diode
+            impulse_val = np.matmul(self.C1_SW, (self.get_x_cur_with_dep()- x_cur_before_t0))
+        else:
+            impulse_val = np.zeros(  (self.C1_SW.shape[0], 1))
         return len(switch_triggere_labels) , impulse_val
 
     def handle_diode_soft_switch(self,non_impulse_C, non_impulse_D, x_for_update):
@@ -1041,31 +1043,33 @@ class StateSpaceSimulationModule(SimulationModule):
 
         
     def iteration(self):
-
-        x_before_t0 = self.get_x_cur_with_dep().copy()
+        
+        self.iterative_x()
+        self.update_x_cur_with_dep()
+        x_cur = self.get_x_cur_with_dep().copy()
  
         C_impulse_iteration = self._C_iteration.copy()
         D_impulse_iteration = self._D_iteration.copy()
         C_non_impulse_iteration = self.C_non_impulse.copy()
         D_non_impulse_iteration  = self.D_non_impulse.copy()
-        
-        self.iterative_x()
-        self.update_x_cur_with_dep()
+        # self.update_x_cur_with_dep()
+        # self.iterative_x()
+        # self.update_x_cur_with_dep()
         # switch_triggere_labels = []
         
         # non_impulse_C = self.C_SW.copy()
         # non_impulse_D = self.D_SW.copy() 
         
         #TODO: predict C1_SW?
-        switch_change_occur, impulse_value = self.handle_external_switch(x_cur_before_t0=x_before_t0)
-        non_impulse_C = self.C_SW.copy() #buck example does not allow it to be 
+        switch_change_occur, impulse_value = self.handle_external_switch(x_cur_before_t0=x_cur)
+        non_impulse_C = self.C_SW.copy() #buck example does not allow it to be, but can be prefetched
         non_impulse_D = self.D_SW.copy() 
         
-        non_impulse_value = self.handle_diode_soft_switch(non_impulse_C=non_impulse_C, non_impulse_D=non_impulse_D, x_for_update=self.get_x_cur_with_dep()) # Halfbridge llc demo
+        non_impulse_value = self.handle_diode_soft_switch(non_impulse_C=non_impulse_C, non_impulse_D=non_impulse_D, x_for_update=x_cur) # can process in parallel
         
         
         
-        diode_change_occur = self.update_both_impulse_non_impulse(impulse_val=impulse_value, non_impulse_val=non_impulse_value)
+        diode_change_occur = self.update_both_impulse_non_impulse(impulse_val=impulse_value, non_impulse_val=non_impulse_value) # merge logic for finalize diode switching
         
 
         
@@ -1073,20 +1077,15 @@ class StateSpaceSimulationModule(SimulationModule):
         #     self.update_x_cur_with_dep()
         
         
-        # self.update_x_cur_with_dep()
-        # C_impulse_iteration = self._C_iteration.copy()
-        # D_impulse_iteration = self._D_iteration.copy()
-        # C_non_impulse_iteration = self.C_non_impulse.copy()
-        # D_non_impulse_iteration  = self.D_non_impulse.copy()
         # the output part
         if switch_change_occur or not diode_change_occur:
             # impulse version with switch, or with no diode change
             self.update_y_cur(use_impulse=True, C_impulse_iteration=C_impulse_iteration, D_impulse_iteration=D_impulse_iteration,
-                              C_non_impulse_iteration=C_non_impulse_iteration, D_non_impulse_iteration=D_non_impulse_iteration, x_for_update=x_before_t0
+                              C_non_impulse_iteration=C_non_impulse_iteration, D_non_impulse_iteration=D_non_impulse_iteration, x_for_update=x_cur
                               )
         else:
             self.update_y_cur(use_impulse=False, C_impulse_iteration=C_impulse_iteration, D_impulse_iteration=D_impulse_iteration,
-                              C_non_impulse_iteration=C_non_impulse_iteration, D_non_impulse_iteration=D_non_impulse_iteration, x_for_update=x_before_t0
+                              C_non_impulse_iteration=C_non_impulse_iteration, D_non_impulse_iteration=D_non_impulse_iteration, x_for_update=x_cur
                               )
             
             # self.y_cur += np.matmul(self.C_impulse,  self.get_x_cur_with_dep(), dtype=np.float64)

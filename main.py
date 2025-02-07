@@ -102,7 +102,7 @@ netList = [
 
 # # # simplified half-bridge, capactiro,resistor parallel circuit
 # switch_frequency = 1000
-# end_sim_t = 0.005
+# end_sim_t = 0.5
 # netList = [
     
 #     "Vin, N1, 0, 20, 1000",
@@ -154,7 +154,7 @@ netList = [
 
 # end_sim_t  = 0.2
 # switch_frequency = 60
-
+# supress = True
 # # 2 winding transformer with RLC modeling
 # netList = [
     
@@ -228,24 +228,24 @@ netList = [
 
 
 
-# # end_sim_t  = 2e-3
-# # switch_frequency = 100e3
-# # duty_cycle = 0.5
-# # # HALF-bridge lswitch only
-# # netList = [
-# #     f"Vin, NSource, 0, 400, 0",
-# #     # "RInternal, N1, NSource, 0",
-# #     f"S1, NSource, NSW, ON, {switch_frequency}, {duty_cycle}, 0",
-# #     f"S2, NSW, 0, ON, {switch_frequency}, {1-duty_cycle}, {(1/switch_frequency)*duty_cycle}",
-# #     "Rin1, NSW, NR, 0.01",
-# #     "AMRIN, NR, NRIN",
-# #     "Cr, NRIN, NC, 24e-9",
-# #     "Lr, NC, 0, 60e-6",
-# #     "VMC, NRIN, 0",
-# #     "VML, NC, 0",
+# end_sim_t  = 2e-3
+# switch_frequency = 100e3
+# duty_cycle = 0.5
+# # HALF-bridge lswitch only
+# netList = [
+#     f"Vin, NSource, 0, 400, 0",
+#     # "RInternal, N1, NSource, 0",
+#     f"S1, NSource, NSW, ON, {switch_frequency}, {duty_cycle}, 0",
+#     f"S2, NSW, 0, ON, {switch_frequency}, {1-duty_cycle}, {(1/switch_frequency)*duty_cycle}",
+#     "Rin1, NSW, NR, 0.01",
+#     "AMRIN, NR, NRIN",
+#     "Cr, NRIN, NC, 24e-9",
+#     "Lr, NC, 0, 60e-6",
+#     "VMC, NRIN, 0",
+#     "VML, NC, 0",
 
 
-# # ]
+# ]
 
 
 supress=False
