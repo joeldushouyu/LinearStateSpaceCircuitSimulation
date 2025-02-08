@@ -1060,22 +1060,14 @@ class StateSpaceSimulationModule(SimulationModule):
             D_nonimpulse=self.D_non_impulse
         )
         
-        # self.update_x_cur_with_dep()
-        # self.iterative_x()
-        # self.update_x_cur_with_dep()
-        # switch_triggere_labels = []
+        # demonstrate parallel of nonimpulse and impulse switch evalulation
+        hash_key = self.generate_M_cache_key(self.switch_state)
+        non_impulse_C = self.M_cache[hash_key][15].copy() #buck example does not allow it to be, but can be prefetched
+        non_impulse_D = self.M_cache[hash_key][16].copy()  
+        non_impulse_value = self.handle_diode_soft_switch(non_impulse_C=non_impulse_C, non_impulse_D=non_impulse_D, x_for_update=x_cur_before.copy()) # can process in parallel
         
-        # non_impulse_C = self.C_non_impulse_SW.copy()
-        # non_impulse_D = self.D_non_impulse_SW.copy() 
+        switch_change_occur, impulse_value = self.handle_external_switch(x_cur_before_t0=x_cur_before.copy())
 
-        switch_change_occur, impulse_value = self.handle_external_switch(x_cur_before_t0=x_cur_before)
-        non_impulse_C = self.C_SW.copy() #buck example does not allow it to be, but can be prefetched
-        non_impulse_D = self.D_SW.copy() 
-        
-        non_impulse_value = self.handle_diode_soft_switch(non_impulse_C=non_impulse_C, non_impulse_D=non_impulse_D, x_for_update=x_cur_before) # can process in parallel
-        
-        
-        
         diode_change_occur = self.update_both_impulse_non_impulse(impulse_val=impulse_value, non_impulse_val=non_impulse_value) # merge logic for finalize diode switching
         
         self.use_impulse_in_y_output = switch_change_occur or (not diode_change_occur)
