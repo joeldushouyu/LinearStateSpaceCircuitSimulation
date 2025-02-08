@@ -332,6 +332,8 @@ class StateSpaceSimulationModule(SimulationModule):
         self.solver_zero_input_res:npt.NDArray = None
         self.solver_zero_state_res:npt.NDArray = None
         self.fig_count = 1
+        
+        self.use_impulse_in_y_output = False
         self.initialize_data()
     
     
@@ -524,7 +526,7 @@ class StateSpaceSimulationModule(SimulationModule):
         # print("Stiffness:", stiffness)
         pass
         
-    def swap_col_and_update(self, label_to_Swap:list[str]):
+    def swap_col_and_update(self, label_to_Swap:list[str], assert_no_cache=False):
         if len(label_to_Swap) >0:
             for lab in label_to_Swap:
                 self.network_matrix.swap_M_matrix_columns(lab)
@@ -537,7 +539,7 @@ class StateSpaceSimulationModule(SimulationModule):
         else:
             key =self.generate_M_cache_key(self.switch_state)    #= ",".join(self.switch_state)
         if key not in self.M_cache.keys():
-        
+            assert not assert_no_cache
             self.network_matrix.rref_update()
             self.Q, self.C1, self.C, self.D, self.M0, self.A, self.B, self.y_dep_labels,M_offset_info = retrieveSystemMatrix(
                 M=self.network_matrix.M,
@@ -616,6 +618,7 @@ class StateSpaceSimulationModule(SimulationModule):
             self.C = sp.matrix2numpy(self.C.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             self.D = sp.matrix2numpy(self.D.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             self.solver_zero_input_res, self.solver_zero_state_res = get_pade_0_2_matrix(self.A, self.B, 1/self.iteration_frequency)
+            #self.solver_zero_input_res, self.solver_zero_state_res = get_backward_euler_integartion(self.A, self.B, 1/self.iteration_frequency)
             self.A_dependent = sp.matrix2numpy(self.A_dependent.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             self.B_dependent = sp.matrix2numpy(self.B_dependent.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             self.C_impulse = sp.matrix2numpy(self.C_impulse.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
@@ -784,7 +787,8 @@ class StateSpaceSimulationModule(SimulationModule):
                             assert ele.element_current_name == lab
                     
                     # self.build_truth_table_for_impulse_response()
-                    self.iterative_all_possible_switch_scenarion()
+                    if len(self.switch_state) > 0:
+                        self.iterative_all_possible_switch_scenarion()
                         
                 
                 else:
@@ -947,11 +951,11 @@ class StateSpaceSimulationModule(SimulationModule):
                     list_to_swap.append(sw_I_lab)
                 switch_triggere_labels.append(sw_volt_lab)  
         if len(list_to_swap) > 0:
-            self.swap_col_and_update(list_to_swap)
-            self.update_x_cur_with_dep()
-        
+            self.swap_col_and_update(list_to_swap, assert_no_cache=True)
+            #TODO: use x_cur_before?
+            new_x_temp =np.matmul(self.A_dependent, x_cur_before_t0, dtype=np.float32) + np.matmul( self.B_dependent ,self.u, dtype=np.float32)
             # impulse response of internal diode
-            impulse_val = np.matmul(self.C1_SW, (self.get_x_cur_with_dep()- x_cur_before_t0), dtype=np.float32)
+            impulse_val = np.matmul(self.C1_SW, (new_x_temp- x_cur_before_t0), dtype=np.float32)
         else:
             impulse_val = np.zeros(  (self.C1_SW.shape[0], 1), dtype=np.float32)
         return len(switch_triggere_labels) , impulse_val
@@ -993,24 +997,30 @@ class StateSpaceSimulationModule(SimulationModule):
             diode_count +=1
         
         if len(labels_to_swap) > 0:
-            self.swap_col_and_update(labels_to_swap)
-            # self.update_x_cur_with_dep() #TODO: could also do it everytime
+            self.swap_col_and_update(labels_to_swap, assert_no_cache=True)
             swapped_flag = True
-            self.update_x_cur_with_dep()
+
             
         return swapped_flag
 
-        # impulse_occur =  (len(switch_trigger_labels) > 0) or (not swapped_flag)
-        # self.M_size =  self.M0.rank()
 
-        # self.update_y_cur(  impulse_occur)
-
-    def update_y_cur(self, C_impulse_iteration, D_impulse_iteration, C_non_impulse_iteration, D_non_impulse_iteration, x_for_update, use_impulse= False ):
+    
+    def update_y_cur(self, use_impulse, x_for_update, u_for_update, C_impulse, D_impulse, C_nonimpulse, D_nonimpulse):
         
-        if  use_impulse:
-            self.y_cur =  np.matmul( C_impulse_iteration ,x_for_update, dtype=np.float32) +  np.matmul( D_impulse_iteration ,self.u, dtype=np.float32)
+        non_imp = np.matmul(C_nonimpulse, x_for_update, dtype=np.float32) + np.matmul(D_nonimpulse, u_for_update)
+        if use_impulse:
+            imp = np.matmul(C_impulse, x_for_update, dtype=np.float32) + np.matmul(D_impulse, u_for_update)
+            
+            self.y_cur = non_imp + imp
         else:
-            self.y_cur =  np.matmul(C_non_impulse_iteration, x_for_update, dtype=np.float32) + np.matmul(D_non_impulse_iteration, self.u, dtype=np.float32)
+            self.y_cur = non_imp 
+    
+    # def update_y_cur(self, C_impulse_iteration, D_impulse_iteration, C_non_impulse_iteration, D_non_impulse_iteration, x_for_update, use_impulse= False ):
+        
+    #     if  use_impulse:
+    #         self.y_cur =  np.matmul( C_impulse_iteration ,x_for_update, dtype=np.float32) +  np.matmul( D_impulse_iteration ,self.u, dtype=np.float32)
+    #     else:
+    #         self.y_cur =  np.matmul(C_non_impulse_iteration, x_for_update, dtype=np.float32) + np.matmul(D_non_impulse_iteration, self.u, dtype=np.float32)
 
 
 
@@ -1034,16 +1044,22 @@ class StateSpaceSimulationModule(SimulationModule):
 
         
     def iteration(self):
-        # if self.cur_system_time == 0:
-        #     self.iterative_x()
+
         x_cur_before = self.get_x_cur_with_dep().copy()
 
 
- 
-        C_impulse_iteration = self.C.copy()
-        D_impulse_iteration = self.D.copy()
-        C_non_impulse_iteration = self.C_non_impulse.copy()
-        D_non_impulse_iteration  = self.D_non_impulse.copy()
+
+        # update y in parallel
+        self.update_y_cur(
+            use_impulse=self.use_impulse_in_y_output,
+            x_for_update=x_cur_before,
+            u_for_update=self.u,
+            C_impulse=self.C_impulse,
+            D_impulse=self.D_impulse,
+            C_nonimpulse=self.C_non_impulse,
+            D_nonimpulse=self.D_non_impulse
+        )
+        
         # self.update_x_cur_with_dep()
         # self.iterative_x()
         # self.update_x_cur_with_dep()
@@ -1051,8 +1067,7 @@ class StateSpaceSimulationModule(SimulationModule):
         
         # non_impulse_C = self.C_non_impulse_SW.copy()
         # non_impulse_D = self.D_non_impulse_SW.copy() 
-        
-        #TODO: predict C1_SW?
+
         switch_change_occur, impulse_value = self.handle_external_switch(x_cur_before_t0=x_cur_before)
         non_impulse_C = self.C_SW.copy() #buck example does not allow it to be, but can be prefetched
         non_impulse_D = self.D_SW.copy() 
@@ -1063,29 +1078,22 @@ class StateSpaceSimulationModule(SimulationModule):
         
         diode_change_occur = self.update_both_impulse_non_impulse(impulse_val=impulse_value, non_impulse_val=non_impulse_value) # merge logic for finalize diode switching
         
-
+        self.use_impulse_in_y_output = switch_change_occur or (not diode_change_occur)
         
         # the output part
-        if switch_change_occur or not diode_change_occur:
-            # impulse version with switch, or with no diode change
-            self.update_y_cur(use_impulse=True, C_impulse_iteration=C_impulse_iteration, D_impulse_iteration=D_impulse_iteration,
-                              C_non_impulse_iteration=C_non_impulse_iteration, D_non_impulse_iteration=D_non_impulse_iteration, x_for_update=x_cur_before
-                              )
-        else:
-            self.update_y_cur(use_impulse=False, C_impulse_iteration=C_impulse_iteration, D_impulse_iteration=D_impulse_iteration,
-                              C_non_impulse_iteration=C_non_impulse_iteration, D_non_impulse_iteration=D_non_impulse_iteration, x_for_update=x_cur_before
-                              )
+        # if switch_change_occur or not diode_change_occur:
+        #     # impulse version with switch, or with no diode change
+        #     self.update_y_cur(use_impulse=True, C_impulse_iteration=C_impulse_iteration, D_impulse_iteration=D_impulse_iteration,
+        #                       C_non_impulse_iteration=C_non_impulse_iteration, D_non_impulse_iteration=D_non_impulse_iteration, x_for_update=x_cur_before
+        #                       )
+        # else:
+        #     self.update_y_cur(use_impulse=False, C_impulse_iteration=C_impulse_iteration, D_impulse_iteration=D_impulse_iteration,
+        #                       C_non_impulse_iteration=C_non_impulse_iteration, D_non_impulse_iteration=D_non_impulse_iteration, x_for_update=x_cur_before
+        #                       )
             
             # self.y_cur += np.matmul(self.C_impulse,  self.get_x_cur_with_dep(), dtype=np.float32)
         
-
-        # self.update_both_impulse_non_impulse(switch_trigger_labels=switch_triggere_labels, 
-        #                                      x_cur_before_t0=x_before_t0,
-        #                                      impulse_C=impulse_C,
-        #                                      non_impulse_C=non_impulse_C,
-        #                                      non_impulse_D=non_impulse_D
-                                             
-        #                                      )
+        # update x_cur in parallel
         self.iterative_x()
         self.update_x_cur_with_dep()
         

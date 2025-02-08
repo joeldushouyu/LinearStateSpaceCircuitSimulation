@@ -342,7 +342,7 @@ def apply_inductance_capactiance_to_state_matrix(
     
     A11_dependent_matrix = sp.eye(independent_state_number) # simplify a copye of A11 matrix
     A21_dependent_matrix = -1*A22_inverse@A21
-    B2_dependent_matrix = -1*A22_inverse@B2
+    B2_dependent_matrix = -1*A22_inverse@B2  # will just be zero, given B2 points to dependent state, if state is dependent, means it also not dependent on input?
     B1_dependent_matrix = sp.zeros(B1.shape[0], B1.shape[1])
     A12_dependent_matrix = sp.zeros( independent_state_number, dependent_state_number)
     A22_dependent_matrix = sp.zeros(dependent_state_number, dependent_state_number)
