@@ -985,7 +985,10 @@ def transfer_func_and_poles(A: Matrix, B: Matrix, C:Matrix, D:Matrix, symbolic_v
     return transfer_func, poles,poles_roots
 
 
-def backwardEulerIntegration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, u:  np.ndarray, time_t:float):
+
+
+
+def get_backward_euler_integartion( A:  np.ndarray, B:  np.ndarray, time_t:float):
 
     eye_a =  np.eye(A.shape[0], dtype=np.float64)
     
@@ -1001,13 +1004,34 @@ def backwardEulerIntegration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, 
     
 
     integ_part = time_t * e_at_part  # simplified out (a1-b1), since (0-(-1)) == 1
-    p1 = e_at_part @ x_cur 
-    p2 =  integ_part@ B @ u 
-    res = p1+p2
-    return  res 
 
-def pade_0_2_integration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, u:  np.ndarray, time_t:float):
+    zero_state = e_at_part
+    zero_input = integ_part@B
+    return  zero_state, zero_input 
+# def backwardEulerIntegration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, u:  np.ndarray, time_t:float):
 
+#     eye_a =  np.eye(A.shape[0], dtype=np.float64)
+    
+#     # #https://www.cs.jhu.edu/~misha/ReadingSeminar/Papers/Moler03.pdf
+#     # # assume start from 0 - > result in coefficient
+#     # # but still keep same integration method
+#     # # but simplify alot, major issue with previous is did not use the inverse library of np
+#     p =0
+#     q = 1
+#     a1 = np.float64(0)  # because does not exist
+#     b1 = np.float64(-1)  #NOTE: new factor from the website
+#     e_at_part = e_at_part =  np.linalg.inv(  eye_a +A*time_t*b1 ) #np.linalg.solve(eye_a + A*time_t*b1, eye_a) #e_at_part =  np.linalg.inv(  eye_a +A*time_t*b1 )
+    
+
+#     integ_part = time_t * e_at_part  # simplified out (a1-b1), since (0-(-1)) == 1
+#     p1 = e_at_part @ x_cur 
+#     p2 =  integ_part@ B @ u 
+#     res = p1+p2
+#     return  res 
+
+
+
+def get_pade_0_2_matrix(A:npt.NDArray, B:npt.NDArray, time_t):
     eye_a =  np.eye(A.shape[0], dtype=np.float64)
     
     # #https://www.cs.jhu.edu/~misha/ReadingSeminar/Papers/Moler03.pdf
@@ -1020,15 +1044,42 @@ def pade_0_2_integration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, u:  
     b1 = np.float64(-1)  #NOTE: new factor from the website
     b2 = 1/2
     
-    e_at_part = e_at_part =  np.linalg.inv(  eye_a +A*time_t*b1 + np.linalg.matrix_power(A*time_t,2)*b2 ) #np.linalg.solve(eye_a + A*time_t*b1, eye_a) #e_at_part =  np.linalg.inv(  eye_a +A*time_t*b1 )
+    zero_input = e_at_part =  np.linalg.inv(  eye_a +A*time_t*b1 + np.linalg.matrix_power(A*time_t,2)*b2 ) #np.linalg.solve(eye_a + A*time_t*b1, eye_a) #e_at_part =  np.linalg.inv(  eye_a +A*time_t*b1 )
     
 
     integ_part = time_t * -1 * ( eye_a*b1 + A*time_t*b2 ) @e_at_part  # simplified out (a1-b1), since (0-(-1)) == 1
-    p1 = e_at_part @ x_cur 
-    p2 =  integ_part@ B @ u 
+    zero_state = integ_part@B # zero state response
+    return zero_input,zero_state
+
+def state_iteration(x_cur, zero_input_res, zero_state_res, u ):
+    p1 = zero_input_res @ x_cur 
+    p2 =  zero_state_res @ u 
     res = p1+p2
     return  res 
-def pade_0_3_integration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, u:  np.ndarray, time_t:float):
+# def pade_0_2_integration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, u:  np.ndarray, time_t:float):
+
+#     eye_a =  np.eye(A.shape[0], dtype=np.float64)
+    
+#     # #https://www.cs.jhu.edu/~misha/ReadingSeminar/Papers/Moler03.pdf
+#     # # assume start from 0 - > result in coefficient
+#     # # but still keep same integration method
+#     # # but simplify alot, major issue with previous is did not use the inverse library of np
+#     p =0
+#     q = 1
+#     a1 = np.float64(0)  # because does not exist
+#     b1 = np.float64(-1)  #NOTE: new factor from the website
+#     b2 = 1/2
+    
+#     e_at_part = e_at_part =  np.linalg.inv(  eye_a +A*time_t*b1 + np.linalg.matrix_power(A*time_t,2)*b2 ) #np.linalg.solve(eye_a + A*time_t*b1, eye_a) #e_at_part =  np.linalg.inv(  eye_a +A*time_t*b1 )
+    
+
+#     integ_part = time_t * -1 * ( eye_a*b1 + A*time_t*b2 ) @e_at_part  # simplified out (a1-b1), since (0-(-1)) == 1
+#     p1 = e_at_part @ x_cur 
+#     p2 =  integ_part@ B @ u 
+#     res = p1+p2
+#     return  res 
+
+def get_pade_03_integeration(A:  np.ndarray, B:   np.ndarray, time_t:float):
 
     eye_a =  np.eye(A.shape[0], dtype=np.float64)
     
@@ -1049,13 +1100,54 @@ def pade_0_3_integration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, u:  
     
 
     integ_part = time_t * -1 * ( eye_a*b1 + A*time_t*b2 +np.linalg.matrix_power(A*time_t,2)*b3 ) @e_at_part  # simplified out (a1-b1), since (0-(-1)) == 1
-    p1 = e_at_part @ x_cur 
-    p2 =  integ_part@ B @ u 
-    res = p1+p2
-    return  res 
+    zero_state= e_at_part
+    zero_input = integ_part@B
+    return zero_state, zero_input
+
+# def pade_0_3_integration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, u:  np.ndarray, time_t:float):
+
+#     eye_a =  np.eye(A.shape[0], dtype=np.float64)
+    
+#     # #https://www.cs.jhu.edu/~misha/ReadingSeminar/Papers/Moler03.pdf
+#     # # assume start from 0 - > result in coefficient
+#     # # but still keep same integration method
+#     # # but simplify alot, major issue with previous is did not use the inverse library of np
+#     p =0
+#     q = 1
+#     a1 = np.float64(0)  # because does not exist
+#     b1 = np.float64(-1)  #NOTE: new factor from the website
+#     b2 = 1/2
+#     b3= -1/3
+    
+#     e_at_part = e_at_part =  np.linalg.inv(  eye_a +A*time_t*b1 + np.linalg.matrix_power(A*time_t,2)*b2 
+#                                            + np.linalg.matrix_power(A*time_t, 3)*b3
+#                                            ) #np.linalg.solve(eye_a + A*time_t*b1, eye_a) #e_at_part =  np.linalg.inv(  eye_a +A*time_t*b1 )
+    
+
+#     integ_part = time_t * -1 * ( eye_a*b1 + A*time_t*b2 +np.linalg.matrix_power(A*time_t,2)*b3 ) @e_at_part  # simplified out (a1-b1), since (0-(-1)) == 1
+#     p1 = e_at_part @ x_cur 
+#     p2 =  integ_part@ B @ u 
+#     res = p1+p2
+#     return  res 
 
 
-def tustin_integration_step(x_cur: np.ndarray, A: np.ndarray, B: np.ndarray, u: np.ndarray, time_t: float) -> np.ndarray:
+# def tustin_integration_step(x_cur: np.ndarray, A: np.ndarray, B: np.ndarray, u: np.ndarray, time_t: float) -> np.ndarray:
+#     # page 47 PLECS_-_User_Manual.pdf
+    
+#     # if assume un, un-1 is the same
+    
+#     eye_A = sp.eye(A.shape[0], A.shape[1])
+#     A_d_p1 = sp.matrix2numpy( ( eye_A - (time_t/2) *A ), dtype=np.float64)
+    
+#     A_d_p1_inv = np.linalg.inv(A_d_p1)
+    
+#     A_d = A_d_p1_inv @ (eye_A + (time_t/2)*A )
+    
+#     B_d = A_d_p1_inv @B*(time_t/2)
+    
+#     return A_d*x_cur + 2*(B_d@u)  # TODO: assume un-1 and un is the same
+
+def get_tustin_integration( A: np.ndarray, B: np.ndarray, time_t: float) -> np.ndarray:
     # page 47 PLECS_-_User_Manual.pdf
     
     # if assume un, un-1 is the same
@@ -1069,11 +1161,11 @@ def tustin_integration_step(x_cur: np.ndarray, A: np.ndarray, B: np.ndarray, u: 
     
     B_d = A_d_p1_inv @B*(time_t/2)
     
-    return A_d*x_cur + 2*(B_d@u)  # TODO: assume un-1 and un is the same
-
-def trapezoidalIntegration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, u:  np.ndarray, time_t:float):
     
-
+    zero_state = A_d
+    zero_input = 2*B_d
+    return zero_state, zero_input
+def get_trapezoid_integration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, u:  np.ndarray, time_t:float):
     eye_a =  np.eye(A.shape[0], dtype=np.float64)
 
    # https://www.cs.jhu.edu/~misha/ReadingSeminar/Papers/Moler03.pdf
@@ -1089,10 +1181,36 @@ def trapezoidalIntegration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, u:
 
     e_at_part = (  eye_a  + A*time_t*a1  ) @ solver_part
     integ_part = time_t*(a1-b1) * solver_part
-    p1 = e_at_part @ x_cur 
-    p2 =  integ_part@ B @ u 
-    res = p1+p2
-    return  res 
+    # p1 = e_at_part @ x_cur 
+    # p2 =  integ_part@ B @ u 
+    
+    zero_state = e_at_part
+    zero_input = integ_part@B
+    # res = p1+p2
+    return  zero_state, zero_input 
+
+# def trapezoidalIntegration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, u:  np.ndarray, time_t:float):
+    
+
+#     eye_a =  np.eye(A.shape[0], dtype=np.float64)
+
+#    # https://www.cs.jhu.edu/~misha/ReadingSeminar/Papers/Moler03.pdf
+#     # assume start from 0 - > result in coefficient
+#     # but still keep same integration method
+#     # but simplify a lot, by using the inverse library of np
+#     p =1
+#     q = 1
+#     a1 = np.float64(1/2)
+#     b1 = np.float64(-1/2)
+    
+#     solver_part =solver_part = np.linalg.inv(  eye_a +A*time_t*b1 ) # np.linalg.solve(eye_a + A*time_t*b1, eye_a) #solver_part = np.linalg.inv(  eye_a +A*time_t*b1 )
+
+#     e_at_part = (  eye_a  + A*time_t*a1  ) @ solver_part
+#     integ_part = time_t*(a1-b1) * solver_part
+#     p1 = e_at_part @ x_cur 
+#     p2 =  integ_part@ B @ u 
+#     res = p1+p2
+#     return  res 
     
 
 # output
