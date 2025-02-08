@@ -1037,9 +1037,8 @@ class StateSpaceSimulationModule(SimulationModule):
         # if self.cur_system_time == 0:
         #     self.iterative_x()
         x_cur_before = self.get_x_cur_with_dep().copy()
-        self.iterative_x()
-        self.update_x_cur_with_dep()
-        x_cur = self.get_x_cur_with_dep().copy()
+
+
  
         C_impulse_iteration = self.C.copy()
         D_impulse_iteration = self.D.copy()
@@ -1058,7 +1057,7 @@ class StateSpaceSimulationModule(SimulationModule):
         non_impulse_C = self.C_SW.copy() #buck example does not allow it to be, but can be prefetched
         non_impulse_D = self.D_SW.copy() 
         
-        non_impulse_value = self.handle_diode_soft_switch(non_impulse_C=non_impulse_C, non_impulse_D=non_impulse_D, x_for_update=x_cur) # can process in parallel
+        non_impulse_value = self.handle_diode_soft_switch(non_impulse_C=non_impulse_C, non_impulse_D=non_impulse_D, x_for_update=x_cur_before) # can process in parallel
         
         
         
@@ -1087,7 +1086,9 @@ class StateSpaceSimulationModule(SimulationModule):
         #                                      non_impulse_D=non_impulse_D
                                              
         #                                      )
-
+        self.iterative_x()
+        self.update_x_cur_with_dep()
+        
         self.time_t.append(self.cur_system_time)
         cur_switch_state =[]
         cur_switch_trigger =[]

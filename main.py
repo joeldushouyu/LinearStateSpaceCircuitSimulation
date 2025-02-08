@@ -527,5 +527,6 @@ system_clock_module.start_simuation(end_sim_t)
 
 
 # state_space_module.plot_switch_graph()
+# state_space_module.plot_output_graph(outputfile_name= "full-bridge-llc.csv" )
 state_space_module.plot_output_graph(outputfile_name= "Half-bridge-llc.csv" )
 
