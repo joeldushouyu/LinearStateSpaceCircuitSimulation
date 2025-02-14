@@ -888,7 +888,8 @@ def system_realization(netList: list[list[str]], supress_inconsistenc=False)->Ne
 
     # x_hat = ['I_C1', 'V_L1', 'V_LS0', 'V_LS1', 'V_LS2', 'I_C2']
     # x = ['V_C1', 'I_L1', 'I_LS0', 'I_LS1', 'I_LS2', 'V_C2']
-    
+    # y=['V_VMout','I_AMD1','I_AMD2','V_VMp','V_VMS1','V_VMS2','V_VMD1',  'V_VMD2','V_VMC1', 'I_AML1',   'I_AMIout'  ]
+    # y_zero=['I_VMout','V_AMD1','V_AMD2','I_VMp','I_VMS1','I_VMS2','I_VMD1',  'I_VMD2', 'I_VMC1','V_AML1',   'V_AMIout' ]
     # x_hat = ['V_Lr','I_Cr','I_C1','V_Lm','V_Lp','V_Ls']
     # x =['I_Lr','V_Cr','V_C1','I_Lm','I_Lp','I_Ls']
     reordered_m_labels = w + u_tilt + s + y + x_hat + x + s_zero + y_zero + u

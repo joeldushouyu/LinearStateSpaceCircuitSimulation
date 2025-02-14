@@ -51,7 +51,7 @@ end_sim_t = 0.001
 netList = [
     
     "Vin, N1, 0, 12, 0",
-    "Rin, N1, N1r, 0.001",
+    "Rin, N1, N1r, 0.001", # constraint of no C-E loop or I-J cutset 
     f"S1, N1r, N2-AM, ON, {switch_frequency}, 0.8, 0.0", 
     "L1, N2, NA, 125e-06",
     "D1, 0, NAMD1, OFF, VMD1, AMD1",
@@ -211,42 +211,44 @@ netList = [
 
 
 
-# end_sim_t  = 2e-3
-# switch_frequency = 100e3
-# duty_cycle = 0.5
-# # HALF-bridge lswitch only
-# netList = [
-#     f"Vin, NSource, 0, 400, 0",
-#     # "RInternal, N1, NSource, 0",
-#     f"S1, NSource, NSW, ON, {switch_frequency}, {duty_cycle}, 0",
-#     f"S2, NSW, 0, ON, {switch_frequency}, {1-duty_cycle}, {(1/switch_frequency)*duty_cycle}",
-#     "Rin1, NSW, NR, 0.01",
-#     "AMRIN, NR, NRIN",
-#     "Cr, NRIN, NC, 24e-9",
-#     "Lr, NC, 0, 60e-6",
-#     "VMC, NRIN, 0",
-#     "VML, NC, 0",
+end_sim_t  = 2e-3
+switch_frequency = 100e3
+duty_cycle = 0.5
+# HALF-bridge lswitch only
+netList = [
+    f"Vin, NSource, 0, 400, 0",
+    f"S1, NSource, NSW, ON, {switch_frequency}, {duty_cycle}, 0.0",
+    "VMS1, NSource, NSW",
+    f"S2, NSW, 0, OFF, {switch_frequency}, {1-duty_cycle}, 0.0",
+    "VMS2, NSW, 0",
+    "Rin1, NSW, NR, 0.01",
+    "AMRIN, NR, NRIN",
+    "Cr, NRIN, NC, 24e-9",
+    "Lr, NC, 0, 60e-6",
+    "VMC, NRIN, 0",
+    "VML, NC, 0",
 
 
-# ]
+]
 
 
 supress=False
-end_sim_t  =2e-3
+end_sim_t  =4e-3
 switch_frequency = 100e3
 duty_cycle = 0.5
 supress = True
 # HALF-bridge lswitch only
 netList = [
-    f"Vin, NSource, 0, 400, 0",
+    f"Vin, NSource, 0, 1000, 0",
 
     f"S1, NSource, NSW, ON, {switch_frequency}, {duty_cycle}, 0.0",
-
-    f"S2, NSW, 0, OFF, {switch_frequency}, {1-duty_cycle}, 0.0",
-
+    "VMSw1, NSource, NSW",
+    f"S2, NSW, 0, OFF, {switch_frequency}, {duty_cycle}, 0.0",
+    "VMSw2, NSW, 0",
     "AML1, NSW, NR",
     
     "L1, NR, NLR, 60e-6",
+    "VML1, NR, NLR",
     
     "VMC1, NLR, NC",
     "C1, NLR, NC, 24e-9",
@@ -257,16 +259,16 @@ netList = [
     "LS1, N3, 0, 968e-9, [LS0, LS2], [0.99, 0.99]",
     "AMD1, N3, N3AM",
     "VMD1, N3AM, N5",
-    "D1, N3AM, N5, ON, VMD1, AMD1",
-    # "CD1, N3AM, N5, 9e-12",
+    "D1, N3AM, N5, OFF, VMD1, AMD1",
+    # "CD1, N3AM, N5, 9e-9",
     "VMS1, N3, 0",
 
     
     "LS2, 0, N4, 968e-9, [LS0, LS1], [0.99, 0.99]",
     "AMD2, N4, N4AM",
     "VMD2, N4AM, N5",
-    "D2, N4AM, N5, ON, VMD2, AMD2",
-    # "CD2, N4AM, N5, 9e-12",
+    "D2, N4AM, N5, OFF, VMD2, AMD2",
+    # "CD2, N4AM, N5, 9e-9",
     "VMS2, N4, 0",
 
     "AMIout, N5, N6",
@@ -457,7 +459,7 @@ switch_oversample_message = OversamplingMessage(message_manager=message_manager)
 
 # okay, now create each individual simulation modules
 
-iteration_frequency =  max(10e3, switch_frequency*30)
+iteration_frequency =  max(10e3, switch_frequency*20)
 state_space_module = StateSpaceSimulationModule(network_matrix=network_matrix, iteration_frequency= iteration_frequency) #TODO: change later
 oversample_module =SwitchOversampleModule( network_matrix=network_matrix, sample_frequency=iteration_frequency, oversample_message=switch_oversample_message)
 
@@ -473,7 +475,7 @@ for i in range(len(network_matrix.u_labels)):
 
     
     
-
+system_clock = iteration_frequency*1
 
 external_switch_modules:list[SwitchSimulationModule] = []
 for i in range(len(network_matrix.external_switch_labels)):
@@ -482,10 +484,10 @@ for i in range(len(network_matrix.external_switch_labels)):
     
     switch_message = external_switch_messages[i]
     if isinstance(ele, ExternalSwitch):
-        external_switch_modules.append( SwitchSimulationModule(ele, switch_message) )
+        external_switch_modules.append( SwitchSimulationModule(ele, switch_message, system_clock_frequency=system_clock) )
 
 
-system_clock = iteration_frequency*1
+
 system_clock_module = SystemClockSimulationModule(system_clock, system_time_messages)
 
 
@@ -509,7 +511,7 @@ system_clock_module.start_simuation(end_sim_t)
 
 
 
-# state_space_module.plot_switch_graph()
+state_space_module.plot_switch_graph()
 # state_space_module.plot_output_graph(outputfile_name= "full-bridge-llc.csv" )
 state_space_module.plot_output_graph(outputfile_name= "Half-bridge-llc.csv" )
-
+# state_space_module.plot_output_graph(outputfile_name= "Half-bridge-llc-x30.csv" )

@@ -15,7 +15,9 @@ import math
 from scipy.optimize import linear_sum_assignment
 
 
-
+from scipy.sparse.linalg import splu, gmres
+from scipy.linalg import solve_triangular
+import scipy.sparse
 def int_to_binary_list(n, length):
     # Convert the integer to a binary string with the specified length
     binary_str = format(n, f'0{length}b')
@@ -363,7 +365,7 @@ def apply_inductance_capactiance_to_state_matrix(
     B_dependent_res = sp.BlockMatrix( [  [Matrix(B1_dependent_matrix)],
                                        [ Matrix(B2_dependent_matrix)]] )
     
-    return M0_I, A_res, B_res, C_res, D_res, A_dependent_res, B_dependent_res                 
+    return M0_I, M_f, A_res, B_res, C_res, D_res, A_dependent_res, B_dependent_res                 
             
     
 def determine_dependent_independent_state_mapping(M0_I: Matrix, A_raw:Matrix,  m_pivots:list[int], u_labels:list[str], y_labels:list[str], x_hat_labels: list[str], x_hat_col_offset_in_m_pivots:int  ):
@@ -763,13 +765,13 @@ def update_system_matrix_to_reflect_dependency(M0: Matrix,
     C_temp = reogranize_matrix_by_row_col_mapping(C,  sys_C_row_idx_map, sys_C_col_idx_map, ind_dep_C_row_idx_map, ind_dep_C_col_idx_map)
     D_temp = D[:, :]
     E_temp = reogranize_matrix_by_row_col_mapping(E, sys_A_col_idx_map, sys_A_col_idx_map, ind_dep_A_row_idx_map, ind_dep_A_col_idx_map)
-
-    M0_I_res, A_res, B_res, C_res, D_res, A_dependent_res, B_dependent_res   = apply_inductance_capactiance_to_state_matrix(
+    C1_temp = reogranize_matrix_by_row_col_mapping(C1,  sys_C_row_idx_map, sys_C_col_idx_map, ind_dep_C_row_idx_map, ind_dep_C_col_idx_map)
+    
+    M0_I_res, Mf_res,  A_res, B_res, C_res, D_res, A_dependent_res, B_dependent_res   = apply_inductance_capactiance_to_state_matrix(
         M0_I=M0_temp, E=E_temp, A=A_temp, B=B_temp, C=C_temp, D=D_temp,
         independent_state_number=len(independent_state_row_col_map), 
         dependent_state_number=len(dependent_state_row_col_map),
-        symbol_to_value_map=symbol_to_value_map,
-
+        symbol_to_value_map=symbol_to_value_map
     )
     
     # now, reogranize matrix back to original form
@@ -777,16 +779,17 @@ def update_system_matrix_to_reflect_dependency(M0: Matrix,
     
     
     # update M0_mapping with 
-    
+    Mf_final = reogranize_matrix_by_row_col_mapping(Mf_res, ind_dep_A_row_idx_map, ind_dep_A_col_idx_map, final_sys_A_row_idx_map, final_sys_A_col_idx_map)
     M0_final = reogranize_matrix_by_row_col_mapping(M0_I_res, ind_dep_A_row_idx_map, ind_dep_A_col_idx_map, final_sys_A_row_idx_map, final_sys_A_col_idx_map)
     A_final = reogranize_matrix_by_row_col_mapping(A_res, ind_dep_A_row_idx_map, ind_dep_A_col_idx_map, final_sys_A_row_idx_map, final_sys_A_col_idx_map)
     B_final = reogranize_matrix_by_row_col_mapping(B_res, ind_dep_B_row_idx_map, ind_dep_B_col_idx_map, final_sys_B_row_idx_map, final_sys_B_col_idx_map)
     C_final = reogranize_matrix_by_row_col_mapping(C_res, ind_dep_C_row_idx_map, ind_dep_C_col_idx_map, final_sys_C_row_idx_map, final_sys_C_col_idx_map )
     D_final = D_res[:,:]
+    C1_final = reogranize_matrix_by_row_col_mapping(C1_temp, ind_dep_C_row_idx_map, ind_dep_C_col_idx_map, final_sys_C_row_idx_map, final_sys_C_col_idx_map )
     
     A_dependent_final = reogranize_matrix_by_row_col_mapping(A_dependent_res, ind_dep_A_row_idx_map, ind_dep_A_col_idx_map, final_sys_A_row_idx_map, final_sys_A_col_idx_map )
     B_dependent_final = reogranize_matrix_by_row_col_mapping(B_dependent_res, ind_dep_B_row_idx_map, ind_dep_B_col_idx_map, final_sys_B_row_idx_map, final_sys_B_col_idx_map)
-    
+    C1_final = C1_final@E
     
     # apply the affect of c1 to C, D matrix
     # given y = C1*x_hat + Cx+DU
@@ -796,8 +799,8 @@ def update_system_matrix_to_reflect_dependency(M0: Matrix,
     C_non_impulse = C_final.copy()
 
 
-    D_impulse = C1 @E @B_final
-    C_impulse = C1@E@A_final
+    D_impulse = C1_final @B_final
+    C_impulse = C1_final@A_final
     
     
     D_final = D_final + D_impulse
@@ -825,7 +828,8 @@ def update_system_matrix_to_reflect_dependency(M0: Matrix,
         
         D_impulse = np.linalg.lstsq(Q_np_array, np.array(D_impulse, dtype=np.float64),rcond=None)[0]
         C_impulse = np.linalg.lstsq(Q_np_array, np.array(C_impulse, dtype=np.float64),rcond=None)[0]
-    
+
+        C1_final = np.linalg.lstsq(Q_np_array, np.array(C1_final, dtype=np.float64),rcond=None)[0]
 
         # convert back to sp.Matrix object
         D_non_impulse = sp.Matrix(D_non_impulse)
@@ -834,12 +838,13 @@ def update_system_matrix_to_reflect_dependency(M0: Matrix,
         C_final = sp.Matrix(C_final)
         C_impulse = sp.Matrix(C_impulse)
         D_impulse = sp.Matrix(D_impulse)
+        C1_final = sp.Matrix(C1_final)
     else:
         assert_matrix_equal(Q, sp.eye(len(y_labels))) # assert Q to be a identity matrix
     
     
 
-    return M0_final, A_final, B_final, C_final, D_final, A_dependent_final, B_dependent_final, C_impulse, C_non_impulse, D_impulse, D_non_impulse,independent_state_labels_list, dependent_state_labels_list
+    return M0_final, A_final, B_final, C_final, D_final, A_dependent_final, B_dependent_final, C_impulse, C_non_impulse, D_impulse, D_non_impulse,independent_state_labels_list, dependent_state_labels_list, C1_final
 
 
 def retrieveSystemMatrix(
@@ -1159,13 +1164,15 @@ def get_tustin_integration( A: np.ndarray, B: np.ndarray, time_t: float) -> np.n
     
     A_d = A_d_p1_inv @ (eye_A + (time_t/2)*A )
     
-    B_d = A_d_p1_inv @B*(time_t/2)
+    B_d = A_d_p1_inv @B*(time_t)
     
     
     zero_state = A_d
-    zero_input = 2*B_d
-    return zero_state, zero_input
-def get_trapezoid_integration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, u:  np.ndarray, time_t:float):
+    zero_input = B_d
+    return sp.matrix2numpy(zero_state, dtype=np.float64), zero_input
+
+
+def get_trapezoid_integration( A:  np.ndarray, B:  np.ndarray,  time_t:float):
     eye_a =  np.eye(A.shape[0], dtype=np.float64)
 
    # https://www.cs.jhu.edu/~misha/ReadingSeminar/Papers/Moler03.pdf
@@ -1328,9 +1335,71 @@ def retrieve_Zsw_hat(A: Matrix, B: Matrix, C: Matrix, D: Matrix,
     
 
 
-
-
-
+def get_radau_integration(A: np.ndarray, B: np.ndarray, dt: float) -> Tuple[np.ndarray, np.ndarray]:
+    """Discretizes continuous-time state-space system using 3-stage Radau IIA method.
+    
+    This implementation uses the 3-stage Radau IIA method (order 5) with optimized
+    matrix operations and improved numerical stability.
+    
+    Parameters
+    ----------
+    A : np.ndarray
+        Continuous-time state matrix (n x n)
+    B : np.ndarray
+        Continuous-time input matrix (n x m)
+    dt : float
+        Time step for discretization
+    
+    Returns
+    -------
+    Tuple[np.ndarray, np.ndarray]
+        A_d : Discrete-time state matrix
+        B_d : Discrete-time input matrix
+    
+    Notes
+    -----
+    The 3-stage Radau IIA method is L-stable and particularly suitable for stiff systems.
+    This implementation uses efficient block matrix operations and stable linear solvers.
+    """
+    n = A.shape[0]
+    m = B.shape[1] if B.ndim > 1 else 1
+    
+    # Radau IIA coefficients (3 stages, order 5)
+    c = np.array([0.1550510257216822, 0.6449489742783178, 1.0])
+    A_rk = np.array([
+        [0.196815477223660,  -0.065535425850198,  0.023770974348220],
+        [0.394424314739087,   0.292073411665228, -0.041548752125998],
+        [0.376403062700467,   0.512485826188421,  0.111111111111111]
+    ])
+    b = A_rk[-1]  # Last row of A_rk gives the weights
+    
+    # Build block matrices efficiently
+    M = np.eye(3 * n) - dt * np.kron(A_rk, A)
+    
+    # Pre-compute LU decomposition of M for efficiency
+    lu, piv = scipy.linalg.lu_factor(M)
+    
+    # Compute A_d efficiently
+    A_d = np.zeros((n, n))
+    for i in range(n):
+        ei = np.zeros(n)
+        ei[i] = 1.0
+        rhs = np.kron(np.ones(3), A @ ei)
+        K = scipy.linalg.lu_solve((lu, piv), rhs)
+        K = K.reshape(3, n)
+        A_d[:, i] = ei + dt * (b @ K)
+    
+    # Compute B_d efficiently
+    B_d = np.zeros((n, m))
+    for j in range(m):
+        ej = np.zeros(m)
+        ej[j] = 1.0
+        rhs = np.kron(np.ones(3), B @ ej)
+        K = scipy.linalg.lu_solve((lu, piv), rhs)
+        K = K.reshape(3, n)
+        B_d[:, j] = dt * (b @ K)
+    
+    return A_d, B_d
 
 def radau_integration_step(x_cur: np.ndarray, A: np.ndarray, B: np.ndarray, u: np.ndarray, time_t: float, dt: float) -> np.ndarray:
     """
