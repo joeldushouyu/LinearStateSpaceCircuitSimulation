@@ -5,6 +5,7 @@ from SimulationMessage import (
     VoltageCurrentMessage,
     OversamplingMessage
 )
+import copy
 import math
 from Element import ExternalSwitch, Diode, VoltageCurrentSource, Element, Voltmeter, Ammeter
 from FormNetworkMatrix import NetworkMatrix
@@ -629,10 +630,10 @@ class StateSpaceSimulationModule(SimulationModule):
             self.D = sp.matrix2numpy(self.D.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             self.C1 = sp.matrix2numpy(self.C1.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             self.solver_zero_input_res, self.solver_zero_state_res = get_pade_03_integeration(self.A, self.B, 1/self.iteration_frequency)
-            # self.solver_zero_input_res, self.solver_zero_state_res = get_pade_0_2_matrix(self.A, self.B, 1/self.iteration_frequency)
-            # self.solver_zero_input_res, self.solver_zero_state_res = get_trapezoid_integration(self.A, self.B, 1/self.iteration_frequency)   
+            #self.solver_zero_input_res, self.solver_zero_state_res = get_pade_0_2_matrix(self.A, self.B, 1/self.iteration_frequency)
+            #self.solver_zero_input_res, self.solver_zero_state_res = get_trapezoid_integration(self.A, self.B, 1/self.iteration_frequency)   
             # self.solver_zero_input_res, self.solver_zero_state_res = get_tustin_integration(self.A, self.B, 1/self.iteration_frequency)    
-            # self.solver_zero_input_res, self.solver_zero_state_res = get_radau_integration(self.A, self.B, 1/self.iteration_frequency)         
+            #self.solver_zero_input_res, self.solver_zero_state_res = get_radau_integration(self.A, self.B, 1/self.iteration_frequency)         
             #self.solver_zero_input_res, self.solver_zero_state_res = get_backward_euler_integartion(self.A, self.B, 1/self.iteration_frequency)
             self.A_dependent = sp.matrix2numpy(self.A_dependent.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             self.B_dependent = sp.matrix2numpy(self.B_dependent.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
@@ -1003,25 +1004,25 @@ class StateSpaceSimulationModule(SimulationModule):
 
 
     
-    def update_y_cur(self, use_impulse, x_for_update, u_for_update, C_impulse, D_impulse, C_nonimpulse, D_nonimpulse, impulse_difference):
-        # y_before = self.y_cur.copy()
+    def update_y_cur(self, use_impulse, x_for_update, u_for_update, C_impulse, D_impulse, C_nonimpulse, D_nonimpulse, dependent_state_labels):
+        y_before = self.y_cur.copy()
         
         
         # # how about try to filter output from any states that became dependent?
         
         # # or even use the impulse for dependent?
         
-        # y_affect_by_dependent:set[int] = set()
+        y_affect_by_dependent:set[int] = set()
         
         
-        # for lab in self.dependent_state_labels:
-        #     x_hat_index = self.network_matrix.x_hat_labels.index(lab)
+        for lab in dependent_state_labels:
+            x_hat_index = self.network_matrix.x_hat_labels.index(lab)
             
-        #     x_for_update[x_hat_index] = 0
-        #     for y_row_idx in range(self.network_matrix.y_label_size):
+            x_for_update[x_hat_index] = 0
+            for y_row_idx in range(self.network_matrix.y_label_size):
             
-        #         if not np.isclose( self.C1[y_row_idx,x_hat_index], 0.0):
-        #             y_affect_by_dependent.add(y_row_idx)
+                if not np.isclose( self.C1[y_row_idx,x_hat_index], 0.0):
+                    y_affect_by_dependent.add(y_row_idx)
             
         
         
@@ -1032,7 +1033,7 @@ class StateSpaceSimulationModule(SimulationModule):
         
         imp = imp_c + imp_D
         # for i in y_affect_by_dependent:
-        #     imp[i] = impulse_v[i]
+        #     imp[i] = 0
 
         # self.y_cur = imp + non_imp
 
@@ -1054,29 +1055,31 @@ class StateSpaceSimulationModule(SimulationModule):
 
 
 
-    def iterative_x(self, x_for_iteration):
+    def iterative_x(self, x_for_iteration, zero_input, zero_state):
         x_before = x_for_iteration.copy()
-        x_t = state_iteration(x_before, self.solver_zero_input_res, self.solver_zero_state_res, self.u)
+        x_t = state_iteration(x_before, zero_input,zero_state, self.u)
         self.__x_cur_ind = x_t.copy()
         
 
-    def update_x_cur_with_dep(self):
-        self.x_with_dep =  np.matmul(self.A_dependent,  self.__x_cur_ind.copy(), dtype=np.float32) + np.matmul(self.B_dependent, self.u)
-        
+    def update_x_cur_with_dep(self, A_dependent, B_dependent):
+        self.x_with_dep =  np.matmul(A_dependent,  self.__x_cur_ind.copy(), dtype=np.float32) + np.matmul(B_dependent, self.u)
+    
         
 
     def iteration(self):
-
+        x_raw = self.__x_cur_ind.copy()
         x_cur_before = self.get_x_cur_with_dep().copy()
 
-
+        # if update x at this stage, it work for parallel all other iteration except the x_state iteration
         
-        # demonstrate parallel of nonimpulse and impulse switch evalulation
         hash_key = self.generate_M_cache_key(self.switch_state)
         non_impulse_C = self.M_cache[hash_key][15].copy() #buck example does not allow it to be, but can be prefetched
         non_impulse_D = self.M_cache[hash_key][16].copy()  
         Z_SW_A = self.M_cache[hash_key][21].copy()
         Z_SW_B = self.M_cache[hash_key][22].copy()
+    
+
+        # demonstrate parallel of nonimpulse and impulse switch evalulation
         non_impulse_value, z_next = self.handle_diode_soft_switch(non_impulse_C=non_impulse_C, 
                                                                   non_impulse_D=non_impulse_D,
                                                                   x_for_update=x_cur_before.copy(),
@@ -1089,8 +1092,11 @@ class StateSpaceSimulationModule(SimulationModule):
         
         self.use_impulse_in_y_output = switch_change_occur or (not diode_change_occur)
         
-
-
+        
+        # dependency
+        self.iterative_x(x_for_iteration=x_cur_before, zero_input=self.solver_zero_input_res, zero_state=self.solver_zero_state_res)
+        self.update_x_cur_with_dep(A_dependent=self.A_dependent, B_dependent=self.B_dependent)
+        
         self.update_y_cur(
             use_impulse=self.use_impulse_in_y_output,
             x_for_update=x_cur_before,
@@ -1099,11 +1105,10 @@ class StateSpaceSimulationModule(SimulationModule):
             D_impulse=self.D_impulse,
             C_nonimpulse=self.C_non_impulse,
             D_nonimpulse=self.D_non_impulse,
-            impulse_difference=impulse_difference
+            dependent_state_labels=self.dependent_state_labels
         )
-        # if update x at this stage, it work for parallel all other iteration except the x_state iteration
-        self.iterative_x(x_cur_before)
-        self.update_x_cur_with_dep()
+        
+
         self.time_t.append(self.cur_system_time)
         cur_switch_state =[]
         cur_switch_trigger =[]
