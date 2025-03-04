@@ -17,4 +17,4 @@ The authoer address the issue by adding 2 parallel capacitors with the 2 diodes 
 ## TODO List
 1. Refactor the code and documentation
 2. Add more detail example in future
-3. Finish the document under /docs that describe the algorithm.
+3. Finish the [technical document](./docs/AlgorithmDetail.pdf) that describe the algorithm.
