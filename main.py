@@ -516,8 +516,8 @@ print(f"DEBUG {state_space_module.diode_1_change} {state_space_module.diode_2_ch
 # state_space_module.plot_switch_graph()
 
 # state_space_module.plot_output_graph(outputfile_name= "full-bridge-llc.csv" )
-state_space_module.plot_output_graph(outputfile_name= "full-bridge-llc-x30.csv" )
-state_space_module.save_diode_debug_info_to_csv("diode_switch_at_x30.csv")
+state_space_module.plot_output_graph(outputfile_name= "csv_data/full-bridge-llc-x30.csv" )
+# state_space_module.save_diode_debug_info_to_csv("csv_data/diode_switch_at_x30.csv")
 # state_space_module.plot_output_graph(outputfile_name= "Half-bridge-llc.csv" )
 # state_space_module.plot_output_graph(outputfile_name= "Half-bridge-llc-x30-parallel.csv" )
 # state_space_module.plot_output_graph(outputfile_name= "Half-bridge-llc-x70.csv" )

@@ -32,6 +32,6 @@ def plot_diode_data(file1: str, file2: str):
     plt.show()
 
 # Example usage
-file1 = 'diode_switch_at_x30.csv'  # Replace with the path to your first CSV file
-file2 = 'diode_switch_at_x20.csv'  # Replace with the path to your second CSV file
+file1 = 'csv_data/diode_switch_at_x30.csv'  # Replace with the path to your first CSV file
+file2 = 'csv_data/diode_switch_at_x20.csv'  # Replace with the path to your second CSV file
 plot_diode_data(file1, file2)
