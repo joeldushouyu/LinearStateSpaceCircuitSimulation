@@ -634,7 +634,7 @@ class StateSpaceSimulationModule(SimulationModule):
             self.D = sp.matrix2numpy(self.D.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             self.C1 = sp.matrix2numpy(self.C1.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             self.solver_zero_input_res, self.solver_zero_state_res = get_pade_03_integeration(self.A, self.B, 1/self.iteration_frequency)
-            self.solver_zero_input_res, self.solver_zero_state_res = get_pade_0_2_matrix(self.A, self.B, 1/self.iteration_frequency)
+            #self.solver_zero_input_res, self.solver_zero_state_res = get_pade_0_2_matrix(self.A, self.B, 1/self.iteration_frequency)
             #self.solver_zero_input_res, self.solver_zero_state_res = get_trapezoid_integration(self.A, self.B, 1/self.iteration_frequency)   
             # self.solver_zero_input_res, self.solver_zero_state_res = get_tustin_integration(self.A, self.B, 1/self.iteration_frequency)    
             # self.solver_zero_input_res, self.solver_zero_state_res = get_radau_integration(self.A, self.B, 1/self.iteration_frequency)         

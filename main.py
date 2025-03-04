@@ -370,70 +370,70 @@ netList = [
 
 
 
-# another simplification here
+# # another simplification here
 
 
-end_sim_t  = 1e-3
-switch_frequency = 100e3
-duty_cycle = 0.5
-# Full bridge LLc circuit
-netList = [
-    f"Vin, NVIN, 0, 600, 0",
-    "LVin, NVIN, 0, 1e-9",
+# end_sim_t  = 1e-3
+# switch_frequency = 100e3
+# duty_cycle = 0.5
+# # Full bridge LLc circuit
+# netList = [
+#     f"Vin, NVIN, 0, 600, 0",
+#     "LVin, NVIN, 0, 1e-9",
     
-    # for idea transformer of turning ration 1:1:1
-    "VMLp, NVIN, 0",
-    "ICIS-1, 0, NVIN, -1, AMS1",  # note, negative because of how we measure the current
-    "ICIS-2, 0, NVIN, 1, AMS2",
+#     # for idea transformer of turning ration 1:1:1
+#     "VMLp, NVIN, 0",
+#     "ICIS-1, 0, NVIN, -1, AMS1",  # note, negative because of how we measure the current
+#     "ICIS-2, 0, NVIN, 1, AMS2",
     
     
-    "VCVS-1, NA-AM, 0, 1, VMLp",
-    "LVCVCS-1, NA-AM, 0, 1e-9",
-    "AMS1, NA-AM, NSource",
-    f"S1, NSource, NA, ON, {switch_frequency}, {duty_cycle}, 0.0",
+#     "VCVS-1, NA-AM, 0, 1, VMLp",
+#     "LVCVCS-1, NA-AM, 0, 1e-9",
+#     "AMS1, NA-AM, NSource",
+#     f"S1, NSource, NA, ON, {switch_frequency}, {duty_cycle}, 0.0",
 
 
-    "VCVS-2, 0, NA-BM, 1, VMLp",
-    "LVCVS-2, 0, NA-BM, 1e-9",
-    "AMS2, NA-BM, NBSource",
-    f"S3, NBSource, NA, OFF, {switch_frequency}, {duty_cycle}, 0.0",
+#     "VCVS-2, 0, NA-BM, 1, VMLp",
+#     "LVCVS-2, 0, NA-BM, 1e-9",
+#     "AMS2, NA-BM, NBSource",
+#     f"S3, NBSource, NA, OFF, {switch_frequency}, {duty_cycle}, 0.0",
 
 
-    "Rr, NA, Nrr, 0.01",
-    "Lr, Nrr, Nlr, 2e-6",
-    "AMLr, Nlr, NlrAM",
-    "Cr, NlrAM, Ncr, 60e-9",
-    "VMCr, NlrAM, Ncr",
-    "Lm, 0, Ncr, 100e-6",
-
-    
-    "LS0, Ncr, 0, 400e-6, [LS1, LS2], [0.99, 0.99]",
-    
-    "LS1, N3, 0, 1e-6, [LS0, LS2], [0.99, 0.99]",
-    "AMD1, N3, N3AM",
-    "VMD1, N3AM, ND1D2",
-    "D1, N3AM, ND1D2, OFF, VMD1, AMD1",
-    "CD1, N3AM, ND1D2, 1e-9",
-    # "RCD1, N3AM, ND1D2, 100e3",
-    # # "VMS1, N3, 0",
+#     "Rr, NA, Nrr, 0.01",
+#     "Lr, Nrr, Nlr, 2e-6",
+#     "AMLr, Nlr, NlrAM",
+#     "Cr, NlrAM, Ncr, 60e-9",
+#     "VMCr, NlrAM, Ncr",
+#     "Lm, 0, Ncr, 100e-6",
 
     
-    "LS2, 0, N4, 1e-6, [LS0, LS1], [0.99, 0.99]",
-    "AMD2, N4, N4AM",
-    "VMD2, N4AM, ND1D2",
-    "D2, N4AM, ND1D2, OFF, VMD2, AMD2",
-    "CD2, N4AM, ND1D2, 1e-9",
-    # "RCD2, N4AM, ND1D2, 100e3",
-    # # "VMS2, N4, 0",
+#     "LS0, Ncr, 0, 400e-6, [LS1, LS2], [0.99, 0.99]",
+    
+#     "LS1, N3, 0, 1e-6, [LS0, LS2], [0.99, 0.99]",
+#     "AMD1, N3, N3AM",
+#     "VMD1, N3AM, ND1D2",
+#     "D1, N3AM, ND1D2, OFF, VMD1, AMD1",
+#     "CD1, N3AM, ND1D2, 1e-9",
+#     # "RCD1, N3AM, ND1D2, 100e3",
+#     # # "VMS1, N3, 0",
+
+    
+#     "LS2, 0, N4, 1e-6, [LS0, LS1], [0.99, 0.99]",
+#     "AMD2, N4, N4AM",
+#     "VMD2, N4AM, ND1D2",
+#     "D2, N4AM, ND1D2, OFF, VMD2, AMD2",
+#     "CD2, N4AM, ND1D2, 1e-9",
+#     # "RCD2, N4AM, ND1D2, 100e3",
+#     # # "VMS2, N4, 0",
   
-    # "RINternal, ND1D2, nf, 0.0001",
+#     # "RINternal, ND1D2, nf, 0.0001",
 
-    "C1, ND1D2, 0, 1e-3",
-    "AMOut, ND1D2, Nout",
-    "R1, Nout, 0, 0.25",
-    "VMout, Nout, 0"
+#     "C1, ND1D2, 0, 1e-3",
+#     "AMOut, ND1D2, Nout",
+#     "R1, Nout, 0, 0.25",
+#     "VMout, Nout, 0"
 
-]
+# ]
 
 
 network_matrix = system_realization(netList,supress)
@@ -461,7 +461,7 @@ switch_oversample_message = OversamplingMessage(message_manager=message_manager)
 
 # okay, now create each individual simulation modules
 
-iteration_frequency =  max(10e3, switch_frequency*30)
+iteration_frequency =  max(10e3, switch_frequency*20)
 state_space_module = StateSpaceSimulationModule(network_matrix=network_matrix, iteration_frequency= iteration_frequency) #TODO: change later
 oversample_module =SwitchOversampleModule( network_matrix=network_matrix, sample_frequency=iteration_frequency, oversample_message=switch_oversample_message)
 
@@ -516,9 +516,9 @@ print(f"DEBUG {state_space_module.diode_1_change} {state_space_module.diode_2_ch
 # state_space_module.plot_switch_graph()
 
 # state_space_module.plot_output_graph(outputfile_name= "full-bridge-llc.csv" )
-state_space_module.plot_output_graph(outputfile_name= "csv_data/full-bridge-llc-x30.csv" )
+# state_space_module.plot_output_graph(outputfile_name= "csv_data/full-bridge-llc-x30.csv" )
 # state_space_module.save_diode_debug_info_to_csv("csv_data/diode_switch_at_x30.csv")
-# state_space_module.plot_output_graph(outputfile_name= "Half-bridge-llc.csv" )
+state_space_module.plot_output_graph(outputfile_name= "csv_data/Half-bridge-llc.csv" )
 # state_space_module.plot_output_graph(outputfile_name= "Half-bridge-llc-x30-parallel.csv" )
 # state_space_module.plot_output_graph(outputfile_name= "Half-bridge-llc-x70.csv" )
 # state_space_module.plot_output_graph(outputfile_name= "Half-bridge-llc-x100.csv" )

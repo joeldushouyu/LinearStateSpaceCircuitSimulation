@@ -500,5 +500,5 @@ def FullBridgeComparsion():
     y_col3 = 3
     plot_csv_3columns(csv_file1=csv_file1, csv_file2=csv_file2, csv_file3=csv_file3, x_col1=x_col1, y_col1=y_col1, x_col2=x_col2, y_col2=y_col2, x_col3=x_col3, y_col3=y_col3, title="VMD2")  
 
-# HalfBridgeComparsion2()
-FullBridgeComparsion()
+HalfBridgeComparsion2()
+# FullBridgeComparsion()
