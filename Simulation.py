@@ -17,7 +17,7 @@ from util import (print_matrix,is_rise_edge, retrieveSystemMatrix,
                   get_backward_euler_integartion, get_trapezoid_integration, 
                   update_system_matrix_to_reflect_dependency,retrieve_Zsw_hat,get_tustin_integration, radau_integration_step,
                   get_pade_03_integeration, int_to_binary_list,
-                  get_pade_0_2_matrix, state_iteration,get_radau_integration
+                  get_pade_0_2_matrix, state_iteration,get_radau_integration, get_forward_euler_integration
                   )
 from typing import Tuple
 import pandas as pd
@@ -31,6 +31,7 @@ from visualize import on_pick, toggle_visibility
 from matplotlib.widgets import CheckButtons
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import csv
 @total_ordering
 class SimulationModule:
     def __init__(self):
@@ -345,8 +346,11 @@ class StateSpaceSimulationModule(SimulationModule):
         self.use_impulse_in_y_output = False
         self.initialize_data()
     
-    
 
+        self.diode1_map:dict[float, int] = {}
+        self.diode2_map:dict[float, int]  = {}
+        self.diode_1_change = 0
+        self.diode_2_change = 0
     def generate_M_cache_key(self,key_list:list[bool|int], value_type="" )->str:
         
         if value_type == "": # assume is bool type in list
@@ -630,10 +634,10 @@ class StateSpaceSimulationModule(SimulationModule):
             self.D = sp.matrix2numpy(self.D.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             self.C1 = sp.matrix2numpy(self.C1.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             self.solver_zero_input_res, self.solver_zero_state_res = get_pade_03_integeration(self.A, self.B, 1/self.iteration_frequency)
-            #self.solver_zero_input_res, self.solver_zero_state_res = get_pade_0_2_matrix(self.A, self.B, 1/self.iteration_frequency)
+            self.solver_zero_input_res, self.solver_zero_state_res = get_pade_0_2_matrix(self.A, self.B, 1/self.iteration_frequency)
             #self.solver_zero_input_res, self.solver_zero_state_res = get_trapezoid_integration(self.A, self.B, 1/self.iteration_frequency)   
             # self.solver_zero_input_res, self.solver_zero_state_res = get_tustin_integration(self.A, self.B, 1/self.iteration_frequency)    
-            #self.solver_zero_input_res, self.solver_zero_state_res = get_radau_integration(self.A, self.B, 1/self.iteration_frequency)         
+            # self.solver_zero_input_res, self.solver_zero_state_res = get_radau_integration(self.A, self.B, 1/self.iteration_frequency)         
             #self.solver_zero_input_res, self.solver_zero_state_res = get_backward_euler_integartion(self.A, self.B, 1/self.iteration_frequency)
             self.A_dependent = sp.matrix2numpy(self.A_dependent.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             self.B_dependent = sp.matrix2numpy(self.B_dependent.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
@@ -971,25 +975,29 @@ class StateSpaceSimulationModule(SimulationModule):
         diode_count = 0
         
         labels_to_swap = []
-        consistent = True
-        for indx, i in enumerate(self.diode_index):
-            if  (z_next[indx] < 0 and non_impulse_val[indx] > 0) or  (z_next[indx] > 0 and non_impulse_val[indx] < 0):
-                consistent = False
-        if not consistent:
-            return True
+        # consistent = True
+        # for indx, i in enumerate(self.diode_index):
+        #     if  (z_next[indx] < 0 and non_impulse_val[indx] > 0) or  (z_next[indx] > 0 and non_impulse_val[indx] < 0):
+        #         consistent = False
+        # if not consistent:
+        #     return True
         for i in self.diode_index:
             volt_lab, I_lab = self.switch_index_label_map[i]
             diode_state = self.switch_state[i]
             volt_nonimpulse = current_nonimpulse = non_impulse_val[diode_count]
             volt_impulse = current_impulse = impulse_val[diode_count]
 
-            if volt_impulse > 0 or (  diode_state==False and volt_nonimpulse>0  ):
+            if volt_impulse > 0 or (  diode_state==False and volt_nonimpulse>0  and  z_next[diode_count] > 0 ):
                 self.switch_state[i] = True
                 labels_to_swap.append(volt_lab)
+                self.diode_1_change += 1
+                self.diode1_map[self.cur_system_time] = self.diode_1_change
 
-            elif current_impulse <0 or ( diode_state == True and current_nonimpulse < 0  ):
+            elif current_impulse <0 or ( diode_state == True and current_nonimpulse < 0   and z_next[diode_count] < 0):
                 self.switch_state[i] = False
                 labels_to_swap.append(I_lab)
+                self.diode_2_change += 1
+                self.diode2_map[self.cur_system_time] = self.diode_2_change
             else:
                 pass
                 
@@ -1121,3 +1129,20 @@ class StateSpaceSimulationModule(SimulationModule):
         self.switch_triggered_output.append( cur_switch_trigger)
         
         self.y_output.append(self.y_cur[:,0].tolist())
+        
+    def save_diode_debug_info_to_csv(self, filename: str):
+        # Get all unique times from both dictionaries
+        times = sorted(set(self.diode1_map.keys()).union(set(self.diode2_map.keys())))
+
+        # Open the CSV file for writing
+        with open(filename, mode='w', newline='') as file:
+            writer = csv.writer(file)
+            
+            # Write the header
+            writer.writerow(['time', 'diode1_map_value', 'diode2_map_value'])
+            
+            # Write the data rows
+            for time in times:
+                diode1_value = self.diode1_map.get(time, None)  # Get value or None if key doesn't exist
+                diode2_value = self.diode2_map.get(time, None)  # Get value or None if key doesn't exist
+                writer.writerow([time, diode1_value, diode2_value])

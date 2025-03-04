@@ -1196,6 +1196,18 @@ def get_trapezoid_integration( A:  np.ndarray, B:  np.ndarray,  time_t:float):
     # res = p1+p2
     return  zero_state, zero_input 
 
+
+def get_forward_euler_integration(A: np.ndarray, B: np.ndarray, time_t: float):
+    # Identity matrix of the same size as A
+    eye_a = np.eye(A.shape[0], dtype=np.float64)
+    
+    # Discretizing the system using the Forward Euler method
+    Ad = eye_a + A * time_t  # Discrete-time state transition matrix
+    Bd = B * time_t          # Discrete-time input matrix
+    
+    return Ad, Bd
+
+
 # def trapezoidalIntegration(x_cur: np.ndarray, A:  np.ndarray, B:  np.ndarray, u:  np.ndarray, time_t:float):
     
 
@@ -1249,36 +1261,39 @@ def retrieve_Zsw_hat(A: Matrix, B: Matrix, C: Matrix, D: Matrix,
     # assume source is sorted in current, voltage order
     # assume state is sorted in inductor, capacitor order
 
-    # sanity check 
-    for ind, lab in enumerate(x_hat_labels):
-        ele = m_column_labels_to_obj_map[lab]
-        if ind < number_of_inductor:
-            assert isinstance(ele, Inductor)
-        else:
-            assert isinstance(ele, Capacitor)
-    for ind, lab in enumerate(u_labels):
-        ele = m_column_labels_to_obj_map[lab]
-        assert isinstance(ele, VoltageCurrentSource)
-        if ind < number_of_current_source:
-            assert ele.is_voltage_source is False
-        else:
-            assert ele.is_voltage_source
+    # # sanity check 
+    # for ind, lab in enumerate(x_hat_labels):
+    #     ele = m_column_labels_to_obj_map[lab]
+    #     if ind < number_of_inductor:
+    #         assert isinstance(ele, Inductor)
+    #     else:
+    #         assert isinstance(ele, Capacitor)
+    # for ind, lab in enumerate(u_labels):
+    #     ele = m_column_labels_to_obj_map[lab]
+    #     assert isinstance(ele, VoltageCurrentSource)
+    #     if ind < number_of_current_source:
+    #         assert ele.is_voltage_source is False
+    #     else:
+    #         assert ele.is_voltage_source
 
     
-    ALL = A[:number_of_inductor, :number_of_inductor]
-    ALC = A[:number_of_inductor, number_of_inductor:]
-    ACL = A[number_of_inductor:, :number_of_inductor]
-    ACC = A[number_of_inductor:, number_of_inductor:]
+    # ALL = A[:number_of_inductor, :number_of_inductor]
+    # ALC = A[:number_of_inductor, number_of_inductor:]
+    # ACL = A[number_of_inductor:, :number_of_inductor]
+    # ACC = A[number_of_inductor:, number_of_inductor:]
     
 
-    BLis = B[:number_of_inductor, :number_of_current_source]
-    BLvs= B[:number_of_inductor, number_of_current_source:]
-    BCis=B[number_of_inductor:, :number_of_current_source]
-    BCvs=B[number_of_inductor:, number_of_current_source:]
+    # BLis = B[:number_of_inductor, :number_of_current_source]
+    # BLvs= B[:number_of_inductor, number_of_current_source:]
+    # BCis=B[number_of_inductor:, :number_of_current_source]
+    # BCvs=B[number_of_inductor:, number_of_current_source:]
     
     # retrieve the rows of Z
     # if diode is on, look at the current of the diode
     # if diode is off, look at the voltage of the diode
+    
+    Y_hat_A = C @ A
+    Y_hat_B = C@B
     
     C_SW = sp.zeros( len(diode_column_labels), len(x_hat_labels) )
     D_SW = sp.zeros( len(diode_column_labels), len(u_labels) )
@@ -1288,6 +1303,10 @@ def retrieve_Zsw_hat(A: Matrix, B: Matrix, C: Matrix, D: Matrix,
 
     C_nonimpulse_SW = sp.zeros(len(diode_column_labels), len(x_hat_labels))
     D_nonimpulse_SW = sp.zeros(len(diode_column_labels), len(u_labels))
+    
+    Z_hat_Sw_A = sp.zeros(len(diode_column_labels), len(x_hat_labels))
+    Z_hat_SW_B = sp.zeros(len(diode_column_labels), len(u_labels))
+    
     for sw_index, sw in  enumerate(diode_column_labels):
         sw_ele =  m_column_labels_to_obj_map[sw]
         if isinstance(sw_ele, Diode):
@@ -1303,6 +1322,8 @@ def retrieve_Zsw_hat(A: Matrix, B: Matrix, C: Matrix, D: Matrix,
                 C_nonimpulse_SW[sw_index, :] = C_nonimpulse_matrix[voltmeter_index, :]
                 D_nonimpulse_SW[sw_index, :] = D_nonimpulse_matrix[voltmeter_index, :]
                 C1_SW[sw_index, :]  = C1[voltmeter_index, :]
+                Z_hat_Sw_A[sw_index, :] = Y_hat_A[voltmeter_index, :]
+                Z_hat_SW_B[sw_index, :] = Y_hat_B[voltmeter_index, :]
                 
             else:
                 # means swwitch is on
@@ -1315,21 +1336,23 @@ def retrieve_Zsw_hat(A: Matrix, B: Matrix, C: Matrix, D: Matrix,
                 C_nonimpulse_SW[sw_index, :] = C_nonimpulse_matrix[ammeter_index, :]
                 D_nonimpulse_SW[sw_index, :] = D_nonimpulse_matrix[ammeter_index, :]
                 C1_SW[sw_index, :]  = C1[ammeter_index, :]
-    C_SW_il = C_SW[:, :number_of_inductor]
-    C_SW_vc = C_SW[:, number_of_inductor:]
+                Z_hat_Sw_A[sw_index, :] = Y_hat_A[ammeter_index, :]
+                Z_hat_SW_B[sw_index, :] = Y_hat_B[ammeter_index, :]                
+    # C_SW_il = C_SW[:, :number_of_inductor]
+    # C_SW_vc = C_SW[:, number_of_inductor:]
     
 
 
-    C_dsw_il = C_SW_il@ALL + C_SW_vc@ACL
-    C_dsw_vc = C_SW_il@ALC + C_SW_vc@ACC
+    # C_dsw_il = C_SW_il@ALL + C_SW_vc@ACL
+    # C_dsw_vc = C_SW_il@ALC + C_SW_vc@ACC
     
-    D_dsw_is = C_SW_il@BLis + C_SW_vc@BCis
-    D_dsw_vs = C_SW_il@BLvs + C_SW_vc@BCvs
+    # D_dsw_is = C_SW_il@BLis + C_SW_vc@BCis
+    # D_dsw_vs = C_SW_il@BLvs + C_SW_vc@BCvs
     
 
     
-    Z_hat_Sw_A = sp.BlockMatrix([ [C_dsw_il, C_dsw_vc] ])
-    Z_hat_SW_B = sp.BlockMatrix([ [D_dsw_is ,D_dsw_vs]])
+    # Z_hat_Sw_A = sp.BlockMatrix([ [C_dsw_il, C_dsw_vc] ])
+    # Z_hat_SW_B = sp.BlockMatrix([ [D_dsw_is ,D_dsw_vs]])
     
     return C1_SW, C_SW, D_SW, C_impulse_SW, D_impulse_SW, C_nonimpulse_SW, D_nonimpulse_SW,  Z_hat_Sw_A, Z_hat_SW_B
     
