@@ -1,3 +1,4 @@
+from sympy.matrices.expressions.matexpr import MatrixElement
 from SimulationMessage import (
     Message,
     SystemTimeMessage,
@@ -335,22 +336,14 @@ class StateSpaceSimulationModule(SimulationModule):
         self.switch_state_output:list[list[int]] = []
         self.switch_triggered_output:list[list[int]] = []
         
-        self.boolean_symbol_to_element_name_map:dict[sp.Symbol:str] = {}
-        
-        
+
         self.solver_zero_input_res:npt.NDArray = None
         self.solver_zero_state_res:npt.NDArray = None
-        self.fig_count = 1
-        
+
         self.switch_last_output = np.zeros(self.network_matrix.s_labels_size)
         self.use_impulse_in_y_output = False
         self.initialize_data()
     
-
-        self.diode1_map:dict[float, int] = {}
-        self.diode2_map:dict[float, int]  = {}
-        self.diode_1_change = 0
-        self.diode_2_change = 0
     def generate_M_cache_key(self,key_list:list[bool|int], value_type="" )->str:
         
         if value_type == "": # assume is bool type in list
@@ -421,124 +414,7 @@ class StateSpaceSimulationModule(SimulationModule):
         
         assert [ x== y for x,y in zip(current_switch_states, self.switch_state)]
         
-    
-    # def _retrieve_min_terms_of_each_states(self ):
-        
-    #     # truth table is input is divided into two part
-    #     # [All current switch/diode states, next possible switch case]
-    #     # the output is logic 1 if caused impulse to switch state, logic zero other wise
-        
-    #     # first, get all minterms (boolean input thage generate True output) 
-        
-    #     # minterms happen if the state is independent in one, but dependent in other. Likewise if is dependent in one but independent in other.
-    #     min_terms_dict:dict[str:list[list[int]]] = {}
-        
-    #     switch_number = self.network_matrix.s_labels_size
-        
-    #     external_switch_number = len(self.network_matrix.external_switch_labels)
-    #     for state_id in range( 2**self.network_matrix.s_labels_size):
-            
-        
-    #         _, current_state = int_to_binary_list(state_id,switch_number)
-            
-    #         cur_state_cache_key = self.generate_M_cache_key(current_state,1)
-    #         cur_state_ind_labels = self.M_cache[cur_state_cache_key][31].copy()
-    #         cur_state_dep_labels = self.M_cache[cur_state_cache_key][32].copy()
-    #         for external_switch_id in range(2** external_switch_number):
-    #             _, next_state_external_switch = int_to_binary_list(external_switch_id, external_switch_number)
-    #             next_state = current_state.copy()
-                
-    #             # update the external switch in next state
-    #             for ind, ex_idx in enumerate(self.external_switch_index):
-    #                 next_state[ex_idx] = next_state_external_switch[ind]
 
-    #             next_state_cache_key = self.generate_M_cache_key(next_state,1)
-    #             # now determine if it is a min_term 
-    #             next_state_ind_labels = self.M_cache[next_state_cache_key][31].copy()
-    #             next_state_dep_labels = self.M_cache[next_state_cache_key][32].copy()
-                
-    #             for state_lab in self.network_matrix.x_hat_labels:
-    #                 if (state_lab in cur_state_ind_labels and state_lab in next_state_dep_labels) :
-    #                     # means is a state label become dependent in the next iteration
-                        
-    #                     # this means it might create a spike in any diode that depends on this output
-                        
-    #                     if state_lab not in min_terms_dict:
-    #                         min_terms_dict[state_lab] = [ current_state + next_state_external_switch   ]
-    #                     else:
-    #                         min_terms_dict[state_lab].append( current_state + next_state_external_switch   )
-    #     # this should give minterms of list 
-        
-    #     return min_terms_dict
-            
-            
-    # def build_truth_table_for_impulse_response(self):
-    #     # truth table is input is divided into two part
-    #     # [All current switch/diode states, next possible switch/diode state]
-    #     # the output is logic 1 if caused impulse to switch state, logic zero other wise
-    #     self.iterative_all_possible_switch_scenarion()
-        
-    #     # for prediction of impulse response, the state of diode is the same between two state, only the external switches changes state
-    #     input_symbols_part_1 = []
-    #     input_symbols_part_2 = []
-        
-    #     for idx, s_lab in enumerate(self.network_matrix.s_labels):
-    #         ele = self.network_matrix.m_column_labels_to_obj_map[s_lab]
-            
-    #         element_name_sp = sp.symbols(ele.name)
-    #         input_symbols_part_1.append(element_name_sp)
-    #         self.boolean_symbol_to_element_name_map[element_name_sp] = ele.name
-            
-    #         if isinstance(ele, ExternalSwitch):
-    #             assert idx in self.external_switch_index # sanity check
-    #             ele_inp_sp = sp.symbols(f"{ ele.name}-input")
-    #             input_symbols_part_2.append(ele_inp_sp)
-    #             self.boolean_symbol_to_element_name_map[ele_inp_sp] = ele.name
-                
-    #     min_terms_dict = self._retrieve_min_terms_of_each_states()
-        
-    #     min_term_pos_dict = {}
-        
-        
-    #     for x_hat_labels, min_term_list in min_terms_dict.items():
-    #         min_term_pos_dict[x_hat_labels] = sp_logic.POSform(  input_symbols_part_1+input_symbols_part_2,
-    #                                                            min_term_list
-    #                                                            )
-            
-    #     p = 200
-        
-    def choose_intergation_strategy(self):
-        # numerical oscillation (not system oscillation) will always occur for any real eigenvalue < 0
-        
-        # use trapezoidal  by default
-        # use backward euler if real eigenvalue < -2 
-        # temp = self.A.copy()
-        # temp = temp* (1/self.iteration_frequency)
-
-        
-        # # Step 2: Check stability (eigenvalues within [-1, 1])
-        # eigenvalues = np.linalg.eigvals(temp)
-        # stability = all(abs(eig) <= 1 for eig in eigenvalues)
-
-        # # Step 3: Check stiffness (large spread of eigenvalue magnitudes)
-        # min_eig = min(eigenvalues)
-        # max_eig = max(eigenvalues)
-        # min_eig_mag = min(np.abs(eigenvalues))
-        # max_eig_mag = max(np.abs(eigenvalues))
-        # stiffness = True if min_eig_mag==0 else  (max_eig_mag / min_eig_mag) > 10
-
-        # # Output results
-        # if all(abs(eig) <= 1 for eig in eigenvalues):
-        #     print("Stable")
-        #     self.integration_strategy= "Trapezoidal"
-        # else:
-        #     print("Unstable")
-        #     self.integration_strategy= "BackwardEuler"
-        # self.integration_strategy= "Trapezoidal"
-        # print("Eigenvalues:", eigenvalues)
-        # print("Stiffness:", stiffness)
-        pass
-        
     def swap_col_and_update(self, label_to_Swap:list[str], assert_no_cache=False):
         if len(label_to_Swap) >0:
             for lab in label_to_Swap:
@@ -761,7 +637,6 @@ class StateSpaceSimulationModule(SimulationModule):
         self.swap_col_and_update([])
 
         
-        self.choose_intergation_strategy()
     def update(self, message:Message):
         
         if isinstance(message, SystemTimeMessage):
@@ -800,10 +675,10 @@ class StateSpaceSimulationModule(SimulationModule):
                         ele = self.network_matrix.m_column_labels_to_obj_map[lab]
                         sw_ind = self.switch_label_index_map[lab]
                         
-                        if self.switch_state[sw_ind] == False:
+                        if self.switch_state[sw_ind] is False:
                             assert ele.element_voltage_name == lab
                         else:
-                            assert self.switch_state[sw_ind] == True
+                            assert self.switch_state[sw_ind] is True
                             assert ele.element_current_name == lab
                     
                     # self.build_truth_table_for_impulse_response()
@@ -975,29 +850,21 @@ class StateSpaceSimulationModule(SimulationModule):
         diode_count = 0
         
         labels_to_swap = []
-        # consistent = True
-        # for indx, i in enumerate(self.diode_index):
-        #     if  (z_next[indx] < 0 and non_impulse_val[indx] > 0) or  (z_next[indx] > 0 and non_impulse_val[indx] < 0):
-        #         consistent = False
-        # if not consistent:
-        #     return True
+
         for i in self.diode_index:
             volt_lab, I_lab = self.switch_index_label_map[i]
             diode_state = self.switch_state[i]
             volt_nonimpulse = current_nonimpulse = non_impulse_val[diode_count]
             volt_impulse = current_impulse = impulse_val[diode_count]
 
-            if volt_impulse > 0 or (  diode_state==False and volt_nonimpulse>0  and  z_next[diode_count] > 0 ):
+            if volt_impulse > 0 or (  diode_state is False and volt_nonimpulse>0  and  z_next[diode_count] > 0 ):
                 self.switch_state[i] = True
                 labels_to_swap.append(volt_lab)
-                self.diode_1_change += 1
-                self.diode1_map[self.cur_system_time] = self.diode_1_change
 
-            elif current_impulse <0 or ( diode_state == True and current_nonimpulse < 0   and z_next[diode_count] < 0):
+            elif current_impulse <0 or ( diode_state is True and current_nonimpulse < 0   and z_next[diode_count] < 0):
                 self.switch_state[i] = False
                 labels_to_swap.append(I_lab)
-                self.diode_2_change += 1
-                self.diode2_map[self.cur_system_time] = self.diode_2_change
+ 
             else:
                 pass
                 
@@ -1012,27 +879,8 @@ class StateSpaceSimulationModule(SimulationModule):
 
 
     
-    def update_y_cur(self, use_impulse, x_for_update, u_for_update, C_impulse, D_impulse, C_nonimpulse, D_nonimpulse, dependent_state_labels):
-        y_before = self.y_cur.copy()
-        
-        
-        # # how about try to filter output from any states that became dependent?
-        
-        # # or even use the impulse for dependent?
-        
-        y_affect_by_dependent:set[int] = set()
-        
-        
-        for lab in dependent_state_labels:
-            x_hat_index = self.network_matrix.x_hat_labels.index(lab)
-            
-            x_for_update[x_hat_index] = 0
-            for y_row_idx in range(self.network_matrix.y_label_size):
-            
-                if not np.isclose( self.C1[y_row_idx,x_hat_index], 0.0):
-                    y_affect_by_dependent.add(y_row_idx)
-            
-        
+    def update_y_cur(self, use_impulse, x_for_update, u_for_update, C_impulse, D_impulse, C_nonimpulse, D_nonimpulse):
+
         
         imp_c = np.matmul(C_impulse, x_for_update, dtype=np.float32) 
         imp_D = np.matmul(D_impulse, u_for_update)
@@ -1075,14 +923,13 @@ class StateSpaceSimulationModule(SimulationModule):
         
 
     def iteration(self):
-        x_raw = self.__x_cur_ind.copy()
         x_cur_before = self.get_x_cur_with_dep().copy()
 
         # if update x at this stage, it work for parallel all other iteration except the x_state iteration
         
         hash_key = self.generate_M_cache_key(self.switch_state)
         non_impulse_C = self.M_cache[hash_key][15].copy() #buck example does not allow it to be, but can be prefetched
-        non_impulse_D = self.M_cache[hash_key][16].copy()  
+        non_impulse_D: MatrixElement | list[Any] = self.M_cache[hash_key][16].copy()  
         Z_SW_A = self.M_cache[hash_key][21].copy()
         Z_SW_B = self.M_cache[hash_key][22].copy()
     
@@ -1113,7 +960,6 @@ class StateSpaceSimulationModule(SimulationModule):
             D_impulse=self.D_impulse,
             C_nonimpulse=self.C_non_impulse,
             D_nonimpulse=self.D_non_impulse,
-            dependent_state_labels=self.dependent_state_labels
         )
         
 
@@ -1130,19 +976,3 @@ class StateSpaceSimulationModule(SimulationModule):
         
         self.y_output.append(self.y_cur[:,0].tolist())
         
-    def save_diode_debug_info_to_csv(self, filename: str):
-        # Get all unique times from both dictionaries
-        times = sorted(set(self.diode1_map.keys()).union(set(self.diode2_map.keys())))
-
-        # Open the CSV file for writing
-        with open(filename, mode='w', newline='') as file:
-            writer = csv.writer(file)
-            
-            # Write the header
-            writer.writerow(['time', 'diode1_map_value', 'diode2_map_value'])
-            
-            # Write the data rows
-            for time in times:
-                diode1_value = self.diode1_map.get(time, None)  # Get value or None if key doesn't exist
-                diode2_value = self.diode2_map.get(time, None)  # Get value or None if key doesn't exist
-                writer.writerow([time, diode1_value, diode2_value])

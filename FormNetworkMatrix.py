@@ -919,7 +919,7 @@ def system_realization(netList: list[list[str]], supress_inconsistenc=False)->Ne
     
     # do any rref on M matrix
     M, pivots = M.rref()
-    print(pivots)
+    # print(pivots)
     # ensure pivots are in consective order
     for i in range(len(pivots)):
         if i != pivots[i]:
@@ -928,7 +928,7 @@ def system_realization(netList: list[list[str]], supress_inconsistenc=False)->Ne
             else:
                 raise ValueError("Network inconsistency detect for initial circuit topology")
 
-    print_matrix(M, reordered_m_labels, ["" for x in range(M.shape[0])])
+    # print_matrix(M, reordered_m_labels, ["" for x in range(M.shape[0])])
 
     
     net =  NetworkMatrix(

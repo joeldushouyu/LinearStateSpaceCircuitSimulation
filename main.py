@@ -512,7 +512,6 @@ system_clock_module.start_simuation(end_sim_t)
 
 
 
-print(f"DEBUG {state_space_module.diode_1_change} {state_space_module.diode_2_change}")
 # state_space_module.plot_switch_graph()
 
 # state_space_module.plot_output_graph(outputfile_name= "full-bridge-llc.csv" )
