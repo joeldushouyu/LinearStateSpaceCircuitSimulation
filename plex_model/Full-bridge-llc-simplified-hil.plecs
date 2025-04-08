@@ -10,7 +10,7 @@ Plecs {
   InitStep      "-1"
   FixedStep     "1/(3e6)"
   Refine        "1"
-  ZCStepSize    "1/(3e6)"
+  ZCStepSize    "1/(2e6)"
   RelTol        "1e-3"
   AbsTol        "-1"
   TurnOnThreshold "0"
@@ -43,7 +43,7 @@ Plecs {
   CodeGenTargetSettings ""
   ExtendedMatrixPrecision "1"
   MatrixSignificanceCheck "2"
-  RemoveUnusedStateSpaceOutputs "2"
+  RemoveUnusedStateSpaceOutputs "1"
   EnableStateSpaceSplitting "2"
   DisplayStateSpaceSplitting "1"
   DiscretizationMethod "2"
@@ -51,9 +51,9 @@ Plecs {
   AlgebraicLoopMethod "1"
   AlgebraicLoopTolerance "1e-6"
   ScriptsDialogGeometry "[647 1374 942 244]"
-  ScriptsDialogSplitterPos "100"
+  ScriptsDialogSplitterPos "48"
   Schematic {
-    Location      [2213, 62; 5232, 1684]
+    Location      [2546, 445; 4274, 2067]
     ZoomFactor    1.14436
     SliderPosition [0, 0]
     ShowBrowser   off
@@ -144,11 +144,11 @@ Plecs {
       Direction     up
       Flipped       off
       LabelPosition south
-      Location      [0, 62; 1728, 1714]
-      State         "AAAA/wAAAAD9AAAAAgAAAAAAAAHbAAAGVfwCAAAAAfsAAAAUAEQAYQB0A"
-"GEAVwBpAGQAZwBlAHQBAAAANQAABlUAAABXAP///wAAAAEAAAAAAAAAAPwCAAAAA/sAAAAQAFoAbw"
+      Location      [2382, 109; 4110, 1777]
+      State         "AAAA/wAAAAD9AAAAAgAAAAAAAAHbAAAGZfwCAAAAAfsAAAAUAEQAYQB0A"
+"GEAVwBpAGQAZwBlAHQBAAAANQAABmUAAABXAP///wAAAAEAAAAAAAAAAPwCAAAAA/sAAAAQAFoAbw"
 "BvAG0AQQByAGUAYQAAAAAA/////wAAADEA////+wAAABQAUwBhAHYAZQBkAFYAaQBlAHcAcwAAAAA"
-"A/////wAAAGMA////+wAAAAwAVAByAGEAYwBlAHMAAAAAAP////8AAABjAP///wAABN8AAAZVAAAA"
+"A/////wAAAGMA////+wAAAAwAVAByAGEAYwBlAHMAAAAAAP////8AAABjAP///wAABN8AAAZlAAAA"
 "BAAAAAQAAAAIAAAACPwAAAABAAAAAgAAAAEAAAAOAFQAbwBvAGwAQgBhAHIBAAAAAP////8AAAAAA"
 "AAAAA=="
       SavedViews    "AAAAAgAAAAA="
@@ -159,7 +159,7 @@ Plecs {
       TimeRange     "0.0"
       ScrollingMode "1"
       SingleTimeAxis "1"
-      Open          "1"
+      Open          "0"
       Ts            "-1"
       SampleLimit   "0"
       XAxisLabel    "Time / s"
@@ -211,7 +211,7 @@ Plecs {
       Type          Subsystem
       Name          "Subsystem"
       Show          on
-      Position      [1455, 825]
+      Position      [1460, 825]
       Direction     up
       Flipped       off
       LabelPosition south
@@ -291,7 +291,7 @@ Plecs {
         Index         "6"
       }
       Schematic {
-        Location      [0, 420; 1728, 2050]
+        Location      [0, 259; 1728, 1881]
         ZoomFactor    1.71498
         SliderPosition [0, 0]
         ShowBrowser   off

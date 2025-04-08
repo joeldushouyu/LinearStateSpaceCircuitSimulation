@@ -8,9 +8,9 @@ Plecs {
   Solver        "FixedStepDiscrete"
   MaxStep       "1e-3"
   InitStep      "-1"
-  FixedStep     "1/(2e6)"
+  FixedStep     "1/(3e6)"
   Refine        "1"
-  ZCStepSize    "1/(2e6)"
+  ZCStepSize    "1/(3e6)"
   RelTol        "1e-3"
   AbsTol        "-1"
   TurnOnThreshold "0"
@@ -53,7 +53,7 @@ Plecs {
   ScriptsDialogGeometry "[647 1374 942 244]"
   ScriptsDialogSplitterPos "100"
   Schematic {
-    Location      [2216, 57; 5232, 1687]
+    Location      [2981, 226; 4709, 1856]
     ZoomFactor    0.763606
     SliderPosition [0, 0]
     ShowBrowser   off
@@ -144,22 +144,22 @@ Plecs {
       Direction     up
       Flipped       off
       LabelPosition south
-      Location      [0, 853; 1728, 2648]
-      State         "AAAA/wAAAAD9AAAAAgAAAAAAAAHbAAAG5PwCAAAAAfsAAAAUAEQAYQB0A"
-"GEAVwBpAGQAZwBlAHQBAAAAMgAABuQAAABXAP///wAAAAEAAAAAAAAAAPwCAAAAA/sAAAAQAFoAbw"
+      Location      [-444, 778; 1284, 2589]
+      State         "AAAA/wAAAAD9AAAAAgAAAAAAAAHbAAAG9PwCAAAAAfsAAAAUAEQAYQB0A"
+"GEAVwBpAGQAZwBlAHQBAAAANQAABvQAAABXAP///wAAAAEAAAAAAAAAAPwCAAAAA/sAAAAQAFoAbw"
 "BvAG0AQQByAGUAYQAAAAAA/////wAAADEA////+wAAABQAUwBhAHYAZQBkAFYAaQBlAHcAcwAAAAA"
-"A/////wAAAGMA////+wAAAAwAVAByAGEAYwBlAHMAAAAAAP////8AAABjAP///wAABN8AAAbkAAAA"
+"A/////wAAAGMA////+wAAAAwAVAByAGEAYwBlAHMAAAAAAP////8AAABjAP///wAABN8AAAb0AAAA"
 "BAAAAAQAAAAIAAAACPwAAAABAAAAAgAAAAEAAAAOAFQAbwBvAGwAQgBhAHIBAAAAAP////8AAAAAA"
 "AAAAA=="
       SavedViews    "AAAAAgAAAAA="
-      HeaderState   "{\"DefaultSecSize\":0,\"FirstSecSize\":204,\"Labels\":[],"
+      HeaderState   "{\"DefaultSecSize\":0,\"FirstSecSize\":196,\"Labels\":[],"
 "\"VisualIdxs\":[]}"
       PlotPalettes  "AAAAAQAAAAEAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
       Axes          "1"
       TimeRange     "0.0"
       ScrollingMode "1"
       SingleTimeAxis "1"
-      Open          "1"
+      Open          "0"
       Ts            "-1"
       SampleLimit   "0"
       XAxisLabel    "Time / s"
@@ -217,11 +217,11 @@ Plecs {
       LabelPosition south
       Frame         [-160, -115; 160, 115]
       TreatAsAtomicUnit on
-      SampleTime    "1/(2e6)"
+      SampleTime    "1/(3e6)"
       SimulationMode "2"
       TaskingMode "1"
       CodeGenEnable on
-      CodeGenSampleTime "1/(2e6)"
+      CodeGenSampleTime "1/(3e6)"
       CodeGenDiscretizationMethod "2"
       CodeGenTarget "Generic"
       CodeGenTargetSettings "AAAAfwAAAAAbQ29kZUdlblRhcmdldDo6U2V0dGluZ3NNYXAAA"

@@ -8,7 +8,7 @@ Plecs {
   Solver        "FixedStepDiscrete"
   MaxStep       "1e-3"
   InitStep      "-1"
-  FixedStep     "1/(10e6)"
+  FixedStep     "1/(3e6)"
   Refine        "1"
   ZCStepSize    "1/(10e6)"
   RelTol        "1e-3"
@@ -53,7 +53,7 @@ Plecs {
   ScriptsDialogGeometry "[3767 638 804 372]"
   ScriptsDialogSplitterPos "48"
   Schematic {
-    Location      [2216, 57; 5232, 1687]
+    Location      [2213, 62; 5232, 1684]
     ZoomFactor    1.14437
     SliderPosition [0, 0]
     ShowBrowser   off
@@ -449,11 +449,11 @@ Plecs {
       Direction     up
       Flipped       off
       LabelPosition south
-      Location      [2515, 152; 4243, 1826]
-      State         "AAAA/wAAAAD9AAAAAgAAAAAAAADwAAAGa/wCAAAAAfsAAAAUAEQAYQB0A"
-"GEAVwBpAGQAZwBlAHQBAAAAMgAABmsAAABXAP///wAAAAEAAAC0AAAB1vwCAAAAA/sAAAAQAFoAbw"
+      Location      [2357, 374; 4085, 2056]
+      State         "AAAA/wAAAAD9AAAAAgAAAAAAAADwAAAGc/wCAAAAAfsAAAAUAEQAYQB0A"
+"GEAVwBpAGQAZwBlAHQBAAAANQAABnMAAABXAP///wAAAAEAAAC0AAAB1vwCAAAAA/sAAAAQAFoAbw"
 "BvAG0AQQByAGUAYQAAAAAA/////wAAADEA////+wAAABQAUwBhAHYAZQBkAFYAaQBlAHcAcwAAAAA"
-"yAAAB1gAAAGMA////+wAAAAwAVAByAGEAYwBlAHMAAAAAAP////8AAABjAP///wAABcoAAAZrAAAA"
+"yAAAB1gAAAGMA////+wAAAAwAVAByAGEAYwBlAHMAAAAAAP////8AAABjAP///wAABcoAAAZzAAAA"
 "BAAAAAQAAAAIAAAACPwAAAABAAAAAgAAAAEAAAAOAFQAbwBvAGwAQgBhAHIBAAAAAP////8AAAAAA"
 "AAAAA=="
       SavedViews    "AAAAAgAAAAMAAAAYAFMAYQB2AGUAZAAgAHYAaQBlAHcAIAAxAAAAAAAAA"
@@ -461,7 +461,7 @@ Plecs {
 "YAZQBkACAAdgBpAGUAdwAgADIAAAAAAAAAAD9gYk3S8an8AAAAAQB/+AAAAAAAAH/4AAAAAAAAAAA"
 "AAAAAAAAAAAAAAAAAAAAAAAAAGABTAGEAdgBlAGQAIAB2AGkAZQB3ACAAMwAAAAAAAAAAP2BiTdLx"
 "qfwAAAABAH/4AAAAAAAAf/gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
-      HeaderState   "{\"DefaultSecSize\":0,\"FirstSecSize\":205,\"Labels\":[],"
+      HeaderState   "{\"DefaultSecSize\":0,\"FirstSecSize\":198,\"Labels\":[],"
 "\"VisualIdxs\":[]}"
       PlotPalettes  "AAAAAQAAAAEAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
       Axes          "1"

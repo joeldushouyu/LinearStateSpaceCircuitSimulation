@@ -8,7 +8,7 @@ Plecs {
   Solver        "FixedStepDiscrete"
   MaxStep       "1e-3"
   InitStep      "-1"
-  FixedStep     "1/(10e6)"
+  FixedStep     "1/(3e6)"
   Refine        "1"
   ZCStepSize    "1/(10e6)"
   RelTol        "1e-3"
@@ -211,7 +211,7 @@ Plecs {
   ScriptsDialogGeometry "[3767 638 804 372]"
   ScriptsDialogSplitterPos "48"
   Schematic {
-    Location      [2216, 57; 5232, 1687]
+    Location      [2213, 62; 5232, 1684]
     ZoomFactor    1.14437
     SliderPosition [0, 0]
     ShowBrowser   off
@@ -316,11 +316,11 @@ Plecs {
       Direction     up
       Flipped       off
       LabelPosition south
-      Location      [2216, 57; 5232, 1709]
-      State         "AAAA/wAAAAD9AAAAAgAAAAAAAADwAAAGVfwCAAAAAfsAAAAUAEQAYQB0A"
-"GEAVwBpAGQAZwBlAHQBAAAAMgAABlUAAABXAP///wAAAAEAAAC0AAAB1vwCAAAAA/sAAAAQAFoAbw"
+      Location      [2441, 81; 4169, 1741]
+      State         "AAAA/wAAAAD9AAAAAgAAAAAAAADwAAAGXfwCAAAAAfsAAAAUAEQAYQB0A"
+"GEAVwBpAGQAZwBlAHQBAAAANQAABl0AAABXAP///wAAAAEAAAC0AAAB1vwCAAAAA/sAAAAQAFoAbw"
 "BvAG0AQQByAGUAYQAAAAAA/////wAAADEA////+wAAABQAUwBhAHYAZQBkAFYAaQBlAHcAcwAAAAA"
-"yAAAB1gAAAGMA////+wAAAAwAVAByAGEAYwBlAHMAAAAAAP////8AAABjAP///wAACtIAAAZVAAAA"
+"yAAAB1gAAAGMA////+wAAAAwAVAByAGEAYwBlAHMAAAAAAP////8AAABjAP///wAABcoAAAZdAAAA"
 "BAAAAAQAAAAIAAAACPwAAAABAAAAAgAAAAEAAAAOAFQAbwBvAGwAQgBhAHIBAAAAAP////8AAAAAA"
 "AAAAA=="
       SavedViews    "AAAAAgAAAAMAAAAYAFMAYQB2AGUAZAAgAHYAaQBlAHcAIAAxAAAAAAAAA"
@@ -379,11 +379,11 @@ Plecs {
       LabelPosition south
       Frame         [-155, -95; 155, 95]
       TreatAsAtomicUnit on
-      SampleTime    "1/(10e6)"
+      SampleTime    "1/(3e6)"
       SimulationMode "2"
       TaskingMode "1"
       CodeGenEnable on
-      CodeGenSampleTime "1/(10e6)"
+      CodeGenSampleTime "1/(3e6)"
       CodeGenDiscretizationMethod "2"
       CodeGenTarget "Generic"
       CodeGenTargetSettings "AAAAfwAAAAAbQ29kZUdlblRhcmdldDo6U2V0dGluZ3NNYXAAA"
@@ -501,7 +501,7 @@ Plecs {
         Index         "14"
       }
       Schematic {
-        Location      [0, 901; 1728, 2531]
+        Location      [2309, 681; 4037, 2311]
         ZoomFactor    1
         SliderPosition [0, 0]
         ShowBrowser   off
