@@ -414,7 +414,100 @@ class StateSpaceSimulationModule(SimulationModule):
         
         assert [ x== y for x,y in zip(current_switch_states, self.switch_state)]
         
+    def diode_interest_index_in_y_labels(
+        self
+    ):
+        # recall for diode soft-switch(when not affect by the impulse), 
+        # from Antonio Massarini(An efficient algorithm for xxx)
+        # when diode is on, we look at the current, when off, look at the voltage
+        # if diode's current <0(when on) or diode voltage >0(off), a soft switch happen
+        
+        
+        
+        # however, for our y_labels, we have a list of y_output, we need to know the index of diode's voltage or current
+        
+        diode_index_to_y_label_index:dict[int, int] = {}
+        
+        for diode_ind,  diode_i in enumerate(self.diode_index):
+            
+            if self.switch_state[diode_i]:  # look at current  
+                sw_ele:Diode = self.network_matrix.m_column_labels_to_obj_map[   self.switch_index_label_map[diode_i][1]  ]
+                
+            else:
+                sw_ele:Diode = self.network_matrix.m_column_labels_to_obj_map[   self.switch_index_label_map[diode_i][0]  ]
+             
+            assert isinstance(sw_ele, Diode)
+            if(self.switch_state[diode_i]):
+                assert sw_ele.element_current_name == self.switch_index_label_map[diode_i][1] 
+                diode_ammeter = self.network_matrix.element_name_obj_map[sw_ele.diode_ammeter_name]
+                y_index = self.network_matrix.y_labels.index(diode_ammeter.element_current_name)
+            else:
+                assert sw_ele.element_voltage_name == self.switch_index_label_map[diode_i][0] 
+                diode_voltmeter = self.network_matrix.element_name_obj_map[sw_ele.diode_voltmeter_name]
+                y_index = self.network_matrix.y_labels.index(diode_voltmeter.element_voltage_name)
 
+            diode_index_to_y_label_index[diode_ind ] = y_index
+        return diode_index_to_y_label_index    
+    
+    
+    
+    def get_Y_hat_A_B(self):
+        
+        # from the 2021 paper by DSPACE
+        # want to predict the voltage/current of diode in next step to reduce numerical oscillation scenario
+        
+        # recall Y = C_final *x+ D_final*u
+        # Y_hat = C_final *X_hat + D_final * u_hat
+        # If assume u_hat to be 0 for a very small iteration interval
+        #Y_hat = C_final * X_hat = C_Final *(A*X + B*u)        
+        Y_hat_A = self.C @self.A
+        Y_hat_B = self.C @ self.B
+        return Y_hat_A, Y_hat_B
+        
+    def get_diode_softswitch_interest_matrix(self, diode_ind_to_y_ind:dict[int, int],
+                                            C1: Matrix, 
+                                            A:Matrix, B: Matrix, C: Matrix, D: Matrix, 
+                                            C_impulse_matrix:Matrix, C_nonimpulse_matrix:Matrix, 
+                                            D_impulse_matrix:Matrix, D_nonimpulse_matrix:Matrix
+                                       
+                                             ):
+
+        
+        Y_hat_A, Y_hat_B = self.get_Y_hat_A_B()
+        
+        C1_diode_sw = sp.zeros( len(diode_ind_to_y_ind), self.network_matrix.x_hat_label_size )
+        C_diode_sw = sp.zeros(len(diode_ind_to_y_ind), self.network_matrix.x_hat_label_size )
+        D_diode_sw= sp.zeros(len(diode_ind_to_y_ind), self.network_matrix.u_label_size)
+        
+        C_impulse_sw=sp.zeros(len(diode_ind_to_y_ind), self.network_matrix.x_hat_label_size)
+        D_impulse_sw=sp.zeros(len(diode_ind_to_y_ind), self.network_matrix.u_label_size)
+        
+        
+        C_nonimpulse_sw=sp.zeros(len(diode_ind_to_y_ind), self.network_matrix.x_hat_label_size)
+        D_nonimpulse_sw = sp.zeros(len(diode_ind_to_y_ind), self.network_matrix.u_label_size)
+        
+
+        
+        Y_hat_A_sw = sp.zeros(len(diode_ind_to_y_ind),  self.network_matrix.x_hat_label_size)
+        Y_hat_B_sw = sp.zeros(len(diode_ind_to_y_ind), self.network_matrix.u_label_size)
+        
+        for diode_idx, y_lab_idx in diode_ind_to_y_ind.items():
+            C1_diode_sw[diode_idx, :] = C1[y_lab_idx, :]
+            C_diode_sw[diode_idx,:] = C[y_lab_idx, :]
+            D_diode_sw[diode_idx, :] = D[y_lab_idx, :]
+            C_impulse_sw[diode_idx, :] = C_impulse_matrix[y_lab_idx, :]
+            D_impulse_sw[diode_idx, :] = D_impulse_matrix[y_lab_idx, :]
+            
+            C_nonimpulse_sw[diode_idx, :] = C_nonimpulse_matrix[y_lab_idx, :]
+            D_nonimpulse_sw[diode_idx, :] = D_nonimpulse_matrix[y_lab_idx, :]
+            
+            Y_hat_A_sw[diode_idx, :] = Y_hat_A[y_lab_idx, :]   
+            Y_hat_B_sw[diode_idx, :] = Y_hat_B[y_lab_idx, :]
+        
+        
+        return C1_diode_sw, C_diode_sw, D_diode_sw, C_impulse_sw, C_nonimpulse_sw, D_impulse_sw, D_nonimpulse_sw,  Y_hat_A_sw, Y_hat_B_sw   
+        
+        
     def swap_col_and_update(self, label_to_Swap:list[str], assert_no_cache=False):
         if len(label_to_Swap) >0:
             for lab in label_to_Swap:
@@ -497,11 +590,34 @@ class StateSpaceSimulationModule(SimulationModule):
                             D_impulse_matrix=self.D_impulse, D_nonimpulse_matrix=self.D_non_impulse,
                             x_hat_labels=self.network_matrix.x_hat_labels, u_labels=self.network_matrix.u_labels,
                             diode_column_labels=diode_column_label, y_labels=self.network_matrix.y_labels,
-                            number_of_inductor=self.network_matrix.inductor_size, number_of_current_source=self.network_matrix.current_source_Size,
+                      
                             element_name_obj_map=self.network_matrix.element_name_obj_map,
                             m_column_labels_to_obj_map=self.network_matrix.m_column_labels_to_obj_map
                             )
-         
+    
+            diode_index_y_index_mapping = self.diode_interest_index_in_y_labels()
+            # Y_hat_A = self.C @ self.A
+            # Y_hat_B = self.C @ self.B
+            C1_diode_sw, C_diode_sw, D_diode_sw, C_impulse_sw, C_nonimpulse_sw, D_impulse_sw, D_nonimpulse_sw,  Y_hat_A_sw, Y_hat_B_sw    = self.get_diode_softswitch_interest_matrix(
+                diode_ind_to_y_ind=diode_index_y_index_mapping,
+                C1=self.C1, A = self.A, B=self.B, C= self.C, D= self.D,
+                C_impulse_matrix=self.C_impulse, C_nonimpulse_matrix=self.C_non_impulse,
+                D_impulse_matrix=self.D_impulse, D_nonimpulse_matrix=self.D_non_impulse,
+                
+            ) 
+            # convert to np
+            C1_diode_sw = sp.matrix2numpy(C1_diode_sw, dtype=np.float32)
+            C_diode_sw = sp.matrix2numpy(C_diode_sw, dtype=np.float32)
+            D_diode_sw = sp.matrix2numpy(D_diode_sw, dtype=np.float32)
+            C_impulse_sw = sp.matrix2numpy(C_impulse_sw, dtype=np.float32)
+            C_nonimpulse_sw = sp.matrix2numpy(C_nonimpulse_sw, dtype=np.float32)
+            D_impulse_sw = sp.matrix2numpy(D_impulse_sw, dtype=np.float32)
+            D_nonimpulse_sw = sp.matrix2numpy(D_nonimpulse_sw, dtype=np.float32)
+            Y_hat_A_sw = sp.matrix2numpy(Y_hat_A_sw, dtype=np.float32)
+            Y_hat_B_sw = sp.matrix2numpy(Y_hat_B_sw, dtype=np.float32)
+            # check if they are the same or not
+            
+            
             # discretized A,B,C,D
             
             self.A = sp.matrix2numpy(self.A.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
@@ -531,6 +647,18 @@ class StateSpaceSimulationModule(SimulationModule):
             self.Z_hat_SW_A = sp.matrix2numpy(self.Z_hat_SW_A.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             self.Z_hat_SW_B = sp.matrix2numpy(self.Z_hat_SW_B.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             self.C1_SW = sp.matrix2numpy(self.C1_SW.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
+            
+            
+            # test the matrix make sure is same
+            np.testing.assert_allclose(C1_diode_sw, self.C1_SW, rtol=1e-5, atol=0)
+            np.testing.assert_allclose(C_diode_sw, self.C_SW,rtol=1e-5, atol=0 )
+            np.testing.assert_allclose(D_diode_sw, self.D_SW, rtol=1e-5, atol=0)
+            np.testing.assert_allclose(C_impulse_sw, self.C_impulse_SW, rtol=1e-5, atol=0)
+            np.testing.assert_allclose(D_impulse_sw, self.D_impulse_SW, rtol=1e-5, atol=0)
+            np.testing.assert_allclose(C_nonimpulse_sw, self.C_non_impulse_SW, rtol=1e-5, atol=0)
+            np.testing.assert_allclose(D_nonimpulse_sw, self.D_non_impulse_SW, rtol=1e-5, atol=0)
+            np.testing.assert_allclose(Y_hat_A_sw, self.Z_hat_SW_A, rtol=1e-5, atol=0)
+            np.testing.assert_allclose(Y_hat_B_sw, self.Z_hat_SW_B, rtol=1e-5, atol=0)
             
             #TODO: also cache the ode solver matrix
             cache_Data = [
@@ -834,7 +962,7 @@ class StateSpaceSimulationModule(SimulationModule):
     def handle_diode_soft_switch(self,non_impulse_C, non_impulse_D, x_for_update, Z_hat_SW_A, Z_hat_SW_B):
         non_impulse_val = np.matmul( non_impulse_C ,x_for_update, dtype=np.float32) +  np.matmul( non_impulse_D ,self.u, dtype=np.float32)
         z_prime =  np.matmul(Z_hat_SW_A, x_for_update) + np.matmul(Z_hat_SW_B, self.u)
-        z_next = z_prime*(1/self.iteration_frequency) + non_impulse_val
+        z_next = z_prime*(1/self.iteration_frequency) + non_impulse_val  # predice next step diode current/value
         return non_impulse_val, z_next
     
     

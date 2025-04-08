@@ -1253,45 +1253,11 @@ def retrieve_Zsw_hat(A: Matrix, B: Matrix, C: Matrix, D: Matrix,
                     C_impulse_matrix:Matrix, C_nonimpulse_matrix:Matrix, 
                     D_impulse_matrix:Matrix, D_nonimpulse_matrix:Matrix,
                     x_hat_labels:list[str], u_labels:list[str], diode_column_labels:list[str],
-                    y_labels: list[str], number_of_inductor:int, number_of_current_source:int,
+                    y_labels: list[str], 
                     element_name_obj_map:dict[str, Element], m_column_labels_to_obj_map:dict[str, Element]):
-    
-    
-    # assume A,B, C,D is already finalized
-    # assume source is sorted in current, voltage order
-    # assume state is sorted in inductor, capacitor order
-
-    # # sanity check 
-    # for ind, lab in enumerate(x_hat_labels):
-    #     ele = m_column_labels_to_obj_map[lab]
-    #     if ind < number_of_inductor:
-    #         assert isinstance(ele, Inductor)
-    #     else:
-    #         assert isinstance(ele, Capacitor)
-    # for ind, lab in enumerate(u_labels):
-    #     ele = m_column_labels_to_obj_map[lab]
-    #     assert isinstance(ele, VoltageCurrentSource)
-    #     if ind < number_of_current_source:
-    #         assert ele.is_voltage_source is False
-    #     else:
-    #         assert ele.is_voltage_source
-
-    
-    # ALL = A[:number_of_inductor, :number_of_inductor]
-    # ALC = A[:number_of_inductor, number_of_inductor:]
-    # ACL = A[number_of_inductor:, :number_of_inductor]
-    # ACC = A[number_of_inductor:, number_of_inductor:]
-    
-
-    # BLis = B[:number_of_inductor, :number_of_current_source]
-    # BLvs= B[:number_of_inductor, number_of_current_source:]
-    # BCis=B[number_of_inductor:, :number_of_current_source]
-    # BCvs=B[number_of_inductor:, number_of_current_source:]
-    
-    # retrieve the rows of Z
-    # if diode is on, look at the current of the diode
-    # if diode is off, look at the voltage of the diode
-    
+    # recall original equation y = C1*x_hat + C* + Du
+    # recall that C = C_impulse + C_nonimpulse
+    # D = D_impulse + D_nonimpulse
     Y_hat_A = C @ A
     Y_hat_B = C@B
     
@@ -1338,21 +1304,7 @@ def retrieve_Zsw_hat(A: Matrix, B: Matrix, C: Matrix, D: Matrix,
                 C1_SW[sw_index, :]  = C1[ammeter_index, :]
                 Z_hat_Sw_A[sw_index, :] = Y_hat_A[ammeter_index, :]
                 Z_hat_SW_B[sw_index, :] = Y_hat_B[ammeter_index, :]                
-    # C_SW_il = C_SW[:, :number_of_inductor]
-    # C_SW_vc = C_SW[:, number_of_inductor:]
-    
 
-
-    # C_dsw_il = C_SW_il@ALL + C_SW_vc@ACL
-    # C_dsw_vc = C_SW_il@ALC + C_SW_vc@ACC
-    
-    # D_dsw_is = C_SW_il@BLis + C_SW_vc@BCis
-    # D_dsw_vs = C_SW_il@BLvs + C_SW_vc@BCvs
-    
-
-    
-    # Z_hat_Sw_A = sp.BlockMatrix([ [C_dsw_il, C_dsw_vc] ])
-    # Z_hat_SW_B = sp.BlockMatrix([ [D_dsw_is ,D_dsw_vs]])
     
     return C1_SW, C_SW, D_SW, C_impulse_SW, D_impulse_SW, C_nonimpulse_SW, D_nonimpulse_SW,  Z_hat_Sw_A, Z_hat_SW_B
     
