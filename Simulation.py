@@ -507,7 +507,7 @@ class StateSpaceSimulationModule(SimulationModule):
                         sp.matrix2numpy(Y_hat_A_sw,dtype=np.float32), sp.matrix2numpy(Y_hat_B_sw,dtype=np.float32)   
         
         
-    def swap_col_and_update(self, label_to_Swap:list[str], assert_no_cache=False):
+    def swap_col_and_update(self, label_to_Swap:list[str], assert_no_cache=False, assert_cache=False):
         if len(label_to_Swap) >0:
             for lab in label_to_Swap:
                 self.network_matrix.swap_M_matrix_columns(lab)
@@ -573,26 +573,26 @@ class StateSpaceSimulationModule(SimulationModule):
 
             
             
-            diode_column_label = [] # if diode is on, give I_D, if diode is off, give V_D
+            # diode_column_label = [] # if diode is on, give I_D, if diode is off, give V_D
             
-            for diode_i in self.diode_index:
+            # for diode_i in self.diode_index:
                 
-                if self.switch_state[diode_i]:
-                    diode_column_label.append(self.switch_index_label_map[diode_i][1])
-                else:
-                    diode_column_label.append(self.switch_index_label_map[diode_i][0])
+            #     if self.switch_state[diode_i]:
+            #         diode_column_label.append(self.switch_index_label_map[diode_i][1])
+            #     else:
+            #         diode_column_label.append(self.switch_index_label_map[diode_i][0])
             
             
-            self.C1_SW, self.C_SW, self.D_SW, self.C_impulse_SW, self.D_impulse_SW, self.C_non_impulse_SW, self.D_non_impulse_SW,  self.Z_hat_SW_A, self.Z_hat_SW_B = retrieve_Zsw_hat(  
-                                A=self.A, B=self.B, C=self.C, D=self.D, C1=self.C1, 
-                            C_impulse_matrix=self.C_impulse, C_nonimpulse_matrix=self.C_non_impulse,
-                            D_impulse_matrix=self.D_impulse, D_nonimpulse_matrix=self.D_non_impulse,
-                            x_hat_labels=self.network_matrix.x_hat_labels, u_labels=self.network_matrix.u_labels,
-                            diode_column_labels=diode_column_label, y_labels=self.network_matrix.y_labels,
+            # self.C1_SW, self.C_SW, self.D_SW, self.C_impulse_SW, self.D_impulse_SW, self.C_non_impulse_SW, self.D_non_impulse_SW,  self.Z_hat_SW_A, self.Z_hat_SW_B = retrieve_Zsw_hat(  
+            #                     A=self.A, B=self.B, C=self.C, D=self.D, C1=self.C1, 
+            #                 C_impulse_matrix=self.C_impulse, C_nonimpulse_matrix=self.C_non_impulse,
+            #                 D_impulse_matrix=self.D_impulse, D_nonimpulse_matrix=self.D_non_impulse,
+            #                 x_hat_labels=self.network_matrix.x_hat_labels, u_labels=self.network_matrix.u_labels,
+            #                 diode_column_labels=diode_column_label, y_labels=self.network_matrix.y_labels,
                       
-                            element_name_obj_map=self.network_matrix.element_name_obj_map,
-                            m_column_labels_to_obj_map=self.network_matrix.m_column_labels_to_obj_map
-                            )
+            #                 element_name_obj_map=self.network_matrix.element_name_obj_map,
+            #                 m_column_labels_to_obj_map=self.network_matrix.m_column_labels_to_obj_map
+            #                 )
     
             self.diode_index_y_index_mapping = self.diode_interest_index_in_y_labels()
 
@@ -955,8 +955,8 @@ class StateSpaceSimulationModule(SimulationModule):
 
         
         imp_c = np.matmul(C_impulse, x_for_update, dtype=np.float32) 
-        imp_D = np.matmul(D_impulse, u_for_update)
-        non_imp = np.matmul(C_nonimpulse, x_for_update, dtype=np.float32) + np.matmul(D_nonimpulse, u_for_update)
+        imp_D = np.matmul(D_impulse, u_for_update, dtype=np.float32)
+        non_imp = np.matmul(C_nonimpulse, x_for_update, dtype=np.float32) + np.matmul(D_nonimpulse, u_for_update, dtype=np.float32)
         
         imp = imp_c + imp_D
 
@@ -989,11 +989,10 @@ class StateSpaceSimulationModule(SimulationModule):
 
     def iteration(self):
         x_cur_before = self.get_x_cur_with_dep().copy()
-
+        u_cur_before = self.u.copy()
         # if update x at this stage, it work for parallel all other iteration except the x_state iteration
         
-
-        self.swap_col_and_update([])
+        self.swap_col_and_update([], assert_cache=True)
         C1_diode_sw, C_diode_sw, D_diode_sw,\
             C_impulse_sw, C_nonimpulse_sw, D_impulse_sw, \
                 D_nonimpulse_sw,  Y_hat_A_sw, Y_hat_B_sw = self.get_diode_softswitch_interest_matrix(
@@ -1020,16 +1019,15 @@ class StateSpaceSimulationModule(SimulationModule):
         self.use_impulse_in_y_output = switch_change_occur or (not diode_change_occur)
         
         
-        # At this point, A,B, C, D matrix could already change if switch/diode updates happened
-        self.swap_col_and_update([])
-        # dependency
+        # # At this point, A,B, C, D matrix could already change if switch/diode updates happened
+        self.swap_col_and_update([], assert_cache=True)
         self.iterative_x(x_for_iteration=x_cur_before, zero_input=self.solver_zero_input_res, zero_state=self.solver_zero_state_res)
         self.update_x_cur_with_dep(A_dependent=self.A_dependent, B_dependent=self.B_dependent)
         
         self.update_y_cur(
             use_impulse=self.use_impulse_in_y_output,
             x_for_update=x_cur_before,
-            u_for_update=self.u,
+            u_for_update=u_cur_before,
             C_impulse=self.C_impulse,
             D_impulse=self.D_impulse,
             C_nonimpulse=self.C_non_impulse,

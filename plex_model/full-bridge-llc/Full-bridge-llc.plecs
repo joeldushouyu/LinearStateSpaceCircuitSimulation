@@ -8,9 +8,9 @@ Plecs {
   Solver        "FixedStepDiscrete"
   MaxStep       "1e-3"
   InitStep      "-1"
-  FixedStep     "1/(2e6)"
+  FixedStep     "1/(3e6)"
   Refine        "1"
-  ZCStepSize    "1/(2e6)"
+  ZCStepSize    "1/(3e6)"
   RelTol        "1e-3"
   AbsTol        "-1"
   TurnOnThreshold "0"
@@ -53,7 +53,7 @@ Plecs {
   ScriptsDialogGeometry "[647 1374 942 244]"
   ScriptsDialogSplitterPos "100"
   Schematic {
-    Location      [2216, 57; 5232, 1687]
+    Location      [2213, 62; 5232, 1684]
     ZoomFactor    1.49863
     SliderPosition [0, 0]
     ShowBrowser   off
@@ -656,11 +656,11 @@ Plecs {
       Direction     up
       Flipped       off
       LabelPosition south
-      Location      [0, 448; 1728, 2144]
-      State         "AAAA/wAAAAD9AAAAAgAAAAAAAAHbAAAGgfwCAAAAAfsAAAAUAEQAYQB0A"
-"GEAVwBpAGQAZwBlAHQBAAAAMgAABoEAAABXAP///wAAAAEAAAAAAAAAAPwCAAAAA/sAAAAQAFoAbw"
+      Location      [-399, 465; 1329, 2185]
+      State         "AAAA/wAAAAD9AAAAAgAAAAAAAAHbAAAGmfwCAAAAAfsAAAAUAEQAYQB0A"
+"GEAVwBpAGQAZwBlAHQBAAAANQAABpkAAABXAP///wAAAAEAAAAAAAAAAPwCAAAAA/sAAAAQAFoAbw"
 "BvAG0AQQByAGUAYQAAAAAA/////wAAADEA////+wAAABQAUwBhAHYAZQBkAFYAaQBlAHcAcwAAAAA"
-"A/////wAAAGMA////+wAAAAwAVAByAGEAYwBlAHMAAAAAAP////8AAABjAP///wAABN8AAAaBAAAA"
+"A/////wAAAGMA////+wAAAAwAVAByAGEAYwBlAHMAAAAAAP////8AAABjAP///wAABN8AAAaZAAAA"
 "BAAAAAQAAAAIAAAACPwAAAABAAAAAgAAAAEAAAAOAFQAbwBvAGwAQgBhAHIBAAAAAP////8AAAAAA"
 "AAAAA=="
       SavedViews    "AAAAAgAAAAA="
@@ -671,7 +671,7 @@ Plecs {
       TimeRange     "0.0"
       ScrollingMode "1"
       SingleTimeAxis "1"
-      Open          "1"
+      Open          "0"
       Ts            "-1"
       SampleLimit   "0"
       XAxisLabel    "Time / s"
