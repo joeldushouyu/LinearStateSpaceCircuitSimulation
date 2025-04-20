@@ -877,7 +877,7 @@ class StateSpaceSimulationModule(SimulationModule):
 
     def get_x_hat(self,):
         return  np.matmul(self.A, self.get_x_cur_with_dep()) +np.matmul(self.B, self.u)
-    def handle_external_switch(self, x_at_t0, C1_diode_sw ):
+    def handle_external_switch(self, x_at_t0 ):
         
         switch_triggere_labels = []
         
@@ -887,10 +887,25 @@ class StateSpaceSimulationModule(SimulationModule):
                 sw_volt_lab, sw_I_lab = self.switch_index_label_map[i]
                 if self.switch_state[i]:
                     list_to_swap.append(sw_volt_lab)
+                    assert self.network_matrix.s_labels[i] == sw_volt_lab  # because switch is on, get the I labe
                 else:
                     list_to_swap.append(sw_I_lab)
+                    assert self.network_matrix.s_labels[i] == sw_I_lab
                 switch_triggere_labels.append(sw_volt_lab)  
         if len(list_to_swap) > 0:
+            
+            
+            
+            C1_diode_sw, _, _,\
+                _, _, _, \
+                    _,  _, _ = self.get_diode_softswitch_interest_matrix(
+                C1 = Matrix(self.C1), A = Matrix(self.A), B= Matrix(self.B), C= Matrix(self.C), D= Matrix(self.D),
+                C_impulse_matrix=Matrix(self.C_impulse), C_nonimpulse_matrix=Matrix(self.C_non_impulse),
+                D_impulse_matrix=Matrix(self.D_impulse), D_nonimpulse_matrix=Matrix(self.D_non_impulse),
+                diode_ind_to_y_ind = self.diode_index_y_index_mapping
+            )
+            
+            
             self.swap_col_and_update(list_to_swap, assert_no_cache=True)
             new_x_temp =np.matmul(self.A_dependent, x_at_t0, dtype=np.float32) + np.matmul( self.B_dependent ,self.u, dtype=np.float32)
             # impulse response of internal diode
@@ -899,7 +914,7 @@ class StateSpaceSimulationModule(SimulationModule):
             impulse_val = np.matmul(C1_diode_sw, impulse_difference, dtype=np.float32) # use C1_sw, because the effect of E already applied on x_cur during the normal iteration update
 
         else:
-            impulse_val = np.zeros(  (C1_diode_sw.shape[0], 1), dtype=np.float32)
+            impulse_val = np.zeros(  ( len(self.diode_index), 1), dtype=np.float32)
             impulse_difference = np.zeros(  (self.A.shape[0], 1), dtype=np.float32)
         return len(switch_triggere_labels) , impulse_val, impulse_difference
 
@@ -991,9 +1006,17 @@ class StateSpaceSimulationModule(SimulationModule):
         x_cur_before = self.get_x_cur_with_dep().copy()
         u_cur_before = self.u.copy()
         # if update x at this stage, it work for parallel all other iteration except the x_state iteration
+        # if(self.cur_system_time == 0.0):
+        # self.swap_col_and_update([], assert_cache=True)
+    
+        # np.testing.assert_almost_equal( self.C,  self.C_non_impulse + self.C_impulse, decimal=5  )
+        # np.testing.assert_almost_equal( self.D,  self.D_non_impulse + self.D_impulse, decimal=5  )
+        # only interest in C1_diode_sw
+
+        switch_change_occur, impulse_value, impulse_difference = self.handle_external_switch(x_at_t0=x_cur_before)
         
-        self.swap_col_and_update([], assert_cache=True)
-        C1_diode_sw, C_diode_sw, D_diode_sw,\
+        
+        _, C_diode_sw, D_diode_sw,\
             C_impulse_sw, C_nonimpulse_sw, D_impulse_sw, \
                 D_nonimpulse_sw,  Y_hat_A_sw, Y_hat_B_sw = self.get_diode_softswitch_interest_matrix(
             C1 = Matrix(self.C1), A = Matrix(self.A), B= Matrix(self.B), C= Matrix(self.C), D= Matrix(self.D),
@@ -1001,26 +1024,20 @@ class StateSpaceSimulationModule(SimulationModule):
             D_impulse_matrix=Matrix(self.D_impulse), D_nonimpulse_matrix=Matrix(self.D_non_impulse),
             diode_ind_to_y_ind = self.diode_index_y_index_mapping
         )
-    
         # demonstrate parallel of nonimpulse and impulse switch evalulation
         non_impulse_value, z_next = self.handle_diode_soft_switch(non_impulse_C=C_diode_sw, 
                                                                   non_impulse_D=D_diode_sw,
                                                                   x_for_update=x_cur_before.copy(),
                                                                   Z_hat_SW_A=Y_hat_A_sw,
                                                                   Z_hat_SW_B=Y_hat_B_sw) # can process in parallel
-        
-        
-        
-        
-        switch_change_occur, impulse_value, impulse_difference = self.handle_external_switch(x_at_t0=x_cur_before, C1_diode_sw=C1_diode_sw)
 
         diode_change_occur = self.update_both_impulse_non_impulse(impulse_val=impulse_value, non_impulse_val=non_impulse_value, z_next=z_next) # merge logic for finalize diode switching
         
         self.use_impulse_in_y_output = switch_change_occur or (not diode_change_occur)
         
-        
+         
         # # At this point, A,B, C, D matrix could already change if switch/diode updates happened
-        self.swap_col_and_update([], assert_cache=True)
+        # self.swap_col_and_update([], assert_cache=True)
         self.iterative_x(x_for_iteration=x_cur_before, zero_input=self.solver_zero_input_res, zero_state=self.solver_zero_state_res)
         self.update_x_cur_with_dep(A_dependent=self.A_dependent, B_dependent=self.B_dependent)
         
@@ -1036,15 +1053,15 @@ class StateSpaceSimulationModule(SimulationModule):
         
 
         self.time_t.append(self.cur_system_time)
-        cur_switch_state =[]
-        cur_switch_trigger =[]
+        # cur_switch_state =[]
+        # cur_switch_trigger =[]
         
-        for i, val in self.switch_index_label_map.items():
-            if i not in self.diode_index:
-                cur_switch_state.append(self.switch_state[i])
-                cur_switch_trigger.append(self.switch_triggered[i])
-        self.switch_state_output.append (  cur_switch_state)
-        self.switch_triggered_output.append( cur_switch_trigger)
+        # for i, val in self.switch_index_label_map.items():
+        #     if i not in self.diode_index:
+        #         cur_switch_state.append(self.switch_state[i])
+        #         cur_switch_trigger.append(self.switch_triggered[i])
+        # self.switch_state_output.append (  cur_switch_state)
+        # self.switch_triggered_output.append( cur_switch_trigger)
         
         self.y_output.append(self.y_cur[:,0].tolist())
         
