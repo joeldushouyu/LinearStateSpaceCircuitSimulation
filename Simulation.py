@@ -32,7 +32,11 @@ from visualize import on_pick, toggle_visibility
 from matplotlib.widgets import CheckButtons
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import plotly
 import csv
+import time
+import progressbar
+
 @total_ordering
 class SimulationModule:
     def __init__(self):
@@ -85,8 +89,9 @@ class SystemClockSimulationModule:
 
         
         # now, regular clock
-        for step in range( stop_step_size):
-            
+        #for step in range( stop_step_size):
+        
+        for step in progressbar.progressbar(range(stop_step_size)):
 
             
             self.system_clock_message.set_time(step * (1 / self.system_clock_frequency))
@@ -405,7 +410,8 @@ class StateSpaceSimulationModule(SimulationModule):
             bool_states, _ = int_to_binary_list(case, self.network_matrix.s_labels_size)
             # now, go ahead and    
             self.swap_difference(bool_states)
-            
+            if(case %100 == 0):
+                print(f"Current at case {case}")
         # now, swap back to initial states 
         self.swap_difference(current_switch_states)
         
@@ -539,7 +545,7 @@ class StateSpaceSimulationModule(SimulationModule):
                 redundant_offset=self.network_matrix.redundant_size
             )
             
-            self.forced_switch_mapping = self.force_triggered_events()
+            # self.forced_switch_mapping = self.force_triggered_events()
             
             
             # filter out inconsistent labels from y _labels
@@ -607,11 +613,11 @@ class StateSpaceSimulationModule(SimulationModule):
             self.D = sp.matrix2numpy(self.D.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             self.C1 = sp.matrix2numpy(self.C1.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             self.solver_zero_input_res, self.solver_zero_state_res = get_pade_03_integeration(self.A, self.B, 1/self.iteration_frequency)
-            #self.solver_zero_input_res, self.solver_zero_state_res = get_pade_0_2_matrix(self.A, self.B, 1/self.iteration_frequency)
-            #self.solver_zero_input_res, self.solver_zero_state_res = get_trapezoid_integration(self.A, self.B, 1/self.iteration_frequency)   
+            self.solver_zero_input_res, self.solver_zero_state_res = get_pade_0_2_matrix(self.A, self.B, 1/self.iteration_frequency)
+            self.solver_zero_input_res, self.solver_zero_state_res = get_trapezoid_integration(self.A, self.B, 1/self.iteration_frequency)   
             # self.solver_zero_input_res, self.solver_zero_state_res = get_tustin_integration(self.A, self.B, 1/self.iteration_frequency)    
             # self.solver_zero_input_res, self.solver_zero_state_res = get_radau_integration(self.A, self.B, 1/self.iteration_frequency)         
-            #self.solver_zero_input_res, self.solver_zero_state_res = get_backward_euler_integartion(self.A, self.B, 1/self.iteration_frequency)
+            # self.solver_zero_input_res, self.solver_zero_state_res = get_backward_euler_integartion(self.A, self.B, 1/self.iteration_frequency)
             self.A_dependent = sp.matrix2numpy(self.A_dependent.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             self.B_dependent = sp.matrix2numpy(self.B_dependent.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             self.C_impulse = sp.matrix2numpy(self.C_impulse.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
@@ -866,9 +872,10 @@ class StateSpaceSimulationModule(SimulationModule):
         if ax2_y_ticks is not None:
             fig.update_yaxes(tickmode="linear", dtick=ax2_y_ticks, row=2, col=1)
 
+        plotly.offline.plot(fig, outputfile_name+".html")
         # Display the figure
         fig.show()  
-        
+    
         time_np_array = time_np_array.reshape(-1, 1)
         # for outputing
         combined_array = np.hstack((time_np_array, y_output_np_array))
