@@ -315,7 +315,23 @@ class StateSpaceSimulationModule(SimulationModule):
         self.A_dependent:npt.NDArray = None
         self.B_dependent:npt.NDArray =  None
 
+        #states related to switch changes
+        self.C1_diode_sw:npt.NDArray = None
+        self.C_diode_sw:npt.NDArray = None
+        self.D_diode_sw: npt.NDArray = None
+        self.C_mult_A : npt.NDArray = None  # x_hat 
+        self.C_mult_B :npt.NDArray = None
+        
+        # The pre-comuated matrix used for switch changes
+        self.C_diode_impulse_sw: npt.NDArray = None
+        self.C_diode_natural_sw: npt.NDArray = None
+        self.D_diode_natural_sw: npt.NDArray = None
+        self.C_diode_explicit_der_mult_delta_t_sw: npt.NDArray = None
+        self.D_diode_explicit_der_mult_delta_t_sw: npt.NDArray = None
 
+    
+        self.x_next_with_dep_A: npt.NDArray = None
+        self.X_next_with_dep_B: npt.NDArray = None
         
         self.independent_state_labels:list[str] = []
         self.dependent_state_labels:list[str] = []
@@ -599,6 +615,25 @@ class StateSpaceSimulationModule(SimulationModule):
             # check if they are the same or not
             
             
+
+            # now, Cache all the matrix that relateds to swicth state changing
+            
+            self.C1_diode_sw, self.C_diode_sw, self.D_diode_sw, \
+                _, _, _, _, self.C_mult_A, self.C_mult_B = self.get_diode_softswitch_interest_matrix(
+                    C1 = Matrix(self.C1), A = Matrix(self.A), B= Matrix(self.B), C= Matrix(self.C), D= Matrix(self.D),
+                    C_impulse_matrix=Matrix(self.C_impulse), C_nonimpulse_matrix=Matrix(self.C_non_impulse),
+                    D_impulse_matrix=Matrix(self.D_impulse), D_nonimpulse_matrix=Matrix(self.D_non_impulse),
+                    diode_ind_to_y_ind = self.diode_index_y_index_mapping
+                )
+            
+            I_A_dependent = sp.eye( self.A_dependent.shape[0] )
+            self.C_diode_impulse_sw = np.matmul(  self.C1_diode_sw, (self.A_dependent - I_A_dependent ))  # for finding C_impulse, just multiply x_cur with this matrix
+            self.C_diode_natural_sw = self.C_diode_sw.copy()
+            self.D_diode_natural_sw = self.D_diode_sw.copy()
+            self.C_diode_explicit_der_mult_delta_t_sw = self.C_diode_natural_sw + np.multiply(self.C_mult_A, 1/self.iteration_frequency)
+            self.D_diode_explicit_der_mult_delta_t_sw  = self.D_diode_natural_sw + np.multiply(self.C_mult_B, 1/self.iteration_frequency)
+ 
+            
             # discretized A,B,C,D
             
             self.A = sp.matrix2numpy(self.A.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
@@ -618,9 +653,8 @@ class StateSpaceSimulationModule(SimulationModule):
             self.C_non_impulse = sp.matrix2numpy(self.C_non_impulse.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             self.D_impulse = sp.matrix2numpy(self.D_impulse.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             self.D_non_impulse = sp.matrix2numpy(self.D_non_impulse.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
-            
-            
-            #TODO: also cache the ode solver matrix
+            self.x_next_with_dep_A  = np.matmul(self.A_dependent,  self.solver_zero_input_res)
+            self.X_next_with_dep_B = np.matmul(self.A_dependent, self.solver_zero_state_res)
             cache_Data = [
                 self.network_matrix.M.copy(), 
                 self.C1.copy(), self.C.copy(), self.D.copy(),
@@ -642,7 +676,19 @@ class StateSpaceSimulationModule(SimulationModule):
                 self.dependent_state_labels.copy(),
                 self.solver_zero_input_res.copy(),
                 self.solver_zero_state_res.copy(),
-                self.diode_index_y_index_mapping.copy()
+                self.diode_index_y_index_mapping.copy(),
+                self.C1_diode_sw.copy(),
+                self.C_diode_sw.copy(),
+                self.D_diode_sw.copy(),
+                self.C_mult_A.copy(),
+                self.C_mult_B.copy(),
+                self.C_diode_impulse_sw.copy(),
+                self.C_diode_natural_sw.copy(),
+                self.D_diode_natural_sw.copy(),
+                self.C_diode_explicit_der_mult_delta_t_sw.copy(),
+                self.D_diode_explicit_der_mult_delta_t_sw.copy(),
+                self.x_next_with_dep_A.copy(),
+                self.X_next_with_dep_B.copy()
             ]
 
             self.M_cache[key] = cache_Data
@@ -675,6 +721,18 @@ class StateSpaceSimulationModule(SimulationModule):
             self.solver_zero_input_res = cache_Data[18].copy()
             self.solver_zero_state_res = cache_Data[19].copy()
             self.diode_index_y_index_mapping = cache_Data[20].copy()
+            self.C1_diode_sw = cache_Data[21].copy()
+            self.C_diode_sw = cache_Data[22].copy()
+            self.D_diode_sw = cache_Data[23].copy()
+            self.C_mult_A = cache_Data[24].copy()
+            self.C_mult_B = cache_Data[25].copy()
+            self.C_diode_impulse_sw = cache_Data[26].copy()
+            self.C_diode_natural_sw = cache_Data[27].copy()
+            self.D_diode_natural_sw = cache_Data[28].copy()
+            self.C_diode_explicit_der_mult_delta_t_sw = cache_Data[29].copy()
+            self.D_diode_explicit_der_mult_delta_t_sw = cache_Data[30].copy()
+            self.x_next_with_dep_A = cache_Data[31].copy()
+            self.X_next_with_dep_B = cache_Data[32].copy()
 
     def initialize_data(self):
         
@@ -892,10 +950,9 @@ class StateSpaceSimulationModule(SimulationModule):
                     list_to_swap.append(sw_I_lab)
                     assert self.network_matrix.s_labels[i] == sw_I_lab
                 switch_triggere_labels.append(sw_volt_lab)  
+        
+        self.swap_col_and_update(list_to_swap, assert_no_cache=True)     
         if len(list_to_swap) > 0:
-            
-            
-            
             C1_diode_sw, _, _,\
                 _, _, _, \
                     _,  _, _ = self.get_diode_softswitch_interest_matrix(
@@ -904,25 +961,40 @@ class StateSpaceSimulationModule(SimulationModule):
                 D_impulse_matrix=Matrix(self.D_impulse), D_nonimpulse_matrix=Matrix(self.D_non_impulse),
                 diode_ind_to_y_ind = self.diode_index_y_index_mapping
             )
+
+            np.testing.assert_almost_equal(C1_diode_sw, self.C1_diode_sw)
+
             
             
-            self.swap_col_and_update(list_to_swap, assert_no_cache=True)
-            new_x_temp =np.matmul(self.A_dependent, x_at_t0, dtype=np.float32) + np.matmul( self.B_dependent ,self.u, dtype=np.float32)
+            new_x_temp =np.matmul(self.A_dependent, x_at_t0, dtype=np.float32) 
             # impulse response of internal diode
             
             impulse_difference = (new_x_temp- x_at_t0)
-            impulse_val = np.matmul(C1_diode_sw, impulse_difference, dtype=np.float32) # use C1_sw, because the effect of E already applied on x_cur during the normal iteration update
-
+            
+ 
+            
+            impulse_val_tmp = np.matmul(C1_diode_sw, impulse_difference, dtype=np.float32) # use C1_sw, because the effect of E already applied on x_cur during the normal iteration update
+            impulse_val = np.matmul( self.C_diode_impulse_sw, x_at_t0)
+            np.testing.assert_almost_equal(impulse_val_tmp, impulse_val, decimal=5)
         else:
             impulse_val = np.zeros(  ( len(self.diode_index), 1), dtype=np.float32)
             impulse_difference = np.zeros(  (self.A.shape[0], 1), dtype=np.float32)
         return len(switch_triggere_labels) , impulse_val, impulse_difference
 
     def handle_diode_soft_switch(self,non_impulse_C, non_impulse_D, x_for_update, Z_hat_SW_A, Z_hat_SW_B):
-        non_impulse_val = np.matmul( non_impulse_C ,x_for_update, dtype=np.float32) +  np.matmul( non_impulse_D ,self.u, dtype=np.float32)
-        z_prime =  np.matmul(Z_hat_SW_A, x_for_update) + np.matmul(Z_hat_SW_B, self.u)
-        z_next = z_prime*(1/self.iteration_frequency) + non_impulse_val  # predice next step diode current/value
-        return non_impulse_val, z_next
+        non_impulse_val_tmp = np.matmul( non_impulse_C ,x_for_update, dtype=np.float32) +  np.matmul( non_impulse_D ,self.u, dtype=np.float32)
+        z_prime_tmp =  np.matmul(Z_hat_SW_A, x_for_update) + np.matmul(Z_hat_SW_B, self.u)
+        z_next_tmp = z_prime_tmp*(1/self.iteration_frequency) + non_impulse_val_tmp  # predice next step diode current/value
+        
+        
+        
+        non_impulse_val = np.matmul(self.C_diode_natural_sw, x_for_update, dtype=np.float32) + np.matmul(self.D_diode_natural_sw, self.u)
+        z_next = np.matmul(self.C_diode_explicit_der_mult_delta_t_sw,x_for_update) + np.matmul(self.D_diode_explicit_der_mult_delta_t_sw, self.u)
+        np.testing.assert_almost_equal(non_impulse_val_tmp, non_impulse_val, decimal=5)
+        # np.testing.assert_almost_equal(z_prime, z_prime_tmp, decimal=5)
+        np.testing.assert_almost_equal(z_next, z_next_tmp, decimal=3)
+        
+        return non_impulse_val_tmp, z_next_tmp
     
     
 
@@ -998,7 +1070,7 @@ class StateSpaceSimulationModule(SimulationModule):
         
 
     def update_x_cur_with_dep(self, A_dependent, B_dependent):
-        self.x_with_dep =  np.matmul(A_dependent,  self.__x_cur_ind.copy(), dtype=np.float32) + np.matmul(B_dependent, self.u)
+        self.x_with_dep =  np.matmul(A_dependent,  self.__x_cur_ind.copy(), dtype=np.float32)
     
         
 
@@ -1006,7 +1078,8 @@ class StateSpaceSimulationModule(SimulationModule):
         x_cur_before = self.get_x_cur_with_dep().copy()
         u_cur_before = self.u.copy()
         # if update x at this stage, it work for parallel all other iteration except the x_state iteration
-        # if(self.cur_system_time == 0.0):
+        if(self.cur_system_time == 0.0):
+            self.swap_col_and_update([])
         # self.swap_col_and_update([], assert_cache=True)
     
         # np.testing.assert_almost_equal( self.C,  self.C_non_impulse + self.C_impulse, decimal=5  )
@@ -1024,6 +1097,14 @@ class StateSpaceSimulationModule(SimulationModule):
             D_impulse_matrix=Matrix(self.D_impulse), D_nonimpulse_matrix=Matrix(self.D_non_impulse),
             diode_ind_to_y_ind = self.diode_index_y_index_mapping
         )
+                
+                
+        
+        
+        np.testing.assert_almost_equal(  C_diode_sw, self.C_diode_natural_sw, decimal=5)
+        np.testing.assert_almost_equal( D_diode_sw, self.D_diode_natural_sw, decimal=5)
+        np.testing.assert_almost_equal( Y_hat_A_sw, self.C_mult_A , decimal=5)
+        np.testing.assert_almost_equal(Y_hat_B_sw, self.C_mult_B,decimal=5)
         # demonstrate parallel of nonimpulse and impulse switch evalulation
         non_impulse_value, z_next = self.handle_diode_soft_switch(non_impulse_C=C_diode_sw, 
                                                                   non_impulse_D=D_diode_sw,
@@ -1040,6 +1121,9 @@ class StateSpaceSimulationModule(SimulationModule):
         # self.swap_col_and_update([], assert_cache=True)
         self.iterative_x(x_for_iteration=x_cur_before, zero_input=self.solver_zero_input_res, zero_state=self.solver_zero_state_res)
         self.update_x_cur_with_dep(A_dependent=self.A_dependent, B_dependent=self.B_dependent)
+
+        x_next_alternative = np.matmul(self.x_next_with_dep_A, x_cur_before) + np.matmul(self.X_next_with_dep_B, self.u)
+        np.testing.assert_almost_equal(self.get_x_cur_with_dep(), x_next_alternative, decimal=4)
         
         self.update_y_cur(
             use_impulse=self.use_impulse_in_y_output,

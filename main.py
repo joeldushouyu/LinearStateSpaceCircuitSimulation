@@ -360,6 +360,52 @@ def simulation_main(netList:list[str], end_sim_t:float,  data_output_filename:st
 # state_space_module.plot_output_graph(outputfile_name= "Half-bridge-llc-x70.csv" )
 # state_space_module.plot_output_graph(outputfile_name= "Half-bridge-llc-x100.csv" )
 
+
+def boost():
+    
+    # boost network
+    end_sim_t = 0.002
+    switch_frequency = 50e3
+    netList = [
+        "Vin, N1, 0, 6, 0",
+        f"S1, N2, 0, ON, {switch_frequency}, 0.6, 0.0",  
+        "L1, N1, N4, 150e-6",
+        "D1, N2, NAMD1, OFF, VMD1, AMD1",
+        "AMD1, NAMD1, N3",
+        "VMD1, N2, NAMD1",
+        "C1, N3, 0, 33.33e-6",
+        "R1, N3, 0, 6",
+        "VM1-VR, N3,0",
+        "AM1-IL, N4, N2",
+
+    ]
+    sim_20 = "csv_data/boost20.csv"
+    simulation_main(netList, end_sim_t, sim_20, switch_frequency, switch_frequency*20 )
+    
+    
+def buck():
+    # buck network
+    end_sim_t = 0.001
+    switch_frequency = 50e3
+    netList = [
+        
+        "Vin, N1, 0, 12, 0",
+        "Rin, N1, N1r, 0.001", # constraint of no C-E loop or I-J cutset 
+        f"S1, N1r, N2-AM, ON, {switch_frequency}, 0.8, 0.0", 
+        "L1, N2, NA, 125e-06",
+        "D1, 0, NAMD1, OFF, VMD1, AMD1",
+        "VMD1, 0, NAMD1",
+        "AMD1, NAMD1, N2",
+        "C1, N3, 0, 4e-06",
+        "R1, N3, N3-Resistor, 2.5",
+        "VM1-VR, N3, 0",
+        "AM1-IL, NA, N3",
+        "VM2-Vin, N1, 0",
+        "AM2-MOSFET, N2-AM, N2",
+        "AM3-Resistor, N3-Resistor, 0",
+    ]
+    sim_20 = "csv_data/buck20.csv"
+    simulation_main(netList, end_sim_t, sim_20, switch_frequency, switch_frequency*20 )
 def half_brodge_llc():
     supress=False
     end_sim_t  =4e-3
@@ -615,7 +661,7 @@ def full_bridge_llc():
                         )
 
     
-    
-    
+# buck()    
+# boost()
 half_brodge_llc()
 # full_bridge_llc()
