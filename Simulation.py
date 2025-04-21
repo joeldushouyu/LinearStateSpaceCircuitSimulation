@@ -33,6 +33,8 @@ from matplotlib.widgets import CheckButtons
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import csv
+import warnings
+
 @total_ordering
 class SimulationModule:
     def __init__(self):
@@ -934,6 +936,7 @@ class StateSpaceSimulationModule(SimulationModule):
         df.to_csv(outputfile_name, index=False)
 
     def get_x_hat(self,):
+        warnings.warn("old_function is deprecated", DeprecationWarning, stacklevel=2)
         return  np.matmul(self.A, self.get_x_cur_with_dep()) +np.matmul(self.B, self.u)
     def handle_external_switch(self, x_at_t0 ):
         
@@ -953,48 +956,32 @@ class StateSpaceSimulationModule(SimulationModule):
         
         self.swap_col_and_update(list_to_swap, assert_no_cache=True)     
         if len(list_to_swap) > 0:
-            C1_diode_sw, _, _,\
-                _, _, _, \
-                    _,  _, _ = self.get_diode_softswitch_interest_matrix(
-                C1 = Matrix(self.C1), A = Matrix(self.A), B= Matrix(self.B), C= Matrix(self.C), D= Matrix(self.D),
-                C_impulse_matrix=Matrix(self.C_impulse), C_nonimpulse_matrix=Matrix(self.C_non_impulse),
-                D_impulse_matrix=Matrix(self.D_impulse), D_nonimpulse_matrix=Matrix(self.D_non_impulse),
-                diode_ind_to_y_ind = self.diode_index_y_index_mapping
-            )
-
-            np.testing.assert_almost_equal(C1_diode_sw, self.C1_diode_sw)
-
-            
             
             new_x_temp =np.matmul(self.A_dependent, x_at_t0, dtype=np.float32) 
             # impulse response of internal diode
             
             impulse_difference = (new_x_temp- x_at_t0)
-            
- 
-            
-            impulse_val_tmp = np.matmul(C1_diode_sw, impulse_difference, dtype=np.float32) # use C1_sw, because the effect of E already applied on x_cur during the normal iteration update
             impulse_val = np.matmul( self.C_diode_impulse_sw, x_at_t0)
-            np.testing.assert_almost_equal(impulse_val_tmp, impulse_val, decimal=5)
+
         else:
             impulse_val = np.zeros(  ( len(self.diode_index), 1), dtype=np.float32)
             impulse_difference = np.zeros(  (self.A.shape[0], 1), dtype=np.float32)
         return len(switch_triggere_labels) , impulse_val, impulse_difference
 
-    def handle_diode_soft_switch(self,non_impulse_C, non_impulse_D, x_for_update, Z_hat_SW_A, Z_hat_SW_B):
-        non_impulse_val_tmp = np.matmul( non_impulse_C ,x_for_update, dtype=np.float32) +  np.matmul( non_impulse_D ,self.u, dtype=np.float32)
-        z_prime_tmp =  np.matmul(Z_hat_SW_A, x_for_update) + np.matmul(Z_hat_SW_B, self.u)
-        z_next_tmp = z_prime_tmp*(1/self.iteration_frequency) + non_impulse_val_tmp  # predice next step diode current/value
+    def handle_diode_soft_switch(self, x_for_update):
+        # non_impulse_val_tmp = np.matmul( non_impulse_C ,x_for_update, dtype=np.float32) +  np.matmul( non_impulse_D ,self.u, dtype=np.float32)
+        # z_prime_tmp =  np.matmul(Z_hat_SW_A, x_for_update) + np.matmul(Z_hat_SW_B, self.u)
+        # z_next_tmp = z_prime_tmp*(1/self.iteration_frequency) + non_impulse_val_tmp  # predice next step diode current/value
         
         
         
         non_impulse_val = np.matmul(self.C_diode_natural_sw, x_for_update, dtype=np.float32) + np.matmul(self.D_diode_natural_sw, self.u)
         z_next = np.matmul(self.C_diode_explicit_der_mult_delta_t_sw,x_for_update) + np.matmul(self.D_diode_explicit_der_mult_delta_t_sw, self.u)
-        np.testing.assert_almost_equal(non_impulse_val_tmp, non_impulse_val, decimal=5)
-        # np.testing.assert_almost_equal(z_prime, z_prime_tmp, decimal=5)
-        np.testing.assert_almost_equal(z_next, z_next_tmp, decimal=3)
+        # np.testing.assert_almost_equal(non_impulse_val_tmp, non_impulse_val, decimal=5)
+        # # np.testing.assert_almost_equal(z_prime, z_prime_tmp, decimal=5)
+        # np.testing.assert_almost_equal(z_next, z_next_tmp, decimal=3)
         
-        return non_impulse_val_tmp, z_next_tmp
+        return non_impulse_val, z_next
     
     
 
@@ -1089,29 +1076,8 @@ class StateSpaceSimulationModule(SimulationModule):
         switch_change_occur, impulse_value, impulse_difference = self.handle_external_switch(x_at_t0=x_cur_before)
         
         
-        _, C_diode_sw, D_diode_sw,\
-            C_impulse_sw, C_nonimpulse_sw, D_impulse_sw, \
-                D_nonimpulse_sw,  Y_hat_A_sw, Y_hat_B_sw = self.get_diode_softswitch_interest_matrix(
-            C1 = Matrix(self.C1), A = Matrix(self.A), B= Matrix(self.B), C= Matrix(self.C), D= Matrix(self.D),
-            C_impulse_matrix=Matrix(self.C_impulse), C_nonimpulse_matrix=Matrix(self.C_non_impulse),
-            D_impulse_matrix=Matrix(self.D_impulse), D_nonimpulse_matrix=Matrix(self.D_non_impulse),
-            diode_ind_to_y_ind = self.diode_index_y_index_mapping
-        )
-                
-                
-        
-        
-        np.testing.assert_almost_equal(  C_diode_sw, self.C_diode_natural_sw, decimal=5)
-        np.testing.assert_almost_equal( D_diode_sw, self.D_diode_natural_sw, decimal=5)
-        np.testing.assert_almost_equal( Y_hat_A_sw, self.C_mult_A , decimal=5)
-        np.testing.assert_almost_equal(Y_hat_B_sw, self.C_mult_B,decimal=5)
         # demonstrate parallel of nonimpulse and impulse switch evalulation
-        non_impulse_value, z_next = self.handle_diode_soft_switch(non_impulse_C=C_diode_sw, 
-                                                                  non_impulse_D=D_diode_sw,
-                                                                  x_for_update=x_cur_before.copy(),
-                                                                  Z_hat_SW_A=Y_hat_A_sw,
-                                                                  Z_hat_SW_B=Y_hat_B_sw) # can process in parallel
-
+        non_impulse_value, z_next = self.handle_diode_soft_switch(x_for_update=x_cur_before.copy(),) # can process in parallel
         diode_change_occur = self.update_both_impulse_non_impulse(impulse_val=impulse_value, non_impulse_val=non_impulse_value, z_next=z_next) # merge logic for finalize diode switching
         
         self.use_impulse_in_y_output = switch_change_occur or (not diode_change_occur)
@@ -1119,11 +1085,11 @@ class StateSpaceSimulationModule(SimulationModule):
          
         # # At this point, A,B, C, D matrix could already change if switch/diode updates happened
         # self.swap_col_and_update([], assert_cache=True)
-        self.iterative_x(x_for_iteration=x_cur_before, zero_input=self.solver_zero_input_res, zero_state=self.solver_zero_state_res)
-        self.update_x_cur_with_dep(A_dependent=self.A_dependent, B_dependent=self.B_dependent)
+        # self.iterative_x(x_for_iteration=x_cur_before, zero_input=self.solver_zero_input_res, zero_state=self.solver_zero_state_res)
+        # self.update_x_cur_with_dep(A_dependent=self.A_dependent, B_dependent=self.B_dependent)
+        #update x
+        self.x_with_dep = np.matmul(self.x_next_with_dep_A, x_cur_before) + np.matmul(self.X_next_with_dep_B, self.u)
 
-        x_next_alternative = np.matmul(self.x_next_with_dep_A, x_cur_before) + np.matmul(self.X_next_with_dep_B, self.u)
-        np.testing.assert_almost_equal(self.get_x_cur_with_dep(), x_next_alternative, decimal=4)
         
         self.update_y_cur(
             use_impulse=self.use_impulse_in_y_output,
