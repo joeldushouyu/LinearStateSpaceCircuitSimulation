@@ -955,19 +955,14 @@ class StateSpaceSimulationModule(SimulationModule):
                 switch_triggere_labels.append(sw_volt_lab)  
         
         self.swap_col_and_update(list_to_swap, assert_no_cache=True)     
-        if len(list_to_swap) > 0:
-            
-            new_x_temp =np.matmul(self.A_dependent, x_at_t0, dtype=np.float32) 
-            # impulse response of internal diode
-            
-            impulse_difference = (new_x_temp- x_at_t0)
-            impulse_val = np.matmul( self.C_diode_impulse_sw, x_at_t0)
+        # if len(list_to_swap) > 0:
+        #     impulse_val = np.matmul( self.C_diode_impulse_sw, x_at_t0)
 
-        else:
-            impulse_val = np.zeros(  ( len(self.diode_index), 1), dtype=np.float32)
-            impulse_difference = np.zeros(  (self.A.shape[0], 1), dtype=np.float32)
-        return len(switch_triggere_labels) , impulse_val, impulse_difference
+        # else:
+        #     impulse_val = np.zeros(  ( len(self.diode_index), 1), dtype=np.float32)
 
+        # return len(switch_triggere_labels) , impulse_val
+        return len(switch_triggere_labels)
     def handle_diode_soft_switch(self, x_for_update):
         # non_impulse_val_tmp = np.matmul( non_impulse_C ,x_for_update, dtype=np.float32) +  np.matmul( non_impulse_D ,self.u, dtype=np.float32)
         # z_prime_tmp =  np.matmul(Z_hat_SW_A, x_for_update) + np.matmul(Z_hat_SW_B, self.u)
@@ -988,33 +983,33 @@ class StateSpaceSimulationModule(SimulationModule):
     def update_both_impulse_non_impulse(self, impulse_val, non_impulse_val, z_next
                                         ):
         
-    
+        # the impulse_val, non_impulse_val, and z_next all in Dimension (diode_number x 1)
 
         swapped_flag = False
     
     
-        diode_count = 0
+
         
         labels_to_swap = []
 
-        for i in self.diode_index:
+        for diode_idx,  i in enumerate(self.diode_index):
             volt_lab, I_lab = self.switch_index_label_map[i]
             diode_state = self.switch_state[i]
-            volt_nonimpulse = current_nonimpulse = non_impulse_val[diode_count]
-            volt_impulse = current_impulse = impulse_val[diode_count]
+            volt_nonimpulse = current_nonimpulse = non_impulse_val[diode_idx]
+            volt_impulse = current_impulse = impulse_val[diode_idx]
 
-            if volt_impulse > 0 or (  diode_state is False and volt_nonimpulse>0  and  z_next[diode_count] > 0 ):
+            if volt_impulse > 0 or (  diode_state is False and volt_nonimpulse>0  and  z_next[diode_idx] > 0 ):
                 self.switch_state[i] = True
                 labels_to_swap.append(volt_lab)
 
-            elif current_impulse <0 or ( diode_state is True and current_nonimpulse < 0   and z_next[diode_count] < 0):
+            elif current_impulse <0 or ( diode_state is True and current_nonimpulse < 0   and z_next[diode_idx] < 0):
                 self.switch_state[i] = False
                 labels_to_swap.append(I_lab)
  
             else:
                 pass
                 
-            diode_count +=1
+
         
         if len(labels_to_swap) > 0:
             self.swap_col_and_update(labels_to_swap, assert_no_cache=True)
@@ -1067,26 +1062,32 @@ class StateSpaceSimulationModule(SimulationModule):
         # if update x at this stage, it work for parallel all other iteration except the x_state iteration
         if(self.cur_system_time == 0.0):
             self.swap_col_and_update([])
-        # self.swap_col_and_update([], assert_cache=True)
-    
-        # np.testing.assert_almost_equal( self.C,  self.C_non_impulse + self.C_impulse, decimal=5  )
-        # np.testing.assert_almost_equal( self.D,  self.D_non_impulse + self.D_impulse, decimal=5  )
-        # only interest in C1_diode_sw
 
-        switch_change_occur, impulse_value, impulse_difference = self.handle_external_switch(x_at_t0=x_cur_before)
-        
-        
+        switch_change_occur = self.handle_external_switch(x_at_t0=x_cur_before) # update matrixs when external switches being toggled
+
         # demonstrate parallel of nonimpulse and impulse switch evalulation
-        non_impulse_value, z_next = self.handle_diode_soft_switch(x_for_update=x_cur_before.copy(),) # can process in parallel
+        diode_number = len(self.diode_index)
+        state_number = x_cur_before.shape[0]
+        input_number = self.u.shape[0]
+        combined_matrix = np.zeros( (diode_number*3, state_number + input_number ), dtype=np.float32  )
+        if(switch_change_occur > 0):
+            combined_matrix[0:diode_number, 0:state_number] = self.C_diode_impulse_sw
+        combined_matrix[ diode_number: diode_number*2, :] =  np.concat((self.C_diode_natural_sw, self.D_diode_natural_sw), axis=1)
+        combined_matrix [diode_number*2:, :] = np.concat((self.C_diode_explicit_der_mult_delta_t_sw, self.D_diode_explicit_der_mult_delta_t_sw), axis=1)
+            
+        
+        m_v_value = np.matmul(combined_matrix, np.concat((x_cur_before, self.u), axis=0))
+        
+        impulse_value =   m_v_value[0:diode_number]
+        non_impulse_value = m_v_value[diode_number: diode_number*2]
+        z_next = m_v_value[diode_number*2: ]
+        
+        # update diodes states accordingly
         diode_change_occur = self.update_both_impulse_non_impulse(impulse_val=impulse_value, non_impulse_val=non_impulse_value, z_next=z_next) # merge logic for finalize diode switching
         
         self.use_impulse_in_y_output = switch_change_occur or (not diode_change_occur)
         
-         
-        # # At this point, A,B, C, D matrix could already change if switch/diode updates happened
-        # self.swap_col_and_update([], assert_cache=True)
-        # self.iterative_x(x_for_iteration=x_cur_before, zero_input=self.solver_zero_input_res, zero_state=self.solver_zero_state_res)
-        # self.update_x_cur_with_dep(A_dependent=self.A_dependent, B_dependent=self.B_dependent)
+
         #update x
         self.x_with_dep = np.matmul(self.x_next_with_dep_A, x_cur_before) + np.matmul(self.X_next_with_dep_B, self.u)
 
