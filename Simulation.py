@@ -34,7 +34,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import csv
 import warnings
-
+import h5py
 @total_ordering
 class SimulationModule:
     def __init__(self):
@@ -428,7 +428,57 @@ class StateSpaceSimulationModule(SimulationModule):
         self.swap_difference(current_switch_states)
         
         assert [ x== y for x,y in zip(current_switch_states, self.switch_state)]
+    
+    
+    def save_iterative_matrix_to_file(self, file_path):
         
+        
+        current_switch_states = self.switch_state.copy()
+        # first save some metadata
+        # metadat are 
+        # 1. what each y symbols represents
+        # 2. The switch/diode order
+        metadata = [
+            self.network_matrix.y_labels,
+            # The switch/diode symbols MSB to LSB in same order as self.switch_labels, which is same order as elf.network_matrix.s_labels
+            self.network_matrix.s_labels
+        ]
+        
+        total_switch_case = 2**(self.network_matrix.s_labels_size)
+        with h5py.File(file_path, "w") as f:
+            # Create a variable-length dataset for y_labels (e.g., strings)
+            dt = h5py.special_dtype(vlen=str)  # Use vlen=int for integers
+            y_labels_ds = f.create_dataset("metadata/y_labels", (len(self.network_matrix.y_labels),), dtype=dt)
+            y_labels_ds[:] = [lst for lst in self.network_matrix.y_labels]  # Assign lists
+
+            # Repeat for s_labels
+            s_labels_ds = f.create_dataset("metadata/s_labels", (len(self.network_matrix.s_labels),), dtype=dt)
+            snames = [  self.network_matrix.m_column_labels_to_obj_map[ lst].name for lst in self.network_matrix.s_labels ]
+            s_labels_ds[:] = snames
+            
+            
+            # now saving each cases
+            for case in range(total_switch_case):
+                bool_states, _ = int_to_binary_list(case, self.network_matrix.s_labels_size)
+                
+                bool_states_str = ''.join(str(int(x)) for x in bool_states)
+                self.switch_state = bool_states
+                self.swap_col_and_update([], False, True)
+                f.create_dataset( f"{bool_states_str}/C_diode_impulse_sw", data=self.C_diode_impulse_sw,)
+                f.create_dataset( f"{bool_states_str}/C_diode_natural_sw", data=self.C_diode_natural_sw)
+                f.create_dataset( f"{bool_states_str}/D_diode_natural_sw", data=self.D_diode_natural_sw)
+                f.create_dataset( f"{bool_states_str}/C_diode_explicit_der_mult_delta_t_sw", data=self.C_diode_explicit_der_mult_delta_t_sw)
+                f.create_dataset( f"{bool_states_str}/D_diode_explicit_der_mult_delta_t_sw", data=self.D_diode_explicit_der_mult_delta_t_sw)
+                f.create_dataset( f"{bool_states_str}/x_next_with_dep_A", data=self.x_next_with_dep_A)
+                f.create_dataset( f"{bool_states_str}/X_next_with_dep_B", data=self.X_next_with_dep_B)
+                f.create_dataset( f"{bool_states_str}/C_impulse", data=self.C_impulse)
+                f.create_dataset( f"{bool_states_str}/C_non_impulse", data=self.C_non_impulse)
+                f.create_dataset( f"{bool_states_str}/D_impulse", data=self.D_impulse)
+                f.create_dataset( f"{bool_states_str}/D_non_impulse", data=self.D_non_impulse)
+        
+        
+        # restore to orignal state
+        self.switch_state = current_switch_states
     def diode_interest_index_in_y_labels(
         self
     ):
@@ -628,8 +678,8 @@ class StateSpaceSimulationModule(SimulationModule):
                     diode_ind_to_y_ind = self.diode_index_y_index_mapping
                 )
             
-            I_A_dependent = sp.eye( self.A_dependent.shape[0] )
-            self.C_diode_impulse_sw = np.matmul(  self.C1_diode_sw, (self.A_dependent - I_A_dependent ))  # for finding C_impulse, just multiply x_cur with this matrix
+            I_A_dependent = np.identity(self.A_dependent.shape[0], dtype=np.float32)#  sp.eye( self.A_dependent.shape[0] )
+            self.C_diode_impulse_sw = np.matmul(  self.C1_diode_sw, ( sp.matrix2numpy(self.A_dependent, dtype=np.float32) - I_A_dependent ))  # for finding C_impulse, just multiply x_cur with this matrix
             self.C_diode_natural_sw = self.C_diode_sw.copy()
             self.D_diode_natural_sw = self.D_diode_sw.copy()
             self.C_diode_explicit_der_mult_delta_t_sw = self.C_diode_natural_sw + np.multiply(self.C_mult_A, 1/self.iteration_frequency)

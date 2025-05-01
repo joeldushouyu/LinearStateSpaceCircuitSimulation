@@ -343,7 +343,7 @@ def simulation_main(netList:list[str], end_sim_t:float,  data_output_filename:st
     system_clock_module.start_simuation(end_sim_t)
 
     state_space_module.plot_output_graph(outputfile_name= data_output_filename )
-
+    state_space_module.save_iterative_matrix_to_file("Metadata.h5")
 
 
 
