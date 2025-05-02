@@ -4,4 +4,4 @@ __pycache__/
 test.txt
 *.pyc
 .vscode/
-.o
+**/**.o
