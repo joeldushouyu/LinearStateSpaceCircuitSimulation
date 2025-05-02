@@ -1,3 +1,4 @@
+import json
 from sympy.matrices.expressions.matexpr import MatrixElement
 from SimulationMessage import (
     Message,
@@ -18,7 +19,7 @@ from util import (print_matrix,is_rise_edge, retrieveSystemMatrix,
                   get_backward_euler_integartion, get_trapezoid_integration, 
                   update_system_matrix_to_reflect_dependency,retrieve_Zsw_hat,get_tustin_integration, radau_integration_step,
                   get_pade_03_integeration, int_to_binary_list,
-                  get_pade_0_2_matrix, state_iteration,get_radau_integration, get_forward_euler_integration
+                  get_pade_0_2_matrix, state_iteration,get_radau_integration, get_forward_euler_integration, bool_list_to_uint32
                   )
 from typing import Tuple
 import pandas as pd
@@ -282,7 +283,7 @@ class StateSpaceSimulationModule(SimulationModule):
         
         
         # the iteration process
-        self.number_of_state_variable = len(self.network_matrix.x_labels)
+        self.number_of_state_variable: int = len(self.network_matrix.x_labels)
         self.__x_cur_ind = np.ndarray((self.number_of_state_variable,1), dtype=np.float32, )
         self.__x_cur_ind[:,:] = 0
         
@@ -357,6 +358,10 @@ class StateSpaceSimulationModule(SimulationModule):
 
         self.switch_last_output = np.zeros(self.network_matrix.s_labels_size)
         self.use_impulse_in_y_output = False
+        
+        self.u_record :  dict[str:list[float]] = {}
+        self.switch_record :dict[str:list[bool]] = {}
+        self.switch_diode_status_record:dict[str:list[int]] = {}
         self.initialize_data()
     
     def generate_M_cache_key(self,key_list:list[bool|int], value_type="" )->str:
@@ -430,7 +435,7 @@ class StateSpaceSimulationModule(SimulationModule):
         assert [ x== y for x,y in zip(current_switch_states, self.switch_state)]
     
     
-    def save_iterative_matrix_to_file(self, file_path):
+    def save_iterative_matrix_to_file(self, file_path, end_simulation_time:float):
         
         
         current_switch_states = self.switch_state.copy()
@@ -438,13 +443,18 @@ class StateSpaceSimulationModule(SimulationModule):
         # metadat are 
         # 1. what each y symbols represents
         # 2. The switch/diode order
-        metadata = [
-            self.network_matrix.y_labels,
-            # The switch/diode symbols MSB to LSB in same order as self.switch_labels, which is same order as elf.network_matrix.s_labels
-            self.network_matrix.s_labels
-        ]
-        
+
         total_switch_case = 2**(self.network_matrix.s_labels_size)
+        
+        general_info = {
+            "y_size" : self.network_matrix.y_label_size,
+            "u_size" : self.network_matrix.u_label_size,
+            "state_size" : self.network_matrix.s_labels_size,
+            "iteration_frequency": self.iteration_frequency,
+            "diode_size": len(self.diode_index),
+            "switch_size": len(self.external_switch_index),
+            "end_time":  end_simulation_time
+        }
         with h5py.File(file_path, "w") as f:
             # Create a variable-length dataset for y_labels (e.g., strings)
             dt = h5py.special_dtype(vlen=str)  # Use vlen=int for integers
@@ -456,7 +466,8 @@ class StateSpaceSimulationModule(SimulationModule):
             snames = [  self.network_matrix.m_column_labels_to_obj_map[ lst].name for lst in self.network_matrix.s_labels ]
             s_labels_ds[:] = snames
             
-            
+            dt = h5py.string_dtype(encoding="utf-8")
+            f.create_dataset("json_data/general_info", data=json.dumps(general_info), dtype=dt)
             # now saving each cases
             for case in range(total_switch_case):
                 bool_states, _ = int_to_binary_list(case, self.network_matrix.s_labels_size)
@@ -475,10 +486,24 @@ class StateSpaceSimulationModule(SimulationModule):
                 f.create_dataset( f"{bool_states_str}/C_non_impulse", data=self.C_non_impulse)
                 f.create_dataset( f"{bool_states_str}/D_impulse", data=self.D_impulse)
                 f.create_dataset( f"{bool_states_str}/D_non_impulse", data=self.D_non_impulse)
-        
-        
+            
+            
+            # Save each key-value pair into a new group, e.g., "custom_data"
+            custom_group = f.create_group("input_data")
+            for k, v in self.u_record .items():
+                custom_group.create_dataset(k, data=v)
+            custom_group2 = f.create_group("state")
+            for k, v in self.switch_diode_status_record.items():
+                custom_group2.create_dataset(name=k, data=v)
+            
+            custom_group3 = f.create_group("switches")
+            for k, v in self.switch_record.items():
+                obj = self.network_matrix.m_column_labels_to_obj_map[k]
+                custom_group3.create_dataset(name=obj.name, data=v)
+                
         # restore to orignal state
         self.switch_state = current_switch_states
+
     def diode_interest_index_in_y_labels(
         self
     ):
@@ -838,7 +863,12 @@ class StateSpaceSimulationModule(SimulationModule):
                 else:
                     ind = self.u_label_map[message.source_column_label]
                     self.u[0,ind] = message.value
-                    
+                
+                for key, value in self.u_label_map.items():
+                    if key not in self.u_record:
+                        self.u_record[key] = [message.value]
+                    else:
+                        self.u_record[key].append(message.value)
 
                     
             elif isinstance(message, OversamplingMessage):
@@ -876,8 +906,12 @@ class StateSpaceSimulationModule(SimulationModule):
                         else:
                             self.switch_triggered[ind] = False
                         self.switch_state[ind] = True if value else False
-                        
-       
+                for key, value in message.switch_states_map.items():
+                    if key not in self.switch_record:
+                        self.switch_record[key] = [value]
+                    else:
+                        self.switch_record[key].append(value)
+ 
             else:
                 raise ValueError("Unexpected case occurred")
             
@@ -1109,10 +1143,17 @@ class StateSpaceSimulationModule(SimulationModule):
     def iteration(self):
         x_cur_before = self.get_x_cur_with_dep().copy()
         u_cur_before = self.u.copy()
+        
+        
         # if update x at this stage, it work for parallel all other iteration except the x_state iteration
         if(self.cur_system_time == 0.0):
             self.swap_col_and_update([])
 
+        if "state" not in self.switch_diode_status_record:
+            self.switch_diode_status_record["state"] = [  bool_list_to_uint32(self.switch_state)]
+        else:
+            self.switch_diode_status_record["state"].append(  bool_list_to_uint32(self.switch_state) )
+              
         switch_change_occur = self.handle_external_switch(x_at_t0=x_cur_before) # update matrixs when external switches being toggled
 
         # demonstrate parallel of nonimpulse and impulse switch evalulation
@@ -1154,15 +1195,6 @@ class StateSpaceSimulationModule(SimulationModule):
         
 
         self.time_t.append(self.cur_system_time)
-        # cur_switch_state =[]
-        # cur_switch_trigger =[]
-        
-        # for i, val in self.switch_index_label_map.items():
-        #     if i not in self.diode_index:
-        #         cur_switch_state.append(self.switch_state[i])
-        #         cur_switch_trigger.append(self.switch_triggered[i])
-        # self.switch_state_output.append (  cur_switch_state)
-        # self.switch_triggered_output.append( cur_switch_trigger)
-        
+
         self.y_output.append(self.y_cur[:,0].tolist())
         

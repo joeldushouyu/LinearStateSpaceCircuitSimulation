@@ -18,6 +18,18 @@ from scipy.optimize import linear_sum_assignment
 from scipy.sparse.linalg import splu, gmres
 from scipy.linalg import solve_triangular
 import scipy.sparse
+
+
+def bool_list_to_uint32(bits):
+    if len(bits) > 32:
+        raise ValueError("List length must be 32 or fewer")
+
+    result = 0
+    for bit in bits:
+        result = (result << 1) | int(bit)
+    return result
+
+
 def int_to_binary_list(n, length):
     # Convert the integer to a binary string with the specified length
     binary_str = format(n, f'0{length}b')
