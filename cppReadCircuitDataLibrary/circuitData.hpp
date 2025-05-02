@@ -26,7 +26,7 @@ struct GeneralInfo
 
 
 // Convert to JSON
-void to_json(nlohmann::json& j, const GeneralInfo& info) {
+inline void to_json(nlohmann::json& j, const GeneralInfo& info) {
     j = nlohmann::json{
         {"y_size", info.y_size},
         {"u_size", info.u_size},
@@ -80,7 +80,7 @@ public:
     std::map<std::string, SwitchCaseData> switch_cases;
     GeneralInfo general_info;
 
-    
+
     CircuitData();
     int initFromFile(const char *filename, bool print_data = false);
 };
