@@ -449,7 +449,7 @@ class StateSpaceSimulationModule(SimulationModule):
         general_info = {
             "y_size" : self.network_matrix.y_label_size,
             "u_size" : self.network_matrix.u_label_size,
-            "state_size" : self.network_matrix.s_labels_size,
+            "state_size" : self.network_matrix.x_label_size,
             "iteration_frequency": self.iteration_frequency,
             "diode_size": len(self.diode_index),
             "switch_size": len(self.external_switch_index),
