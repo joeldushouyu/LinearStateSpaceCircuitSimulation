@@ -1,0 +1,7 @@
+#ifndef __COMMON_CONFIG__
+#define __COMMON_CONFIG__
+
+#define MAX_LOOP_SIZE 9223372036854775807
+
+
+#endif
