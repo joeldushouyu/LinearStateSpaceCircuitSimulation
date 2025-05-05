@@ -1,7 +1,6 @@
 
 
 #include "circuitData.hpp"
-// Function for reading data from H5 file
 
 
 void read_matrix(H5::Group &group, const std::string &dataset_name, MatrixRowMajor &matrix) {

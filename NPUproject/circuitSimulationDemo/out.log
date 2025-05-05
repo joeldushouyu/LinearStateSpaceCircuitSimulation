@@ -356,7 +356,7 @@
 [info]  Running runtime test.
 [info]  Running kernel with bare call.
 +--------------------------------------+
-| NPU time with bare call: 484 us      |
+| NPU time with bare call: 531 us      |
 +--------------------------------------+
 [info]  Finished running kernel
 out_0[0] = 6.000000e+01 ?= out_ref_0[0] = 6.000000e+01

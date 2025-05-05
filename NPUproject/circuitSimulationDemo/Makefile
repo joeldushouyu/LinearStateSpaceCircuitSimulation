@@ -23,7 +23,15 @@ EXTRA_HEADERS = $(filter-out ${TemplaeHostDir}/typedef.hpp, $(wildcard ${Templae
 EXTRA_SRCS =  $(filter-out ${TemplaeHostDir}/host.cpp, $(wildcard ${TemplaeHostDir}/*.cpp))
 
 
+COPIED_HEADERS := $(notdir $(wildcard ${CPP_REFERENCE_DIR}/*.hpp))
+COPIED_HEADERS_IN_HOST := $(addprefix ./host/,$(COPIED_HEADERS))
 
+COPIED_SRCS = :=   $(notdir $(wildcard ${CPP_REFERENCE_DIR}/*.cpp))
+COPIED_SRCS_IN_HOST := $(addprefix ./host/,$(COPIED_SRCS))
+
+
+EXCLUDE_CPP_FILES := ${CPP_REFERENCE_DIR}/circuitSimulation.cpp ${CPP_REFERENCE_DIR}/hdf5_reader.cpp
+CPP_FILES_TO_COPY := $(filter-out $(EXCLUDE_CPP_FILES), $(wildcard ${CPP_REFERENCE_DIR}/*.cpp))
 
 
 
@@ -67,6 +75,17 @@ $(info HOST_HEADERS (after EXTRA) = $(HOST_HEADERS))
 $(info HOST_SRCS (after EXTRA) = $(HOST_SRCS))
 CXXFLAGS += -I$(TemplaeHostDir)
 CXXFLAGS += -I$(TemplateRepoDir)/common
+
+
+EIGEN_INCLUDE ?= /usr/include/eigen3
+JSON_INCLUDE ?= /usr/include/nlohmann
+CXXFLAGS += -I${CPP_REFERENCE_DIR}../highfive/include -I/usr/include/hdf5/serial -I$(EIGEN_INCLUDE) -I$(JSON_INCLUDE)
+
+$(info CXXFLAGS (after EXTRA) = $(CXXFLAGS))
+
+LDFLAGS += -L/usr/lib/x86_64-linux-gnu/hdf5/serial
+LIBS += -lhdf5_cpp -lhdf5
+
 include $(TemplateRepoDir)/makefiles/host.mk
 
 
@@ -104,12 +123,16 @@ clean:clean_test
 	-@rm -f ./iron/final_config.json
 	-@rm -f ./host/circuitConfig.h
 	-@rm -f ./kernel/circuitConfig.h
+	-@rm -f ${COPIED_HEADERS_IN_HOST}
+	-@rm -f ${COPIED_SRCS_IN_HOST}
 config_stage:
 	${clean}
-
 	cp -f ${CPP_REFERENCE_DIR}/final_config.json ./iron/final_config.json
 	cp -f ${CPP_REFERENCE_DIR}/circuitConfig.hpp  ./host/circuitConfig.h
 	cp -f ${CPP_REFERENCE_DIR}/circuitConfig.hpp  ./kernel/circuitConfig.h
+	cp -f ${CPP_FILES_TO_COPY} ./host/
+	cp -f ${CPP_REFERENCE_DIR}*.hpp ./host/
+
 
 
 kernel: ${KERNEL_OBJS} 
