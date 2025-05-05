@@ -340,10 +340,10 @@ def simulation_main(netList:list[str], end_sim_t:float,  data_output_filename:st
 
     system_clock_module.update_list_of_node_module(   [state_space_module, oversample_module]  + voltage_current_modules + external_switch_modules)
 
-    system_clock_module.start_simuation(end_sim_t)
+    step_size = system_clock_module.start_simuation(end_sim_t)
 
     state_space_module.plot_output_graph(outputfile_name= data_output_filename )
-    state_space_module.save_iterative_matrix_to_file("Metadata.h5", end_simulation_time=end_sim_t)
+    state_space_module.save_iterative_matrix_to_file("Metadata.h5", end_simulation_time=end_sim_t, iteration_step_number=step_size)
 
 
 

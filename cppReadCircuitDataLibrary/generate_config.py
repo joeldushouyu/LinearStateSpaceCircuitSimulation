@@ -58,6 +58,7 @@ def main(json_config_file:str, output_json_file:str, output_header_file:str ):
             u_size = config_data.get("u_size")
             state_size = config_data.get("state_size")
             y_size = config_data.get("y_size")
+            iteration_step_number = config_data.get("iteration_step_number")
 
             print(f"\nTrace Size: {trace_size}")
             print(f"Simulate End Time: {simulate_end_time}")
@@ -105,8 +106,10 @@ def main(json_config_file:str, output_json_file:str, output_header_file:str ):
             buffer_size_of_in_ping_pong = len_of_input_for_each_iteration*(iteration_step_per_buffer)
             buffer_size_of_out_ping_pong = len_of_output_for_each_iteration*(iteration_step_per_buffer)
             
-            #TODO: for now
-            ping_pong_buffer_iteration = 4
+            
+            ping_pong_buffer_iteration =  math.ceil(iteration_step_number/iteration_step_per_buffer)
+            print("Total number of ping pong buffer: ", ping_pong_buffer_iteration)
+            
             # now write the final config result to file
 
             extracted_Data = {
@@ -138,7 +141,9 @@ def main(json_config_file:str, output_json_file:str, output_header_file:str ):
                 
                 "buffer_size_of_cur_X_U": buffer_size_of_cur_X_U,
                 "buffer_size_of_C1_DSW_mat_res":buffer_size_of_C1_DSW_mat_res,
-                "buffer_size_of_A_B_C_D_mat_res": buffer_size_of_A_B_C_D_mat_res
+                "buffer_size_of_A_B_C_D_mat_res": buffer_size_of_A_B_C_D_mat_res,
+                
+                "iteration_step_number":iteration_step_number
                 
             }            
             with open(output_json_file,"w") as outfile:
