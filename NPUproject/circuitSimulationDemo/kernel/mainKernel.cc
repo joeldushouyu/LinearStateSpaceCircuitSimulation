@@ -16,9 +16,9 @@
 #include "common_macro.h"
 #include <aie_api/aie.hpp>
 #include <vector>
-#include "circuitConfig.h"
-
-
+#include "circuitConfig.hpp"
+#include "circuitSimCore.hpp"
+#define MAX_SW_DIODE_SIZE 32
 #define CUSTOM_CEIL(x, mult) (((x) + (mult) - 1) / (mult) * (mult))
 
 float* retrieveMatrixOFfsetBaseOnState(const uint32_t state, const int32_t matrix_size, float* matrix_ptr) {
@@ -66,30 +66,17 @@ void accum_float_value(float* in, float* out,
 
 
 
+template<uint32_t C1_RES_MASK_LEN>
+void mult_with_C1_DSW(float *C1_DSW_mat, aie::vector<float, 16> *x_u_cur, uint32_t* c1_res_mask, 
+    float*out // for debug
+){
 
-void mult_with_C1_DSW(float *C1_DSW_mat, aie::vector<float, 16> *x_u_cur, float*out){
-
-
+    static_assert(C1_RES_MASK_LEN == 6); // 6 uint32 if assume only 32 switch/diode
+    
     const uint32_t C1_DSW_ROW_SIZE_DIV_16 = C1_DSW_ROW_SIZE/16;
+    static_assert (C1_RES_MASK_LEN >=C1_DSW_ROW_SIZE_DIV_16 );
 
-    // for(uint32_t row = 0; row < C1_DSW_ROW_SIZE_DIV_16; row+=1){
-
-    //     aie::accum<accfloat, 16> C1_DSW_temp = aie::zeros<accfloat, 16>();  
-
-    //     for(uint32_t col = 0; col < U_SIZE+STATE_SIZE; col++){
-            
-    //         aie::vector<float, 16> a = aie::load_v<16>(C1_DSW_mat);
-    //         C1_DSW_mat += ;
-
-    //         const uint32_t col_div_16 = col/16;             
-    //         aie::vector<float, 16>b= aie::broadcast<float, 16>(   (x_u_cur  +col_div_16)->get(col)  );
-    //         C1_DSW_temp = mac_elem_16_accuracy_safe(a,b, C1_DSW_temp, 0,0,0);
-
-    //     }
-    //     //for now, store back to out
-    //     aie::store_v(out, C1_DSW_temp.template to_vector<float>());
-    //     out = out + 16;
-    // }
+    uint32_t c1_res_offset = 0;
 
     for(uint32_t row = 0; row < C1_DSW_ROW_SIZE_DIV_16; row++){
 
@@ -110,6 +97,21 @@ void mult_with_C1_DSW(float *C1_DSW_mat, aie::vector<float, 16> *x_u_cur, float*
         // for now, store  back to out
         aie::store_v(out ,C1_DSW_temp.template to_vector<float>() );
         out += 16;
+
+        // aie::vector<float, 16> res_vec = C1_DSW_temp.template to_vector<float>();
+        // aie::mask<16> lt_res = aie::lt< aie::vector<float, 16> , float>(  res_vec ,0);
+        // aie::mask<16> gt_res = aie::gt< aie::vector<float, 16> , float>(  res_vec ,0);
+
+        // if(row %2 == 0){
+        //     c1_res_mask[c1_res_offset]=  gt_res.to_uint32() & 0x0000FFFF;
+        //     c1_res_mask[c1_res_offset+3]=  lt_res.to_uint32() & 0x0000FFFF;
+
+
+        // }else{
+        //     c1_res_mask[c1_res_offset]=  gt_res.to_uint32()  <<16;
+        //     c1_res_mask[c1_res_offset+3]=  lt_res.to_uint32() <<16;
+        //     c1_res_offset ++;
+        // }
     }
 
 }
@@ -177,7 +179,65 @@ void mult_with_A_B_C_D_nonimp_imp(float *A_B_C_D_mat, aie::vector<float, 16> *x_
 
 }
 
+// Return true if externalSwitch toggled
+bool update_x_u_cur_with_input(aie::vector<float, 16> *x_u_cur, float*in, uint32_t &externalSwitchDiodeStates){
+    // #pragma clang loop unroll_count(U_SIZE)
+    for(auto i = STATE_SIZE; i < U_SIZE+STATE_SIZE ; i++ ){
+        
 
+        x_u_cur[ i /16 ].set(*in, i%16);
+        in++;
+    } 
+
+    uint32_t *in_as_uint32 = (uint32_t*)in;
+    // update the Swtich diode status 
+    bool toggled = !compare_and_copy_bits<uint32_t>(externalSwitchDiodeStates, *in_as_uint32, DIODE_SIZE, SWITCH_SIZE  );
+
+    in++;
+    return toggled;
+}
+
+void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur, 
+    float*C1_DSW_Buffer, float*ABCD_buffer, uint32_t &externalSwitchDiodeState){
+    
+
+    uint32_t C1_Mask_Res[6] = {0};
+    for(uint32_t k = 0; k < 1; k++){
+
+        // read the input
+        bool external_switch_toggled = update_x_u_cur_with_input(x_u_cur, in, externalSwitchDiodeState );
+        in += INPUT_SIZE_PER_ITERATION;
+
+
+        mult_with_C1_DSW<6>(
+            retrieveMatrixOFfsetBaseOnState(externalSwitchDiodeState,C1_DSW_MATRIX_SIZE  ,C1_DSW_Buffer),
+            x_u_cur,
+            C1_Mask_Res,
+            out // for debug
+        );
+
+        // for(uint32_t i = 0; i < 16; i++){
+        //     *out++ = x_u_cur[0].get(i);
+
+        // }
+        // bool diode_toggled = diode_toggle_update<MAX_SW_DIODE_SIZE, 6> (externalSwitchDiodeState,
+        //     C1_Mask_Res, external_switch_toggled
+        // );
+
+
+        // for now, write both the diode state and the C1_MASK_RES 
+
+        uint32_t *pt_uint32 = (uint32_t*) (out +16 );
+        *pt_uint32 ++ = externalSwitchDiodeState;
+
+
+        for(uint32_t i = 0; i < 6; i++){
+            *pt_uint32++ = C1_Mask_Res[i];
+        }
+     
+    }
+
+}
 
 
 extern "C" {
@@ -189,12 +249,12 @@ extern "C" {
     ) {
 
         const int32_t C1_DSW_mat_size = C1_DSW_MATRIX_SIZE;
-        const uint32_t externalSwitchDiodeStates = 0x0;
+        uint32_t externalSwitchDiodeStates = 0x0;
         
         //TODO: check later
         const uint32_t vector_size_of_x_u_cur = BUFFER_SIZE_OF_CUR_X_U / 16;
         
-        static_assert(vector_size_of_x_u_cur < 12-1 ) ; // has 18 512bit accum, reserve one for mult with C1_DSW
+        static_assert(vector_size_of_x_u_cur < 12-4 ) ; //TODO: check for error  if happened use more than this number of vectors
 
 
         // Define storage for the accumulators
@@ -204,18 +264,16 @@ extern "C" {
         for (uint32_t i = 0; i < vector_size_of_x_u_cur; ++i) {
             x_u_cur[i] = aie::zeros<float, 16>(); 
         }
+        // // for testing
+        // for(auto k  = 0; k < STATE_SIZE; k++){
+        //     x_u_cur[0].set(10, k);
+        // }
 
-        // for testing
-        for(auto k  = 0; k < STATE_SIZE; k++){
-            x_u_cur[0].set(10, k);
-        }
 
         // // //test purpose
         // float v = 10.01;
         // x_u_cur[0].set(v, 0);
         // // x_u_cur[0] = aie::add(x_u_cur[0], v);
-
-
 
         for (uint64_t l = 0; l < MAX_LOOP_SIZE; l++) {
             acquire_greater_equal(buffer_in_con_loc_id + 48, 1);
@@ -223,8 +281,8 @@ extern "C" {
 
 
             float *test_out = out;
-            //only do number of switch for now
-            for(uint32_t k = 0; k < TOTAL_SWITCH_DIODE_STATE; k++){
+            // //only do number of switch for now
+            for(uint32_t k = 0; k < 16; k++){
 
                 #pragma clang loop unroll_count(U_SIZE)
                 for(auto i = STATE_SIZE; i < U_SIZE+STATE_SIZE ; i++ ){
@@ -234,9 +292,9 @@ extern "C" {
                     in++;
                 }
                 in++; // the input switch state offset for later usage
-
-                mult_with_C1_DSW( retrieveMatrixOFfsetBaseOnState(k,C1_DSW_MATRIX_SIZE  ,C1_DSW_Buffer), 
-                x_u_cur, test_out ); // for now write 16each time  
+                uint32_t testbuf[6];
+                mult_with_C1_DSW<6>( retrieveMatrixOFfsetBaseOnState(k,C1_DSW_MATRIX_SIZE  ,C1_DSW_Buffer), 
+                x_u_cur, testbuf,  test_out ); // for now write 16each time  
                 test_out += C1_DSW_ROW_SIZE;
 
                 mult_with_A_B_C_D_nonimp_imp(
@@ -246,41 +304,10 @@ extern "C" {
                 test_out += A_B_C_D_ROW_SIZE;
 
             }
-
-            
-
-            // for this test, do a mult with all C1_DSW, A_B_C_D_nonimp and A_B_C_D_nonimp_imp version
-
-            // only do number of switch for now
-            // for(uint32_t k = 0; k < TOTAL_SWITCH_DIODE_STATE*2; k++){
-
-            //     #pragma clang loop unroll_count(U_SIZE)
-            //     for(auto i = STATE_SIZE; i < U_SIZE+STATE_SIZE ; i++ ){
-                    
-      
-            //         x_u_cur[ i /16 ].set(*in, i%16);
-            //         in++;
-            //     }
-                
-            //     in++; // the input switch state
-
-            //     mult_with_C1_DSW( retrieveMatrixOFfsetBaseOnState(k,C1_DSW_MATRIX_SIZE  ,C1_DSW_Buffer), 
-            //      x_u_cur,
-            //      out + k*(C1_DSW_ROW_SIZE) ); // for now write 16each time
-
-            //     // mult_with_C1_DSW( C1_DSW_Buffer  ,  x_u_cur,out );
-            // }
-            // x_u_cur[0].set(*in, 6);
-            // mult_with_C1_DSW( C1_DSW_Buffer  ,  x_u_cur,out );
-            
-
-
-            // // use buffer 0 of ping in and out
-            // accum_float_value(in, out, 
-            // 0, 0
+    
+            // iteration_core(
+            //     in,out, x_u_cur, C1_DSW_Buffer, ABCD_buffer, externalSwitchDiodeStates
             // );
-
-
             release(buffer_in_prod_lock_id + 48, 1);
             release(buffer_out_con_lock_id + 48, 1);
 

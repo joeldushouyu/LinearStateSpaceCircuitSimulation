@@ -43,7 +43,22 @@ bool are_results_close(
 
 
 
-// Helper function to convert a single matrix slice from row-major to column-major
+// // Helper function to convert a single matrix slice from row-major to column-major
+// void convertMatrix(
+//     const buffer<float> &in,
+//     buffer<float> &out,
+//     std::size_t in_offset,
+//     std::size_t &out_offset,
+//     std::int32_t rows,
+//     std::int32_t cols
+// ) {
+//     for (std::int32_t c = 0; c < cols; ++c) {
+//         for (std::int32_t r = 0; r < rows; ++r) {
+//             // Correct index: row-major input to column-major output
+//             out[out_offset++] = in[in_offset + r * cols + c];
+//         }
+//     }
+// }
 void convertMatrix(
     const buffer<float> &in,
     buffer<float> &out,
@@ -52,20 +67,20 @@ void convertMatrix(
     std::int32_t rows,
     std::int32_t cols
 ) {
-    for (std::int32_t c = 0; c < cols; ++c) {
-        for (std::int32_t r = 0; r < rows; ++r) {
-            // Correct index: row-major input to column-major output
-            out[out_offset++] = in[in_offset + r * cols + c];
+    // Iterate over each block of 16 rows
+    for (std::int32_t r_block_start = 0; r_block_start < rows; r_block_start += 16) {
+        // For each column in the matrix
+        for (std::int32_t c = 0; c < cols; ++c) {
+            // Process each row within the current 16-row block
+            for (std::int32_t r_in_block = 0; r_in_block < 16; ++r_in_block) {
+                // Calculate the actual row index in the input matrix
+                std::int32_t r = r_block_start + r_in_block;
+                // Access the input element (row-major) and write to output (column-major with stride 16)
+                out[out_offset++] = in[in_offset + r * cols + c];
+            }
         }
     }
 }
-// Transforms a flattened array of matrices from row-major to column-major order.
-// Structure of `in`:
-// 1) First block: switch_size repetitions of matrices of size
-//    (3 * diode_size) rows x (state_size + input_size) cols.
-// 2) Second block: switch_size repetitions of matrices of size
-//    (state_size + 2 * output_size) rows x (state_size + input_size) cols.
-// All matrices in `in` are stored in row-major order.
 // This function returns a new buffer where each individual matrix
 // has been converted into column-major order.
 buffer<float> transform_to_column_major_order(
@@ -177,28 +192,47 @@ void debug_inspect_all(
 
 
 
-// MV, matrix is in column major 
+// // MV, matrix is in column major 
 
-// Performs y = A * x
-// A: m x n matrix stored in column-major order
-// x: vector of size n
-// Returns: vector y of size m
-std::vector<float> matvec_mul_col_major(
-    float * A, // matrix A in column-major order
-    float * x, // input vector x
-   size_t m,                    // number of rows
-   size_t n                     // number of columns
+// // Performs y = A * x
+// // A: m x n matrix stored in column-major order
+// // x: vector of size n
+// // Returns: vector y of size m
+// std::vector<float> matvec_mul_col_major(
+//     float * A, // matrix A in column-major order
+//     float * x, // input vector x
+//    size_t m,                    // number of rows
+//    size_t n                     // number of columns
+// ) {
+//     // assert(A.size() == m * n);
+//     // assert(x.size() == n);
+
+//     std::vector<float> y(m, 0.0f);
+
+//     // Iterate over columns
+//     for (size_t col = 0; col < n; ++col) {
+//         float x_val = *(x+col);
+//         for (size_t row = 0; row < m; ++row) {
+//             y[row] += A[col * m + row] * x_val;
+//         }
+//     }
+
+//     return y;
+// }
+
+std::vector<float> matvec_mul_row_major(
+    float* A,      // matrix A in row-major order
+    float* x,      // input vector x
+    size_t m,      // number of rows
+    size_t n       // number of columns
 ) {
-    // assert(A.size() == m * n);
-    // assert(x.size() == n);
-
     std::vector<float> y(m, 0.0f);
 
-    // Iterate over columns
-    for (size_t col = 0; col < n; ++col) {
-        float x_val = *(x+col);
-        for (size_t row = 0; row < m; ++row) {
-            y[row] += A[col * m + row] * x_val;
+    // Iterate over rows
+    for (size_t row = 0; row < m; ++row) {
+        // Dot product of current row with vector x
+        for (size_t col = 0; col < n; ++col) {
+            y[row] += A[row * n + col] * x[col];
         }
     }
 

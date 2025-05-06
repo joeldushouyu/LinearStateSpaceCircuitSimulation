@@ -18,7 +18,7 @@
 #include "typedef.hpp"
 #include "npu_utils.hpp"
 
-#include "circuitConfig.h"
+#include "circuitConfig.hpp"
 #include "experimental/xrt_kernel.h"
 #include "experimental/xrt_queue.h"
 #include <nlohmann/json.hpp> // Include the nlohmann/json header
@@ -76,11 +76,16 @@ void debug_inspect_all(
 
 
 
-
-std::vector<float> matvec_mul_col_major(
-     float * A, // matrix A in column-major order
-     float * x, // input vector x
-    size_t m,                    // number of rows
-    size_t n                     // number of columns
+std::vector<float> matvec_mul_row_major(
+    float* A,      // matrix A in row-major order
+    float* x,      // input vector x
+    size_t m,      // number of rows
+    size_t n       // number of columns
 ) ;
+// std::vector<float> matvec_mul_col_major(
+//      float * A, // matrix A in column-major order
+//      float * x, // input vector x
+//     size_t m,                    // number of rows
+//     size_t n                     // number of columns
+// ) ;
 #endif

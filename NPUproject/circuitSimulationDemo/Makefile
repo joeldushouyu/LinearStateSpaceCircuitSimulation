@@ -30,7 +30,7 @@ COPIED_SRCS = :=   $(notdir $(wildcard ${CPP_REFERENCE_DIR}/*.cpp))
 COPIED_SRCS_IN_HOST := $(addprefix ./host/,$(COPIED_SRCS))
 
 
-EXCLUDE_CPP_FILES := ${CPP_REFERENCE_DIR}/circuitSimulation.cpp ${CPP_REFERENCE_DIR}/hdf5_reader.cpp
+EXCLUDE_CPP_FILES := ${CPP_REFERENCE_DIR}/circuitSimulation.cpp ${CPP_REFERENCE_DIR}/hdf5_reader.cpp  ${CPP_REFERENCE_DIR}/test.cpp
 CPP_FILES_TO_COPY := $(filter-out $(EXCLUDE_CPP_FILES), $(wildcard ${CPP_REFERENCE_DIR}/*.cpp))
 
 
@@ -122,18 +122,20 @@ clean:clean_test
 	-@rm -f $(TARGET_HOST_TEST)
 	-@rm -f ./iron/final_config.json
 	-@rm -f  ./Metadata.h5
-	-@rm -f ./host/circuitConfig.h
-	-@rm -f ./kernel/circuitConfig.h
+	-@rm -f ./host/circuitConfig.hpp
+	-@rm -f ./kernel/circuitConfig.hpp
 	-@rm -f ${COPIED_HEADERS_IN_HOST}
 	-@rm -f ${COPIED_SRCS_IN_HOST}
+	-@rm -f ./kernel/circuitSimCore.hpp
 config_stage:
 	${clean}
 	cp -f ${CPP_REFERENCE_DIR}/final_config.json ./iron/final_config.json
 	cp -f ${PYTHO_DIR}/Metadata.h5 	     ./Metadata.h5
-	cp -f ${CPP_REFERENCE_DIR}/circuitConfig.hpp  ./host/circuitConfig.h
-	cp -f ${CPP_REFERENCE_DIR}/circuitConfig.hpp  ./kernel/circuitConfig.h
+	cp -f ${CPP_REFERENCE_DIR}/circuitConfig.hpp  ./host/circuitConfig.hpp
+	cp -f ${CPP_REFERENCE_DIR}/circuitConfig.hpp  ./kernel/circuitConfig.hpp
 	cp -f ${CPP_FILES_TO_COPY} ./host/
 	cp -f ${CPP_REFERENCE_DIR}/*.hpp ./host/
+	cp -f ./host/circuitSimCore.hpp ./kernel/circuitSimCore.hpp
 
 
 

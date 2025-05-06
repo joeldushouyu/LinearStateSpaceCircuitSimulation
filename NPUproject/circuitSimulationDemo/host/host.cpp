@@ -26,7 +26,7 @@ namespace po = boost::program_options;
 #include <algorithm> // For std::max
 
 #include "circuitData.hpp"
-#include "circuiSimCore.hpp"
+#include "circuitSimCore.hpp"
 #include "circuitConfig.hpp"
 #include "circuitSimulationHost.hpp"
 #include "host_helper.hpp"
@@ -82,9 +82,14 @@ int main(int argc, const char *argv[]) {
     float C1_DSW_buffer[C1_DSW_BUFFER_SIZE];
     float ABCD_buffer[A_B_C_D_BUFFER_SIZE];
     float input_buffers [ITERATION_STEP_NUMBER*INPUT_SIZE_PER_ITERATION];
+    uint32_t C1_RES_MASK_BUFFER [ITERATION_STEP_NUMBER*6];
+    uint32_t switch_diode_status_buffer_after_iteration [ITERATION_STEP_NUMBER];
+
+
     prepareDataForIteration("Metadata.h5", dataFromFile, C1_DSW_buffer, ABCD_buffer, input_buffers);
     float output_simulation_buffer_reference[OUTPUT_SIZE_PER_ITERATION *ITERATION_STEP_NUMBER ];
-    iteration(C1_DSW_buffer, ABCD_buffer, input_buffers, output_simulation_buffer_reference,  dataFromFile.switch_diode_status_record, false);
+    iteration(C1_DSW_buffer, ABCD_buffer, input_buffers, output_simulation_buffer_reference,  dataFromFile.switch_diode_status_record, 
+        C1_RES_MASK_BUFFER, switch_diode_status_buffer_after_iteration,false);
     
     
     // copy of matrix
@@ -101,6 +106,9 @@ int main(int argc, const char *argv[]) {
     // copy of input
     for(uint32_t i = 0; i <ITERATION_STEP_NUMBER*INPUT_SIZE_PER_ITERATION; i++  ){
         in_0[i] = input_buffers[i];
+        if(i < 20){
+            std::cout << "in at i" << i << " " << in_0[i] << std::endl;
+        }
     }
 
 
@@ -117,25 +125,24 @@ int main(int argc, const char *argv[]) {
     buffer<dtype_out> out_ref_0(output_iteration_size);    
     float* input_ptr = in_0.data();
     float* ref_res = out_ref_0.data();
-    float *C1_DSW_ptr = matrix_out_ref_col.data();
     
-    float *A_B_C_D_ptr = matrix_out_ref_col.data();
-    A_B_C_D_ptr += C1_DSW_BUFFER_SIZE;
+    // float *A_B_C_D_ptr = matrix_out_ref_col.data();
+    // A_B_C_D_ptr += C1_DSW_BUFFER_SIZE;
     for(int i = 0; i < TOTAL_SWITCH_DIODE_STATE; i++){
 
         float x[C1_DSW_COL_SIZE] = {0}; // for now
         
-        for(auto k = 0; k < STATE_SIZE; k++){
-            x[k] = 10;
-        }
+        // for(auto k = 0; k < STATE_SIZE; k++){
+        //     x[k] = 10;
+        // }
 
         for(int l = 0; l < U_SIZE; l++){
             x[STATE_SIZE + l] = *input_ptr++;
         }
         input_ptr++; // the external switch bit that is not used for now
 
-        std::vector<float>res  = matvec_mul_col_major(
-            C1_DSW_ptr + (i*C1_DSW_MATRIX_SIZE),x, 
+        std::vector<float>res  = matvec_mul_row_major(
+            C1_DSW_buffer + (i*C1_DSW_MATRIX_SIZE),x, 
             C1_DSW_ROW_SIZE,
             C1_DSW_COL_SIZE 
         );
@@ -146,8 +153,8 @@ int main(int argc, const char *argv[]) {
         }
 
         // A_B_C_D whole matrix
-        std::vector<float> abcd_res = matvec_mul_col_major(
-            A_B_C_D_ptr +(i*A_B_C_D_MATRIX_SIZE),x,
+        std::vector<float> abcd_res = matvec_mul_row_major(
+            ABCD_buffer +(i*A_B_C_D_MATRIX_SIZE),x,
             A_B_C_D_ROW_SIZE,
             A_B_C_D_COL_SIZE
         );
@@ -195,23 +202,25 @@ int main(int argc, const char *argv[]) {
 
 
 
-    bool pass = true;
 
-    // bool pass = are_results_close(matrix_out_col_major, matrix_out_ref_col, 1e-4f, 1e-3f);
+
+    bool pass = are_results_close(matrix_out_col_major, matrix_out_ref_col, 1e-4f, 1e-3f);
 
     // // debug_inspect_all(
     // //     matrix_in, matrix_out_col_major, 
     // //     std::pow(2, SWITCH_SIZE + DIODE_SIZE)
     // // );
 
-    // if (pass ==false){
-    //     std::cout <<"Fail stage 1" << std::endl;
-    // }
-    pass &= are_results_close( out_0, out_ref_0,1e-4f, 1e-3f, TOTAL_SWITCH_DIODE_STATE * ( C1_DSW_COL_SIZE + A_B_C_D_ROW_SIZE)  );
+    if (pass ==false){
+        std::cout <<"Fail stage 1" << std::endl;
+    }else{
+        printf("passed first stage input\n");
+    }
+    pass &= are_results_close( out_0, out_ref_0,1e-4f, 1e-3f,  TOTAL_SWITCH_DIODE_STATE*(C1_DSW_ROW_SIZE + A_B_C_D_ROW_SIZE)  );
     if(pass==false){
         std::cout << "FAil stage2" <<std::endl;
     }
-    for (size_t i = 0; i < 1* ( C1_DSW_COL_SIZE + A_B_C_D_ROW_SIZE); i++) {
+    for (size_t i = 8*(C1_DSW_ROW_SIZE + A_B_C_D_ROW_SIZE); i < 8*(C1_DSW_ROW_SIZE + A_B_C_D_ROW_SIZE) +C1_DSW_ROW_SIZE ; i++) {
         std::cout << std::scientific      // Use exponential notation
                   << std::setprecision(6) // Show 2 digits after decimal
                   << "out_0[" << i << "] = " << out_0[i]
@@ -219,6 +228,20 @@ int main(int argc, const char *argv[]) {
                   << std::endl;
     }
 
+
+
+    // std::cout << "Switch states reference: " 
+    // << std::bitset<sizeof(uint32_t) * 8>(std::bit_cast<uint32_t>(switch_diode_status_buffer_after_iteration[0]))
+    // << " result: " 
+    // << std::bitset<sizeof(float) * 8>(std::bit_cast<uint32_t>(out_0[16]))
+    //  << " with input switch of" << std::bitset<sizeof(float) * 8>(std::bit_cast<uint32_t>(in_0[1]))  <<std::endl;
+
+    // for(size_t i = 0; i< 6; i++ ){
+
+    //     std::cout << "C1_mask_result reference: " <<  std::bitset<sizeof(float) * 8>(std::bit_cast<uint32_t>(C1_RES_MASK_BUFFER[i])) <<
+    //     "result fron NPU" <<std::bitset<sizeof(float) * 8>(std::bit_cast<uint32_t>(out_0[i+16])) <<std::endl;
+
+    // }
 
 
     if (pass){
