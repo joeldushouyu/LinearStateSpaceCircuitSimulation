@@ -92,7 +92,7 @@ def custom_ceil(x, multiplier):
 
 
 
-
+kernel_mat_v_size = 16
 def single_mat_vect_mult():
     dev = AIEDevice.npu2
     
@@ -293,7 +293,7 @@ def single_mat_vect_mult():
         CT_0_2_main_func = external_func("CT_main", inputs=[
             in_data_ty, out_data_ty,
             np.int32, np.int32, np.int32, np.int32,
-            switch_diode_matrix_ty
+            switch_diode_matrix_ty, A_B_C_D_ty
         ])
 
         @core(ComputeTile_0_2, "mainKernel.o")
@@ -302,7 +302,7 @@ def single_mat_vect_mult():
             CT_0_2_main_func(
                 in_buffer[0], out_buffer[0],
                 constant(8),constant(9),constant(10),constant(11),
-                switch_diode_buffer[0]
+                switch_diode_buffer[0], A_B_C_D_buffer[0]
                 
             )
 
@@ -391,8 +391,10 @@ def single_mat_vect_mult():
                 metadata="in_SHM_CT_0_2_0",
                 bd_id=1,
                 mem=A, offsets=[0,0,0,0], 
-                sizes= [1, total_switch_diode_state  , C1_DSW_col_size, C1_DSW_row_size ],
-                strides=[0,  C1_DSW_matrix_size ,1,C1_DSW_col_size],  
+                # sizes= [1, total_switch_diode_state  , C1_DSW_col_size, C1_DSW_row_size ],
+                # strides=[0,  C1_DSW_matrix_size ,1,C1_DSW_col_size],  
+                sizes = [  total_switch_diode_state,        C1_DSW_row_size//kernel_mat_v_size, C1_DSW_col_size, kernel_mat_v_size],
+                strides= [ C1_DSW_row_size*C1_DSW_col_size, kernel_mat_v_size*C1_DSW_col_size,  1,              C1_DSW_col_size],
                 packet_id=6,
                 packet_type=0                  
             )
@@ -401,16 +403,23 @@ def single_mat_vect_mult():
                 metadata="in_SHM_CT_0_2_0",
                 bd_id=2,
                 mem=A, offsets=[0,0,0, C1_DSW_buffer_size //A_B_C_D_col_size ],   # The offset will multiple with the sizes
-                sizes= [1, A_B_C_D_num_for_balance_cutoff , A_B_C_D_col_size, A_B_C_D_row_size],
-                strides=[0,   A_B_C_D_matrix_size   ,1, A_B_C_D_col_size],
+                # sizes= [1, A_B_C_D_num_for_balance_cutoff , A_B_C_D_col_size, A_B_C_D_row_size],
+                # strides=[0,   A_B_C_D_matrix_size   ,1, A_B_C_D_col_size],
+                
+                sizes = [ A_B_C_D_num_for_balance_cutoff,      A_B_C_D_row_size//kernel_mat_v_size,  A_B_C_D_col_size,  kernel_mat_v_size    ] ,
+                strides=[ A_B_C_D_col_size*A_B_C_D_row_size,   kernel_mat_v_size*A_B_C_D_col_size,   1,                 A_B_C_D_col_size     ],
+                
                 packet_id=6,
                 packet_type=0                                               
             )
             assert in_0_size % A_B_C_D_col_size == 0
             if (in_1_size-data_flow_in_size > 0):
                 custom_npu_dma_memcpy_nd(metadata="in_SHM_CT_0_2_1", bd_id=3, mem=A, offsets=[0, 0,  0,  in_0_size //A_B_C_D_col_size  ], #TODO: assert is okay for it
-                                        sizes= [1, total_switch_diode_state-A_B_C_D_num_for_balance_cutoff , A_B_C_D_col_size, A_B_C_D_row_size],
-                                        strides=[0,   A_B_C_D_matrix_size   ,1, A_B_C_D_col_size],
+
+                                        
+                    sizes = [ total_switch_diode_state- A_B_C_D_num_for_balance_cutoff, A_B_C_D_row_size//kernel_mat_v_size,  A_B_C_D_col_size,  kernel_mat_v_size    ] ,
+                    strides=[ A_B_C_D_col_size*A_B_C_D_row_size,                        kernel_mat_v_size*A_B_C_D_col_size,   1,                 A_B_C_D_col_size     ],                                        
+                                            
                                         packet_id=8, packet_type=0)
 
             custom_npu_dma_memcpy_nd(metadata="out_CT_0_2_SHM", bd_id=4, mem=out_buf, offsets=[0,0,0,0], sizes=[1,1,1, data_flow_out_size], 

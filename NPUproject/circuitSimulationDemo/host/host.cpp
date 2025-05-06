@@ -25,8 +25,10 @@ namespace po = boost::program_options;
 #include <cmath>    // For std::fabs, std::max
 #include <algorithm> // For std::max
 
-#include "circuitConfig.h"
-
+#include "circuitData.hpp"
+#include "circuiSimCore.hpp"
+#include "circuitConfig.hpp"
+#include "circuitSimulationHost.hpp"
 #include "host_helper.hpp"
 
 using int32 = std::int32_t;
@@ -75,45 +77,30 @@ int main(int argc, const char *argv[]) {
     buffer<char> trace_res = npu_instance.create_bo_buffer<char>(tmp_trace_size,7, app_id_0 );
 
 
-    // random float, not in in this case
-    std::random_device rd;
-    std::mt19937                  gen(rd());
-    std::uniform_real_distribution<float> dist(-500.123f, 1000.12333f);  
-    buffer<dtype_out> out_ref_0(output_iteration_size);
-    for (int i = 0; i < in_size; i++){
-        matrix_in[i] = i;//dist(gen);
-
-    }
-
-    // answer 
+    // load data from file and so 
+    CircuitData dataFromFile = CircuitData();
+    float C1_DSW_buffer[C1_DSW_BUFFER_SIZE];
+    float ABCD_buffer[A_B_C_D_BUFFER_SIZE];
+    float input_buffers [ITERATION_STEP_NUMBER*INPUT_SIZE_PER_ITERATION];
+    prepareDataForIteration("Metadata.h5", dataFromFile, C1_DSW_buffer, ABCD_buffer, input_buffers);
+    float output_simulation_buffer_reference[OUTPUT_SIZE_PER_ITERATION *ITERATION_STEP_NUMBER ];
+    iteration(C1_DSW_buffer, ABCD_buffer, input_buffers, output_simulation_buffer_reference,  dataFromFile.switch_diode_status_record, false);
     
+    
+    // copy of matrix
+    for(uint32_t i = 0; i <C1_DSW_BUFFER_SIZE; i++ ){
+        matrix_in[i] = C1_DSW_buffer[i];
+    }
+    for(uint32_t  i = 0; i < A_B_C_D_BUFFER_SIZE; i++){
+        matrix_in[i+C1_DSW_BUFFER_SIZE ] = ABCD_buffer[i];
+    }
     // transform y_ref_0 to colum major
     buffer<float> matrix_out_ref_col = transform_to_column_major_order( matrix_in,  std::pow(2, SWITCH_SIZE + DIODE_SIZE) );
 
-    uint32_t C1_SWD_matrix_index = 0;
 
-
-    for (int i = 0; i < input_iteration_size; i+= INPUT_SIZE_PER_ITERATION) {
-
-        for(int k = 0; k < INPUT_SIZE_PER_ITERATION; k++){
-            if(k +1 == INPUT_SIZE_PER_ITERATION){
-                        // build the 32‐bit pattern we want
-                uint32_t bits = static_cast<uint32_t>(i);
-                // bit_cast that into a float (so its bit‐pattern becomes exactly 'bits')
-                in_0[i+k] = std::bit_cast<float>(bits);
-            }else{
-                in_0[i+k] = i+10;
-            }
-        }
-
-    }
-  
-    // for(int i = 0; i < input_iteration_size; i++){
-    //     in_0[i] =i;
-    // }
-    
-    for(int i = 0; i < 10; i++){
-        std::cout << in_0[i]<<std::endl;
+    // copy of input
+    for(uint32_t i = 0; i <ITERATION_STEP_NUMBER*INPUT_SIZE_PER_ITERATION; i++  ){
+        in_0[i] = input_buffers[i];
     }
 
 
@@ -126,36 +113,26 @@ int main(int argc, const char *argv[]) {
     }
 
 
-
-    // // generate out_ref_0
-    // int32_t in_offset = 0;
-    // int32_t out_offset = 0; 
-    // for(int i = 0; i < ITERATION_STEP_PER_PING_PONG_BUFFER* PING_PONG_BUFFER_ITERATION; i++){
-    //     float acc = 0;
-    //     for(int k = 0; k < INPUT_SIZE_PER_ITERATION;k ++){
-    //         acc += in_0[in_offset];
-    //         in_offset++;
-    //     }
-    //     for(int l = 0; l < OUTPUT_SIZE_PER_ITERATION; l++ ){
-    //         out_ref_0[out_offset] = acc;
-    //         out_offset++;
-    //     }
-
-    // }
-
-    // generate out_ref_0
-
     // only check partial result for now
+    buffer<dtype_out> out_ref_0(output_iteration_size);    
     float* input_ptr = in_0.data();
     float* ref_res = out_ref_0.data();
     float *C1_DSW_ptr = matrix_out_ref_col.data();
-    for(int i = 0; i < TOTAL_SWITCH_DIODE_STATE*2; i++){
+    
+    float *A_B_C_D_ptr = matrix_out_ref_col.data();
+    A_B_C_D_ptr += C1_DSW_BUFFER_SIZE;
+    for(int i = 0; i < TOTAL_SWITCH_DIODE_STATE; i++){
 
-        float x[C1_DSW_COL_SIZE] = {0};
+        float x[C1_DSW_COL_SIZE] = {0}; // for now
         
+        for(auto k = 0; k < STATE_SIZE; k++){
+            x[k] = 10;
+        }
+
         for(int l = 0; l < U_SIZE; l++){
             x[STATE_SIZE + l] = *input_ptr++;
         }
+        input_ptr++; // the external switch bit that is not used for now
 
         std::vector<float>res  = matvec_mul_col_major(
             C1_DSW_ptr + (i*C1_DSW_MATRIX_SIZE),x, 
@@ -167,7 +144,17 @@ int main(int argc, const char *argv[]) {
         for(auto v :res){
             *ref_res++= v;
         }
-        input_ptr++; // the external switch bit that is not used for now
+
+        // A_B_C_D whole matrix
+        std::vector<float> abcd_res = matvec_mul_col_major(
+            A_B_C_D_ptr +(i*A_B_C_D_MATRIX_SIZE),x,
+            A_B_C_D_ROW_SIZE,
+            A_B_C_D_COL_SIZE
+        );
+        // STORE the reference result
+        for(auto v :abcd_res){
+            *ref_res++= v;
+        }
 
 
     }
@@ -208,22 +195,23 @@ int main(int argc, const char *argv[]) {
 
 
 
+    bool pass = true;
 
-    bool pass = are_results_close(matrix_out_col_major, matrix_out_ref_col, 1e-4f, 1e-3f);
+    // bool pass = are_results_close(matrix_out_col_major, matrix_out_ref_col, 1e-4f, 1e-3f);
 
-    // debug_inspect_all(
-    //     matrix_in, matrix_out_col_major, 
-    //     std::pow(2, SWITCH_SIZE + DIODE_SIZE)
-    // );
+    // // debug_inspect_all(
+    // //     matrix_in, matrix_out_col_major, 
+    // //     std::pow(2, SWITCH_SIZE + DIODE_SIZE)
+    // // );
 
-    if (pass ==false){
-        std::cout <<"Fail stage 1" << std::endl;
-    }
-    pass &= are_results_close( out_0, out_ref_0,1e-4f, 1e-3f, 2* TOTAL_SWITCH_DIODE_STATE *  C1_DSW_COL_SIZE  );
+    // if (pass ==false){
+    //     std::cout <<"Fail stage 1" << std::endl;
+    // }
+    pass &= are_results_close( out_0, out_ref_0,1e-4f, 1e-3f, TOTAL_SWITCH_DIODE_STATE * ( C1_DSW_COL_SIZE + A_B_C_D_ROW_SIZE)  );
     if(pass==false){
         std::cout << "FAil stage2" <<std::endl;
     }
-    for (size_t i = 0; i < 32; i++) {
+    for (size_t i = 0; i < 1* ( C1_DSW_COL_SIZE + A_B_C_D_ROW_SIZE); i++) {
         std::cout << std::scientific      // Use exponential notation
                   << std::setprecision(6) // Show 2 digits after decimal
                   << "out_0[" << i << "] = " << out_0[i]

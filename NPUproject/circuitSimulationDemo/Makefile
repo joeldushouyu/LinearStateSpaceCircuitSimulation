@@ -15,8 +15,8 @@ TemplaeHostDir := $(TemplateRepoDir)/host
 
 DEVICE ?= npu2
 HOME_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
-CPP_REFERENCE_DIR := ${HOME_DIR}/../../cppReadCircuitDataLibrary/
-
+CPP_REFERENCE_DIR := ${HOME_DIR}/../../cppReadCircuitDataLibrary
+PYTHO_DIR = ${HOME_DIR}/../..
 # modify child makefile variable
 # Append to HOST_O_DIR or modify it
 EXTRA_HEADERS = $(filter-out ${TemplaeHostDir}/typedef.hpp, $(wildcard ${TemplaeHostDir}/*.hpp))
@@ -79,7 +79,7 @@ CXXFLAGS += -I$(TemplateRepoDir)/common
 
 EIGEN_INCLUDE ?= /usr/include/eigen3
 JSON_INCLUDE ?= /usr/include/nlohmann
-CXXFLAGS += -I${CPP_REFERENCE_DIR}../highfive/include -I/usr/include/hdf5/serial -I$(EIGEN_INCLUDE) -I$(JSON_INCLUDE)
+CXXFLAGS += -I${CPP_REFERENCE_DIR}/../highfive/include -I/usr/include/hdf5/serial -I$(EIGEN_INCLUDE) -I$(JSON_INCLUDE)
 
 $(info CXXFLAGS (after EXTRA) = $(CXXFLAGS))
 
@@ -121,6 +121,7 @@ clean:clean_test
 	-@rm -rf route*.txt
 	-@rm -f $(TARGET_HOST_TEST)
 	-@rm -f ./iron/final_config.json
+	-@rm -f  ./Metadata.h5
 	-@rm -f ./host/circuitConfig.h
 	-@rm -f ./kernel/circuitConfig.h
 	-@rm -f ${COPIED_HEADERS_IN_HOST}
@@ -128,10 +129,11 @@ clean:clean_test
 config_stage:
 	${clean}
 	cp -f ${CPP_REFERENCE_DIR}/final_config.json ./iron/final_config.json
+	cp -f ${PYTHO_DIR}/Metadata.h5 	     ./Metadata.h5
 	cp -f ${CPP_REFERENCE_DIR}/circuitConfig.hpp  ./host/circuitConfig.h
 	cp -f ${CPP_REFERENCE_DIR}/circuitConfig.hpp  ./kernel/circuitConfig.h
 	cp -f ${CPP_FILES_TO_COPY} ./host/
-	cp -f ${CPP_REFERENCE_DIR}*.hpp ./host/
+	cp -f ${CPP_REFERENCE_DIR}/*.hpp ./host/
 
 
 

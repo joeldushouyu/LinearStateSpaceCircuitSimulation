@@ -19,6 +19,7 @@
 #include "circuitConfig.h"
 
 
+#define CUSTOM_CEIL(x, mult) (((x) + (mult) - 1) / (mult) * (mult))
 
 float* retrieveMatrixOFfsetBaseOnState(const uint32_t state, const int32_t matrix_size, float* matrix_ptr) {
 
@@ -68,38 +69,123 @@ void accum_float_value(float* in, float* out,
 
 void mult_with_C1_DSW(float *C1_DSW_mat, aie::vector<float, 16> *x_u_cur, float*out){
 
-    aie::vector<float, 16> zero_vec = aie::zeros<float, 16>();
+
     const uint32_t C1_DSW_ROW_SIZE_DIV_16 = C1_DSW_ROW_SIZE/16;
 
+    // for(uint32_t row = 0; row < C1_DSW_ROW_SIZE_DIV_16; row+=1){
 
-    for(uint32_t row = 0; row < C1_DSW_ROW_SIZE_DIV_16; row+=1){
+    //     aie::accum<accfloat, 16> C1_DSW_temp = aie::zeros<accfloat, 16>();  
 
-        aie::accum<accfloat, 16> C1_DSW_temp = aie::from_vector<accfloat>(zero_vec);
+    //     for(uint32_t col = 0; col < U_SIZE+STATE_SIZE; col++){
+            
+    //         aie::vector<float, 16> a = aie::load_v<16>(C1_DSW_mat);
+    //         C1_DSW_mat += ;
 
-        for(uint32_t col = 0; col < U_SIZE+STATE_SIZE; col++){
+    //         const uint32_t col_div_16 = col/16;             
+    //         aie::vector<float, 16>b= aie::broadcast<float, 16>(   (x_u_cur  +col_div_16)->get(col)  );
+    //         C1_DSW_temp = mac_elem_16_accuracy_safe(a,b, C1_DSW_temp, 0,0,0);
+
+    //     }
+    //     //for now, store back to out
+    //     aie::store_v(out, C1_DSW_temp.template to_vector<float>());
+    //     out = out + 16;
+    // }
+
+    for(uint32_t row = 0; row < C1_DSW_ROW_SIZE_DIV_16; row++){
+
+        aie::accum<accfloat, 16> C1_DSW_temp = aie::zeros<accfloat, 16>();
+        for(uint32_t col = 0; col < U_SIZE+ STATE_SIZE; col++){
+
+            const uint32_t col_div_16 = col/16;
+            const uint32_t col_mod_16 = col%16 ;
             
             aie::vector<float, 16> a = aie::load_v<16>(C1_DSW_mat);
-            C1_DSW_mat +=16;
+            C1_DSW_mat += 16; // next column
+            
+            aie::vector<float, 16>b= aie::broadcast<float, 16>(   (x_u_cur+col_div_16)->get(col_mod_16)  );
 
-             
-            aie::vector<float, 16>b= aie::broadcast<float, 16>(   (x_u_cur+row)->get(col)  );
-            C1_DSW_temp = mac_elem_16_accuracy_safe(a,b, C1_DSW_temp, 0,0,0);
+            C1_DSW_temp = mac_elem_16_accuracy_safe(a,b, C1_DSW_temp,0,0,0  );
 
         }
-        //for now, store back to out
-        aie::store_v(out, C1_DSW_temp.template to_vector<float>());
-        out = out + 16;
+        // for now, store  back to out
+        aie::store_v(out ,C1_DSW_temp.template to_vector<float>() );
+        out += 16;
     }
 
+}
+
+void mult_with_A_B_C_D_nonimp_only(float *A_B_C_D_mat, aie::vector<float, 16> *x_u_cur, float*out){
+    
+
+
+    const uint32_t A_B_C_D_nonimp_row_Div_16 = CUSTOM_CEIL(STATE_SIZE+Y_SIZE, 16);
+    static_assert( A_B_C_D_nonimp_row_Div_16%16 == 0);
+    static_assert(A_B_C_D_nonimp_row_Div_16 >= STATE_SIZE+Y_SIZE);
+
+
+    for(uint32_t row = 0; row < A_B_C_D_nonimp_row_Div_16; row++){
+
+        aie::accum<accfloat, 16> ABCD_temp = aie::zeros<accfloat, 16>();
+        for(uint32_t col = 0; col < U_SIZE+ STATE_SIZE; col++){
+
+            const uint32_t col_div_16 = col/16;
+            const uint32_t col_mod_16 = col%16 ;
+            
+            aie::vector<float, 16> a = aie::load_v<16>(A_B_C_D_mat);
+            A_B_C_D_mat += 16; // next column
+            
+            aie::vector<float, 16>b= aie::broadcast<float, 16>(   (x_u_cur+col_div_16)->get(col_mod_16)  );
+
+            ABCD_temp = mac_elem_16_accuracy_safe(a,b, ABCD_temp,0,0,0  );
+
+        }
+        // for now, store  back to out
+        aie::store_v(out ,ABCD_temp.template to_vector<float>() );
+        out += 16;        
+    }
 
 }
+
+void mult_with_A_B_C_D_nonimp_imp(float *A_B_C_D_mat, aie::vector<float, 16> *x_u_cur, float*out){
+    
+
+
+    const uint32_t A_B_C_D_non_imp_row_div_16 = A_B_C_D_ROW_SIZE/16;
+
+
+
+    for(uint32_t row = 0; row < A_B_C_D_non_imp_row_div_16; row++){
+
+        aie::accum<accfloat, 16> ABCD_temp = aie::zeros<accfloat, 16>();
+        for(uint32_t col = 0; col < U_SIZE+ STATE_SIZE; col++){
+
+            const uint32_t col_div_16 = col/16;
+            const uint32_t col_mod_16 = col%16 ;
+            
+            aie::vector<float, 16> a = aie::load_v<16>(A_B_C_D_mat);
+            A_B_C_D_mat += 16; // next column
+            
+            aie::vector<float, 16>b= aie::broadcast<float, 16>(   (x_u_cur+col_div_16)->get(col_mod_16)  );
+
+            ABCD_temp = mac_elem_16_accuracy_safe(a,b, ABCD_temp,0,0,0  );
+
+        }
+        // for now, store  back to out
+        aie::store_v(out ,ABCD_temp.template to_vector<float>() );
+        out += 16;        
+    }
+
+}
+
+
+
 
 extern "C" {
     void CT_main(float* in, float* out,
         const int32_t buffer_in_prod_lock_id, const int32_t buffer_in_con_loc_id,
         const int32_t buffer_out_prod_lock_id, const int32_t buffer_out_con_lock_id,
 
-        float* C1_DSW_Buffer
+        float* C1_DSW_Buffer, float *ABCD_buffer
     ) {
 
         const int32_t C1_DSW_mat_size = C1_DSW_MATRIX_SIZE;
@@ -116,11 +202,13 @@ extern "C" {
 
 
         for (uint32_t i = 0; i < vector_size_of_x_u_cur; ++i) {
-            x_u_cur[i] = aie::zeros<float, 16>();
+            x_u_cur[i] = aie::zeros<float, 16>(); 
         }
 
-
-
+        // for testing
+        for(auto k  = 0; k < STATE_SIZE; k++){
+            x_u_cur[0].set(10, k);
+        }
 
         // // //test purpose
         // float v = 10.01;
@@ -133,10 +221,10 @@ extern "C" {
             acquire_greater_equal(buffer_in_con_loc_id + 48, 1);
             acquire_greater_equal(buffer_out_prod_lock_id + 48, 1);
 
-            
 
-            // only do number of switch for now
-            for(uint32_t k = 0; k < TOTAL_SWITCH_DIODE_STATE*2; k++){
+            float *test_out = out;
+            //only do number of switch for now
+            for(uint32_t k = 0; k < TOTAL_SWITCH_DIODE_STATE; k++){
 
                 #pragma clang loop unroll_count(U_SIZE)
                 for(auto i = STATE_SIZE; i < U_SIZE+STATE_SIZE ; i++ ){
@@ -145,15 +233,43 @@ extern "C" {
                     x_u_cur[ i /16 ].set(*in, i%16);
                     in++;
                 }
-                
-                in++; // the input switch state
+                in++; // the input switch state offset for later usage
 
                 mult_with_C1_DSW( retrieveMatrixOFfsetBaseOnState(k,C1_DSW_MATRIX_SIZE  ,C1_DSW_Buffer), 
-                 x_u_cur,
-                 out + k*(C1_DSW_ROW_SIZE) ); // for now write 16each time
+                x_u_cur, test_out ); // for now write 16each time  
+                test_out += C1_DSW_ROW_SIZE;
 
-                // mult_with_C1_DSW( C1_DSW_Buffer  ,  x_u_cur,out );
+                mult_with_A_B_C_D_nonimp_imp(
+                    retrieveMatrixOFfsetBaseOnState(k, A_B_C_D_MATRIX_SIZE,ABCD_buffer),
+                    x_u_cur, test_out
+                );
+                test_out += A_B_C_D_ROW_SIZE;
+
             }
+
+            
+
+            // for this test, do a mult with all C1_DSW, A_B_C_D_nonimp and A_B_C_D_nonimp_imp version
+
+            // only do number of switch for now
+            // for(uint32_t k = 0; k < TOTAL_SWITCH_DIODE_STATE*2; k++){
+
+            //     #pragma clang loop unroll_count(U_SIZE)
+            //     for(auto i = STATE_SIZE; i < U_SIZE+STATE_SIZE ; i++ ){
+                    
+      
+            //         x_u_cur[ i /16 ].set(*in, i%16);
+            //         in++;
+            //     }
+                
+            //     in++; // the input switch state
+
+            //     mult_with_C1_DSW( retrieveMatrixOFfsetBaseOnState(k,C1_DSW_MATRIX_SIZE  ,C1_DSW_Buffer), 
+            //      x_u_cur,
+            //      out + k*(C1_DSW_ROW_SIZE) ); // for now write 16each time
+
+            //     // mult_with_C1_DSW( C1_DSW_Buffer  ,  x_u_cur,out );
+            // }
             // x_u_cur[0].set(*in, 6);
             // mult_with_C1_DSW( C1_DSW_Buffer  ,  x_u_cur,out );
             
