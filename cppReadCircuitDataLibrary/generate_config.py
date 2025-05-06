@@ -80,7 +80,9 @@ def main(json_config_file:str, output_json_file:str, output_header_file:str ):
             # A_with_dep and B_with_dep can be combined into one matrix of size (state_size x (state_size+u_size))
             # And C_impulse_mat, D_impulse_mat can be combine into one matrix with of size (Y_size x(state_size + u_size))
             # and C_non_impulse_matrix, D_non_impulse_matrix can be combined into another matrix of size (Y_size x (state_size+u_size))
-            _A_B_C_D_mat_row =  custom_ceil( state_size + 2*y_size, 16)
+            
+            state_size_ceil_to_16 = custom_ceil(state_size, 16)
+            _A_B_C_D_mat_row =   state_size_ceil_to_16 +  custom_ceil(  2*y_size, 16)
             _A_B_C_D_mat_col = (state_size + u_size)
             A_B_C_D_mat_size = _A_B_C_D_mat_row * _A_B_C_D_mat_col
             
@@ -143,7 +145,8 @@ def main(json_config_file:str, output_json_file:str, output_header_file:str ):
                 "buffer_size_of_C1_DSW_mat_res":buffer_size_of_C1_DSW_mat_res,
                 "buffer_size_of_A_B_C_D_mat_res": buffer_size_of_A_B_C_D_mat_res,
                 
-                "iteration_step_number":iteration_step_number
+                "iteration_step_number":iteration_step_number,
+                "state_size_ceil_to_16": state_size_ceil_to_16
                 
             }            
             with open(output_json_file,"w") as outfile:

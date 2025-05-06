@@ -7,22 +7,37 @@
 #include <iostream>
 #include <iomanip>
 
-// Computes y = A * x (A is column-major matrix of size rows x cols)
-void matvec_column_major(const float* A, const float* x, float* y, int rows, int cols) {
+// // Computes y = A * x (A is column-major matrix of size rows x cols)
+// void matvec_column_major(const float* A, const float* x, float* y, int rows, int cols) {
+//     // Initialize output to 0
+//     memset(y, 0, sizeof(float) * rows);
+
+//     for (int col = 0; col < cols; ++col) {
+//         float x_val = x[col];
+//         const float* col_ptr = A + col * rows;
+
+//         for (int row = 0; row < rows; ++row) {
+//             y[row] += col_ptr[row] * x_val;
+//         }
+//     }
+// }
+
+// Computes y = A * x (A is row-major matrix of size rows x cols)
+void matvec_row_major(const float* A, const float* x, float* y, int rows, int cols) {
     // Initialize output to 0
     memset(y, 0, sizeof(float) * rows);
 
-    for (int col = 0; col < cols; ++col) {
-        float x_val = x[col];
-        const float* col_ptr = A + col * rows;
+    for (int row = 0; row < rows; ++row) {
+        const float* row_ptr = A + row * cols;  // Pointer to current row
+        float sum = 0.0f;
 
-        for (int row = 0; row < rows; ++row) {
-            y[row] += col_ptr[row] * x_val;
+        for (int col = 0; col < cols; ++col) {
+            sum += row_ptr[col] * x[col];  // Dot product of row and x
         }
+
+        y[row] = sum;  // Store result in y[row]
     }
 }
-
-
 
 void vector_add(const float* ptr, float* y, size_t length) {
     const float* a = ptr;             // First vector
@@ -122,7 +137,7 @@ void iteration(   float* C1_DSW_buffer, float*ABCD_buffer, float*input_buffers, 
             print_matrix_column_major(C1_DSW_mat, C1_DSW_ROW_SIZE, C1_DSW_COL_SIZE);
         }
 
-        matvec_column_major(C1_DSW_mat, x_and_u_cur, C1_DSW_mat_res, C1_DSW_ROW_SIZE, C1_DSW_COL_SIZE);
+        matvec_row_major(C1_DSW_mat, x_and_u_cur, C1_DSW_mat_res, C1_DSW_ROW_SIZE, C1_DSW_COL_SIZE);
         
         if(printDebug){
             std::cout << "C1_DSW_mat_res" << std::endl;
@@ -210,7 +225,7 @@ void iteration(   float* C1_DSW_buffer, float*ABCD_buffer, float*input_buffers, 
         // now x and y
         float * ABCD_mat = retrieveMatrixOffset(switch_diode_state,A_B_C_D_MATRIX_SIZE, ABCD_buffer); 
 
-        matvec_column_major(ABCD_mat, x_and_u_cur,ABCD_mat_res,   A_B_C_D_ROW_SIZE, A_B_C_D_COL_SIZE );
+        matvec_row_major(ABCD_mat, x_and_u_cur,ABCD_mat_res,   A_B_C_D_ROW_SIZE, A_B_C_D_COL_SIZE );
 
         if(printDebug){
             std::cout << "ABCD_mat_res" << std::endl;
@@ -225,13 +240,12 @@ void iteration(   float* C1_DSW_buffer, float*ABCD_buffer, float*input_buffers, 
 
         // update x_cur and also write y out to array
         memcpy( x_and_u_cur,  ABCD_mat_res, sizeof(float) *(STATE_SIZE)  );
-
         if( externalSwitchToggled  || !diode_change){
             // either exteranl swithc toggled or non diode soft switch changed
-            vector_add( ABCD_mat_res+STATE_SIZE,  cur_out, Y_SIZE  ); // vector additon of both the impulse and non-impulse response
+            vector_add( ABCD_mat_res+STATE_SIZE_CEIL_TO_16,  cur_out, Y_SIZE  ); // vector additon of both the impulse and non-impulse response
 
         }else{
-            memcpy(cur_out,  ABCD_mat_res+STATE_SIZE, sizeof(float) *(Y_SIZE)  );
+            memcpy(cur_out,  ABCD_mat_res+STATE_SIZE_CEIL_TO_16, sizeof(float) *(Y_SIZE)  );
         }
         
 
@@ -262,14 +276,14 @@ void prepareDataForIteration(const char*fileName,   CircuitData &dataFromFile,  
     for (uint32_t i = 0; i < TOTAL_SWITCH_DIODE_STATE; i++)
     {
 
-        auto mat = convertToColumnMajor(formC1DSWMatrix(dataFromFile.switch_cases[i]));
+        auto mat = formC1DSWMatrix(dataFromFile.switch_cases[i]);
         std::memcpy(C1_DSW_Buffer + C1_DSW_buffer_init_offset, mat.data(), mat.size() * sizeof(float));
         C1_DSW_buffer_init_offset += mat.size();
         assert(mat.size() == C1_DSW_MATRIX_SIZE);
     }
     for (uint32_t i = 0; i < TOTAL_SWITCH_DIODE_STATE; i++)
     {   
-        auto mat = convertToColumnMajor(formABCDMAtrix(dataFromFile.switch_cases[i]));
+        auto mat = formABCDMAtrix(dataFromFile.switch_cases[i]);
         std::memcpy(ABCD_buffer + ABCD_buffer_init_offset, mat.data(), mat.size() * sizeof(float));
         ABCD_buffer_init_offset += mat.size();
         assert(mat.size() == A_B_C_D_MATRIX_SIZE);
@@ -384,23 +398,23 @@ MatrixRowMajor formABCDMAtrix(SwitchCaseData &data)
     MatrixRowMajor ABCD = MatrixRowMajor::Zero(A_B_C_D_ROW_SIZE, A_B_C_D_COL_SIZE);
 
 
-    ABCD.block(0,0, 2*Y_SIZE+STATE_SIZE, STATE_SIZE+U_SIZE) = data.A_B_C_D_nonimp_imp;   
+    // ABCD.block(0,0, 2*Y_SIZE+STATE_SIZE, STATE_SIZE+U_SIZE) = data.A_B_C_D_nonimp_imp;   
     // assert(data.x_next_with_dep_A.rows() == STATE_SIZE);
     // assert(data.x_next_with_dep_A.cols() == STATE_SIZE);
     // assert( data.x_next_with_dep_A.rows() == data.X_next_with_dep_B.rows() );
 
 
-    // ABCD.block(0, 0,   STATE_SIZE, STATE_SIZE) = data.x_next_with_dep_A;
-    // ABCD.block(0, STATE_SIZE,  STATE_SIZE,  U_SIZE) = data.X_next_with_dep_B;
+    // ABCD.block(0,0,  STATE_SIZE, STATE_SIZE+U_SIZE) = data.A_B_C_D_nonimp_imp;
+    
+    
+    for(uint32_t i = 0; i<  STATE_SIZE; i++){
+        ABCD.block(i,0,  1, STATE_SIZE+U_SIZE) = data.A_B_C_D_nonimp_imp.row(i);  
+    }
 
-    // ABCD.block(STATE_SIZE, 0,  Y_SIZE, STATE_SIZE ) =data.C_non_impulse;
-    // ABCD.block(STATE_SIZE, STATE_SIZE, Y_SIZE, U_SIZE) = data.D_non_impulse;
-
-    // ABCD.block(STATE_SIZE+Y_SIZE, 0,  Y_SIZE, STATE_SIZE ) = data.C_impulse;
-    // ABCD.block(STATE_SIZE+Y_SIZE, STATE_SIZE, Y_SIZE, U_SIZE) = data.D_impulse;
-
-    // // std::cout << "\nMatrix: " <<" (" << ABCD.rows() << "x" << ABCD.cols() << ")" << std::endl;
-    // // std::cout << ABCD << std::endl;
+    for(uint32_t i = 0; i < 2*Y_SIZE; i++){
+        ABCD.block( STATE_SIZE_CEIL_TO_16+i  ,0,  1, STATE_SIZE+U_SIZE)
+         = data.A_B_C_D_nonimp_imp.row(STATE_SIZE + i);  
+    }
 
     return ABCD;
 

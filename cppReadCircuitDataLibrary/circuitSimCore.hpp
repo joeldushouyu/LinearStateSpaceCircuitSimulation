@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <bitset>
 #include "circuitConfig.hpp"
+#define CUSTOM_CEIL(x, mult) (((x) + (mult) - 1) / (mult) * (mult))
 
 
 
