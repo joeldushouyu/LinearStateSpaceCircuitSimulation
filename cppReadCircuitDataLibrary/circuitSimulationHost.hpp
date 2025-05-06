@@ -8,7 +8,7 @@
 #include <stdexcept>
 #include "circuitSimulationHost.hpp"
 #include "circuitData.hpp"
-#include "circuiSimCore.hpp"
+#include "circuitSimCore.hpp"
 #include "circuitConfig.hpp"
 #include <stdexcept>
 #include <bitset>
@@ -30,7 +30,9 @@ void vector_add(const float *ptr, float *y, size_t length);
 
 void print_matrix_column_major(const float *matrix, size_t rows, size_t cols);
 
-void iteration(float *C1_DSW_buffer, float *ABCD_buffer, float *input_buffers, float *output_buffers, std::vector<uint32_t> &switch_diode_state_reference);
+void iteration(   float* C1_DSW_buffer, float*ABCD_buffer, float*input_buffers, float *output_buffers , std::vector<uint32_t> &switch_diode_state_reference ,
+    uint32_t * C1_res_mask_Buffer, uint32_t * switch_diode_state_buffer_after_iteration, bool printDebug=true
+);
 void prepareDataForIteration(const char *fileName, CircuitData &dataFromFile, float *C1_DSW_Buffer, float *ABCD_buffer, float *input_buffers);
 MatrixColMajor convertToColumnMajor(const MatrixRowMajor &input);
 MatrixRowMajor expandWithBottomRightPadding(const MatrixRowMajor &input, int newRows, int newCols);

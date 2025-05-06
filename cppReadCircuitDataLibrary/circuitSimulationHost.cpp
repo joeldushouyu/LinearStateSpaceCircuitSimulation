@@ -1,9 +1,9 @@
 #include "circuitSimulationHost.hpp"
 #include "circuitData.hpp"
-#include "circuiSimCore.hpp"
+#include "circuitSimCore.hpp"
 #include "circuitConfig.hpp"
 #include <stdexcept>
-
+#include <fstream>
 #include <iostream>
 #include <iomanip>
 
@@ -45,11 +45,32 @@ void print_matrix_column_major(const float* matrix, size_t rows, size_t cols) {
     }
 }
 
+uint32_t mask_greater_than_zero(const float data[16]) {
+    uint32_t mask = 0;
+    for (size_t i = 0; i < 16; ++i) {
+        if (data[i] > 0) {
+            mask |= (1u << i);
+        }
+    }
+    return mask;
+}
+
+uint32_t mask_less_than_zero(const float data[16]) {
+    uint32_t mask = 0;
+    for (size_t i = 0; i < 16; ++i) {
+        if (data[i] < 0) {
+            mask |= (1u << i);
+        }
+    }
+    return mask;
+}
 
 
 
+void iteration(   float* C1_DSW_buffer, float*ABCD_buffer, float*input_buffers, float *output_buffers , std::vector<uint32_t> &switch_diode_state_reference ,
+    uint32_t * C1_res_mask_Buffer, uint32_t * switch_diode_state_buffer_after_iteration, bool printDebug
 
-void iteration(   float* C1_DSW_buffer, float*ABCD_buffer, float*input_buffers, float *output_buffers , std::vector<uint32_t> &switch_diode_state_reference ){
+){
 
 
     float x_and_u_cur[BUFFER_SIZE_OF_CUR_X_U] = {0};
@@ -70,52 +91,73 @@ void iteration(   float* C1_DSW_buffer, float*ABCD_buffer, float*input_buffers, 
                 uint32_t val ;
                 std::memcpy(&val, &cur_in[k], sizeof(uint32_t));
 
-                externalSwitchToggled = !compare_and_copy_bits(  switch_diode_state,  val,  DIODE_SIZE, SWITCH_SIZE );    
+                externalSwitchToggled = !compare_and_copy_bits<uint32_t>(  switch_diode_state,  val,  DIODE_SIZE, SWITCH_SIZE );    
             }
              
         }
 
-        // // do a sanity check 
-        std::cout << "i:" <<i << std::endl;
-        std::bitset<32> binary(switch_diode_state);
-        std::cout << binary.to_string() << std::endl;
-        std::cout << "cur_x_u" << std::endl;
-        for(auto k = 0; k < BUFFER_SIZE_OF_CUR_X_U; k++){
-            std::cout << x_and_u_cur[k] << " ";
-        }
-        std::cout << std::endl;
+        if(printDebug){
+            // // do a sanity check 
+            std::cout << "i:" <<i << std::endl;
+            std::bitset<32> binary(switch_diode_state);
+            std::cout << binary.to_string() << std::endl;
+            std::cout << "cur_x_u" << std::endl;
+            for(auto k = 0; k < BUFFER_SIZE_OF_CUR_X_U; k++){
+                std::cout << x_and_u_cur[k] << " ";
+            }
+            std::cout << std::endl;
 
+            if(switch_diode_state_reference[i] != switch_diode_state){
+                std::cerr << "An error occurred!" << std::endl;
+                std::cerr << "mismatch at i: " << i << std::endl;
+            }
+        }
 
         // assert(switch_diode_state_reference[i] == switch_diode_state);
-        if(switch_diode_state_reference[i] != switch_diode_state){
-            std::cerr << "An error occurred!" << std::endl;
-            std::cerr << "mismatch at i: " << i << std::endl;
-        }
+
 
         float* C1_DSW_mat = retrieveMatrixOffset(switch_diode_state, C1_DSW_MATRIX_SIZE,C1_DSW_buffer );
-        print_matrix_column_major(C1_DSW_mat, C1_DSW_ROW_SIZE, C1_DSW_COL_SIZE);
-        matvec_column_major(C1_DSW_mat, x_and_u_cur, C1_DSW_mat_res, C1_DSW_ROW_SIZE, C1_DSW_COL_SIZE);
-
-        std::cout << "C1_DSW_mat_res" << std::endl;
-        for(auto k = 0; k < BUFFER_SIZE_OF_C1_DSW_MAT_RES; k++){
-            std::cout << C1_DSW_mat_res[k] << " ";
+        if(printDebug){
+            std::cout << "Switch_diode_state" << switch_diode_state << std::endl;
+            print_matrix_column_major(C1_DSW_mat, C1_DSW_ROW_SIZE, C1_DSW_COL_SIZE);
         }
-        std::cout << std::endl; 
 
+        matvec_column_major(C1_DSW_mat, x_and_u_cur, C1_DSW_mat_res, C1_DSW_ROW_SIZE, C1_DSW_COL_SIZE);
+        
+        if(printDebug){
+            std::cout << "C1_DSW_mat_res" << std::endl;
+            for(auto k = 0; k < BUFFER_SIZE_OF_C1_DSW_MAT_RES; k++){
+                std::cout << C1_DSW_mat_res[k] << " ";
+            }
+            std::cout << std::endl; 
+        }
+
+        /*
         // boolean logic to update diode
         //TODO: ensure the diode order is from MSB to LSB, just like switch order from MSB to KSB in switch_diode_state
         for(auto k = 0; k < DIODE_SIZE; k++){
             uint32_t diode_state_bit_ind = (DIODE_SIZE-1-k);
             uint32_t diode_state_mask = 1<<diode_state_bit_ind;
 
-            bool diode_is_on = (switch_diode_state &diode_state_mask);
-            bool impulse_is_positive = C1_DSW_mat_res[k] > 0;
-            bool diode_natural_is_positive = C1_DSW_mat_res[k+DIODE_SIZE] >0 ;
-            bool diode_next_is_positive =  C1_DSW_mat_res[k+2*DIODE_SIZE] > 0;
+            // bool diode_is_on = (switch_diode_state &diode_state_mask);
+            // bool impulse_is_positive = C1_DSW_mat_res[k] > 0;
+            // bool diode_natural_is_positive = C1_DSW_mat_res[k+DIODE_SIZE] >0 ;
+            // bool diode_next_is_positive =  C1_DSW_mat_res[k+2*DIODE_SIZE] > 0;
             
-            bool  impulse_is_negative = C1_DSW_mat_res[k] < 0;
-            bool diode_natural_is_negative = C1_DSW_mat_res[k+DIODE_SIZE] <0 ;
-            bool diode_next_is_negative =  C1_DSW_mat_res[k+2*DIODE_SIZE] < 0;
+            // bool  impulse_is_negative = C1_DSW_mat_res[k] < 0;
+            // bool diode_natural_is_negative = C1_DSW_mat_res[k+DIODE_SIZE] <0 ;
+            // bool diode_next_is_negative =  C1_DSW_mat_res[k+2*DIODE_SIZE] < 0;
+
+            bool diode_is_on = (switch_diode_state &diode_state_mask);
+            bool impulse_is_positive = C1_DSW_mat_res[k*3] > 0;
+            bool diode_natural_is_positive = C1_DSW_mat_res[k*3+1] >0 ;
+            bool diode_next_is_positive =  C1_DSW_mat_res[k*3+2] > 0;
+            
+            bool  impulse_is_negative = C1_DSW_mat_res[k*3] < 0;
+            bool diode_natural_is_negative = C1_DSW_mat_res[k*3+1] <0 ;
+            bool diode_next_is_negative =  C1_DSW_mat_res[k*3+2] < 0;
+
+
 
             if(   (externalSwitchToggled &&   impulse_is_positive) // only when actual external switch toggleds
                   || ( !diode_is_on && diode_natural_is_positive && diode_next_is_positive  )   ){
@@ -127,25 +169,59 @@ void iteration(   float* C1_DSW_buffer, float*ABCD_buffer, float*input_buffers, 
                 setBit( switch_diode_state, diode_state_bit_ind, 0);
                 diode_change=true;
             }
-        }
-        std::cout <<"diode change: " <<diode_change << std::endl;
+        }*/
 
+
+        // try to do similar on what npu will do in this case
+        uint32_t mask_res[6] = {0};// assume less than 32 diodes
+
+        static_assert(BUFFER_SIZE_OF_C1_DSW_MAT_RES %16 == 0);
+        uint32_t mask_res_ind = 0;
+        for(uint32_t k = 0; k < BUFFER_SIZE_OF_C1_DSW_MAT_RES/ 16; k+=16 ){
+
+            bool impulse_is_positive = C1_DSW_mat_res[k*3] > 0;
+            bool diode_natural_is_positive = C1_DSW_mat_res[k*3+1] >0 ;
+            bool diode_next_is_positive =  C1_DSW_mat_res[k*3+2] > 0;
+            
+            bool  impulse_is_negative = C1_DSW_mat_res[k*3] < 0;
+            bool diode_natural_is_negative = C1_DSW_mat_res[k*3+1] <0 ;
+            bool diode_next_is_negative =  C1_DSW_mat_res[k*3+2] < 0;
+
+
+            if(k%2 == 0){
+                //MSB 16 bit
+                mask_res[mask_res_ind]=  mask_greater_than_zero(&(C1_DSW_mat_res[k])) & 0x0000FFFF;
+                mask_res[mask_res_ind+3]=  mask_less_than_zero(&(C1_DSW_mat_res[k])) & 0x0000FFFF;
+
+
+            }else if(k %2 != 0){
+                mask_res[mask_res_ind]=  mask_greater_than_zero(&(C1_DSW_mat_res[k]))<<16 ;
+                mask_res[mask_res_ind+3]=  mask_less_than_zero(&(C1_DSW_mat_res[k])) <<16;
+                mask_res_ind ++;
+            }
+        }
+        // now, step through 
+        diode_change = diode_toggle_update<32, 6>( switch_diode_state, mask_res,externalSwitchToggled  );
+
+        if(printDebug){
+            std::cout <<"diode change: " <<diode_change << std::endl;
+        }
+    
         // now x and y
         float * ABCD_mat = retrieveMatrixOffset(switch_diode_state,A_B_C_D_MATRIX_SIZE, ABCD_buffer); 
 
-
-
-
         matvec_column_major(ABCD_mat, x_and_u_cur,ABCD_mat_res,   A_B_C_D_ROW_SIZE, A_B_C_D_COL_SIZE );
 
-
-        std::cout << "ABCD_mat_res" << std::endl;
-        print_matrix_column_major(ABCD_mat, A_B_C_D_ROW_SIZE, A_B_C_D_COL_SIZE);
-        std::cout << "cur_x_u_res" << std::endl;
-        for(auto k = 0; k < BUFFER_SIZE_OF_A_B_C_D_MAT_RES; k++){
-            std::cout << ABCD_mat_res[k] << " ";
+        if(printDebug){
+            std::cout << "ABCD_mat_res" << std::endl;
+            print_matrix_column_major(ABCD_mat, A_B_C_D_ROW_SIZE, A_B_C_D_COL_SIZE);
+            std::cout << "cur_x_u_res" << std::endl;
+            for(auto k = 0; k < BUFFER_SIZE_OF_A_B_C_D_MAT_RES; k++){
+                std::cout << ABCD_mat_res[k] << " ";
+            }
+            std::cout << std::endl;
         }
-        std::cout << std::endl;
+
 
         // update x_cur and also write y out to array
         memcpy( x_and_u_cur,  ABCD_mat_res, sizeof(float) *(STATE_SIZE)  );
@@ -160,6 +236,9 @@ void iteration(   float* C1_DSW_buffer, float*ABCD_buffer, float*input_buffers, 
         
 
 
+        // writing stuff back for debugging purpose
+        memcpy(  C1_res_mask_Buffer+i*6, mask_res, 6*sizeof(uint32_t));
+        *switch_diode_state_buffer_after_iteration++  = switch_diode_state;
 
     
         
@@ -270,22 +349,31 @@ MatrixRowMajor formC1DSWMatrix(SwitchCaseData &data)
 
     MatrixRowMajor C1_DSWMatrix = MatrixRowMajor::Zero(C1_DSW_ROW_SIZE, C1_DSW_COL_SIZE);
 
-    C1_DSWMatrix.block( 0,0,  3*DIODE_SIZE,  (STATE_SIZE + U_SIZE)  ) = data.C1_DSW;
-    // // std::cout << "C1_DSWMatrix block size: " << C1_DSWMatrix.rows() << "x" << C1_DSWMatrix.cols() << std::endl;
-    // C1_DSWMatrix.block(0, 0, C_D_rows, C_cols) =
-    //     data.C_diode_impulse_sw;
 
-    // C1_DSWMatrix.block(0, C_cols, C_D_rows, D_cols) =
-    //     MatrixRowMajor::Zero(C_D_rows, D_cols);
+    // The input C1_DSWMatrix's row are order in the following method 
+    //  switch_impulse  (number of diode)
+    //  switch non_impulse (number of diode)
+    // switch next (number of diode)
 
-    // C1_DSWMatrix.block(DIODE_SIZE, 0, DIODE_SIZE, C_cols) = data.C_diode_natural_sw;
-    // C1_DSWMatrix.block(C_D_rows, C_cols, DIODE_SIZE, D_cols) = data.D_diode_natural_sw;
+    // but in this function, it will reorder the matrix in the following method
 
-    // C1_DSWMatrix.block(C_D_rows * 2, 0, DIODE_SIZE, C_cols) = data.C_diode_explicit_der_mult_delta_t_sw;
-    // C1_DSWMatrix.block(C_D_rows * 2, C_cols, DIODE_SIZE, D_cols) = data.D_diode_explicit_der_mult_delta_t_sw;
+    // switch impule(of diode 1)
+    // switcch non impulse(of diode 1)
+    // switch next (of diode 1)
+    // do similar for diode2, diode3 .... 
 
-    // std::cout << "\nMatrix: " <<" (" << C1_DSWMatrix.rows() << "x" << C1_DSWMatrix.cols() << ")" << std::endl;
-    // std::cout << C1_DSWMatrix << std::endl;
+    // C1_DSWMatrix.block( 0,0,  3*DIODE_SIZE,  (STATE_SIZE + U_SIZE)  ) = data.C1_DSW;
+
+
+    uint32_t diod_ind = 0;
+    for(auto r = 0; r < 3*DIODE_SIZE; r+= 3){
+        
+        C1_DSWMatrix.block(r,    0,  1, STATE_SIZE+U_SIZE) = data.C1_DSW.row( diod_ind   );
+        C1_DSWMatrix.block(r+1,    0,  1, STATE_SIZE+U_SIZE) = data.C1_DSW.row( diod_ind + DIODE_SIZE   );
+        C1_DSWMatrix.block(r+2,    0,  1, STATE_SIZE+U_SIZE) = data.C1_DSW.row( diod_ind + DIODE_SIZE*2   );
+
+        diod_ind ++;
+    } 
 
     return C1_DSWMatrix;
 }

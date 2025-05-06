@@ -18,15 +18,16 @@ LIBS = -lhdf5_cpp -lhdf5
 PRECISION := -DEIGEN_DEFAULT_TO_ROW_MAJOR
 
 # Source files
-COMMON_SRC := circuitSimCore.cpp circuitData.cpp  circuitSimulationHost.cpp # Replace with actual shared .cpp files
+COMMON_SRC := circuitData.cpp  circuitSimulationHost.cpp # Replace with actual shared .cpp files
 READER_SRC := hdf5_reader.cpp
+TEST_SRC := test.cpp
 SIM_SRC := circuitSimulation.cpp
 
 # Object files
 COMMON_OBJ := $(COMMON_SRC:.cpp=.o)
 READER_OBJ := $(READER_SRC:.cpp=.o) $(COMMON_OBJ)
 SIM_OBJ := $(SIM_SRC:.cpp=.o) $(COMMON_OBJ)
-
+TEST_OBJ := $(TEST_SRC:.cpp=.o) $(COMMON_OBJ)
 # Targets
 HDF5_READER := hdf5_reader
 SIMULATION_MAIN := simulation_main
@@ -40,7 +41,8 @@ $(HDF5_READER): $(READER_OBJ)
 
 $(SIMULATION_MAIN): $(SIM_OBJ)
 	$(CXX) $(SIM_OBJ) -o $@ $(LDFLAGS) $(LIBS)
-
+test_main: $(TEST_OBJ)
+	$(CXX) $(TEST_OBJ) -o $@ $(LDFLAGS) $(LIBS)
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) $(PRECISION) -c $< -o $@
 
@@ -48,6 +50,6 @@ clean:
 	rm -f $(HDF5_READER) $(SIMULATION_MAIN) *.o
 	rm -f *.log
 	rm -f *.json
-	rm -f *.csv
+	rm -f hostSim.csv
 	rm -f *.txt
 	

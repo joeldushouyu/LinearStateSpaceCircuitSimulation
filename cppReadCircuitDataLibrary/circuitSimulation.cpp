@@ -8,7 +8,7 @@
 #include <iostream>
 #include <fstream>
 #include "circuitData.hpp"
-#include "circuiSimCore.hpp"
+#include "circuitSimCore.hpp"
 #include "circuitConfig.hpp"
 using json = nlohmann::json;
 #include <bitset>
@@ -38,12 +38,14 @@ int main(int argc, char *argv[])
 
     float ABCD_buffer[A_B_C_D_BUFFER_SIZE];
     float input_buffers [ITERATION_STEP_NUMBER*INPUT_SIZE_PER_ITERATION];
+    uint32_t C1_RES_MASK_BUFFER [ITERATION_STEP_NUMBER*6];
+    uint32_t switch_diode_status_buffer_after_iteration [ITERATION_STEP_NUMBER];
 
     prepareDataForIteration(argv[1], dataFromFile, C1_DSW_buffer, ABCD_buffer, input_buffers);
 
     // now doing some iteration
     float output_buffer[OUTPUT_SIZE_PER_ITERATION *ITERATION_STEP_NUMBER ];
-    iteration(C1_DSW_buffer, ABCD_buffer, input_buffers, output_buffer,  dataFromFile.switch_diode_status_record);
+    iteration(C1_DSW_buffer, ABCD_buffer, input_buffers, output_buffer,  dataFromFile.switch_diode_status_record, C1_RES_MASK_BUFFER,switch_diode_status_buffer_after_iteration );
     
     
     writeDataToCsvFile("hostSim.csv", dataFromFile, output_buffer);
