@@ -19,7 +19,6 @@
 #include "circuitConfig.hpp"
 #include "circuitSimCore.hpp"
 #define MAX_SW_DIODE_SIZE 32
-#define CUSTOM_CEIL(x, mult) (((x) + (mult) - 1) / (mult) * (mult))
 
 float* retrieveMatrixOFfsetBaseOnState(const uint32_t state, const int32_t matrix_size, float* matrix_ptr) {
 
@@ -117,15 +116,15 @@ void mult_with_C1_DSW(float *C1_DSW_mat, aie::vector<float, 16> *x_u_cur, uint32
 }
 
 void mult_with_A_B_C_D_nonimp_only(float *A_B_C_D_mat, aie::vector<float, 16> *x_u_cur, float*out){
-    
+    //TODO: need further testings here 
 
 
-    const uint32_t A_B_C_D_nonimp_row_Div_16 = CUSTOM_CEIL(STATE_SIZE+Y_SIZE, 16);
-    static_assert( A_B_C_D_nonimp_row_Div_16%16 == 0);
-    static_assert(A_B_C_D_nonimp_row_Div_16 >= STATE_SIZE+Y_SIZE);
+    const uint32_t A_B_C_D_nonimp_row =     STATE_SIZE_CEIL_TO_16+  CUSTOM_CEIL(Y_SIZE, 16);
+    static_assert( A_B_C_D_nonimp_row%16 == 0);
+    static_assert(A_B_C_D_nonimp_row >= STATE_SIZE+Y_SIZE);
 
 
-    for(uint32_t row = 0; row < A_B_C_D_nonimp_row_Div_16; row++){
+    for(uint32_t row = 0; row < A_B_C_D_nonimp_row/16; row++){
 
         aie::accum<accfloat, 16> ABCD_temp = aie::zeros<accfloat, 16>();
         for(uint32_t col = 0; col < U_SIZE+ STATE_SIZE; col++){
