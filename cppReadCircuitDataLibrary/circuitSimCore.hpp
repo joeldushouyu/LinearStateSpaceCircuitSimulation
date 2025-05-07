@@ -6,7 +6,13 @@
 #include <bitset>
 #include "circuitConfig.hpp"
 #include "common_macro.hpp"
+
 #define CUSTOM_CEIL(x, mult) (((x) + (mult) - 1) / (mult) * (mult))
+
+inline constexpr uint32_t custom_ceil(uint32_t x, uint32_t mult) {
+  return ((x + mult - 1) / mult) * mult;
+}
+
 
 
 

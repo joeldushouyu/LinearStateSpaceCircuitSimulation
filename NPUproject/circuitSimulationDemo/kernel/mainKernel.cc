@@ -75,7 +75,7 @@ void mult_with_C1_DSW(float *C1_DSW_mat, aie::vector<float, 16> *x_u_cur, uint32
 
     static_assert(C1_RES_MASK_LEN == 6); // 6 uint32 if assume only 32 switch/diode
     
-    const uint32_t C1_DSW_ROW_SIZE_DIV_16 = C1_DSW_ROW_SIZE/16;
+    constexpr uint32_t C1_DSW_ROW_SIZE_DIV_16 = C1_DSW_ROW_SIZE/16;
     static_assert (C1_RES_MASK_LEN >=C1_DSW_ROW_SIZE_DIV_16 );
 
     uint32_t c1_res_offset = 0;
@@ -130,9 +130,9 @@ void mult_with_C1_DSW(float *C1_DSW_mat, aie::vector<float, 16> *x_u_cur, uint32
 
 
 
-
-void mult_with_A_B(float *A_B_C_D_mat, aie::vector<float, 16> *x_u_cur, float *x_u_cur_res){
-
+template<uint32_t X_NEXT_BUFFER_SIZE>
+void mult_with_A_B(float *A_B_C_D_mat, aie::vector<float, 16> *x_u_cur, float *x_next_res){
+    static_assert(X_NEXT_BUFFER_SIZE == STATE_SIZE_CEIL_TO_16);
     for(uint32_t row = 0; row < STATE_SIZE_CEIL_TO_16/16; row++){
         aie::accum<accfloat, 16> ABtemp = aie::zeros<accfloat, 16>();
         for(uint32_t col = 0; col < U_SIZE+STATE_SIZE; col++){
@@ -148,14 +148,14 @@ void mult_with_A_B(float *A_B_C_D_mat, aie::vector<float, 16> *x_u_cur, float *x
 
             ABtemp = mac_elem_16_accuracy_safe(a,b, ABtemp,0,0,0  );
         }
-        aie::store_v(x_u_cur_res+16*row, ABtemp.template to_vector<float>());
+        aie::store_v(x_next_res+16*row, ABtemp.template to_vector<float>());
     }
 }
 
 template<uint32_t X_U_cur_vector_size>
 void update_x_u_cur( aie::vector<float, 16> *x_u_cur, float *x_u_cur_res ){
 
-    //TODO: no need to pass 
+    static_assert(BUFFER_SIZE_OF_CUR_X_U/16 == X_U_cur_vector_size);
     //now rewrite the x_u_cur wit new value from iteration
     for(uint32_t i = 0; i< X_U_cur_vector_size; i++){
         (x_u_cur+i)->load(x_u_cur_res + 16* i);
@@ -163,29 +163,23 @@ void update_x_u_cur( aie::vector<float, 16> *x_u_cur, float *x_u_cur_res ){
 
 }
 
-template<uint32_t X_U_cur_vector_size, bool INCLUDE_C_D_IMPULSE>
-void mult_with_A_B_C_D_nonimp_imp(float *A_B_C_D_mat, aie::vector<float, 16> *x_u_cur, float*out){
-    
-    static_assert( BUFFER_SIZE_OF_CUR_X_U / 16 == X_U_cur_vector_size);
-    
-    // alignas(64) float x_u_cur_temp[X_U_cur_vector_size*16];
+template<bool INCLUDE_C_D_IMPULSE>
+void mult_with_C_D(float *A_B_C_D_mat, aie::vector<float, 16> *x_u_cur, float*out){
 
-    const uint32_t num_iteration_for_y_output = (A_B_C_D_ROW_SIZE - STATE_SIZE_CEIL_TO_16)/16;
-
-
-    const uint32_t output_size_div_16 = OUTPUT_SIZE_PER_ITERATION/16; // recall OUTPUT_SIZE_PER_ITERATION is aligend to 16 already
-                                                                     // THIS result in same as ceil(Y_SIZE,16)//16
-
-    static_assert(output_size_div_16  == CUSTOM_CEIL(Y_SIZE, 16) / 16 );
+    static constexpr uint32_t y_size_ceil_16 = CUSTOM_CEIL(Y_SIZE, 16);
+    uint32_t num_iteration_for_y_output = (A_B_C_D_ROW_SIZE - STATE_SIZE_CEIL_TO_16)/16;
+    // Recall A_B_C_D_ROW_SIZE  = STATE_SIZE_CEIL_TO_16 = CUSTOM_CEIL(2*Y_SIZE, 16);
+    ///ISSUE: worst performance below?
+    // static constexpr uint32_t num_iteration_for_y_output = 
+    //     INCLUDE_C_D_IMPULSE 
+    //     ? CUSTOM_CEIL(Y_SIZE, 16) 
+    //     : ((A_B_C_D_ROW_SIZE - STATE_SIZE_CEIL_TO_16) / 16);
+    static constexpr uint32_t y_size_ceil_16_div_16 = y_size_ceil_16/16;
+    static_assert(OUTPUT_SIZE_PER_ITERATION  == y_size_ceil_16 );
     
     // First store the 
-    aie::vector<float, 16> C_D_temp [output_size_div_16*2];  //TODO: check if enough vector left? llvm issues
-    uint32_t y_nonimpulse_produced = 0;
-    uint32_t y_impulse_produced = 0;    
+    aie::vector<float, 16> C_D_temp [y_size_ceil_16_div_16*2];  //TODO: check if enough vector left? llvm issues
 
-
-
-    //TODO: add A_B offset in it 
     for(uint32_t row = 0; row < num_iteration_for_y_output; row++){
 
         aie::accum<accfloat, 16> ABCD_temp = aie::zeros<accfloat, 16>();
@@ -203,7 +197,7 @@ void mult_with_A_B_C_D_nonimp_imp(float *A_B_C_D_mat, aie::vector<float, 16> *x_
             ABCD_temp = mac_elem_16_accuracy_safe(a,b, ABCD_temp,0,0,0  );
         }
 
-
+        uint32_t num_y_produced = (row+1)*16;
         if( !INCLUDE_C_D_IMPULSE){
             //TODO: need to constraint the size to prevent redundant writes
             // just write it back to output
@@ -212,7 +206,7 @@ void mult_with_A_B_C_D_nonimp_imp(float *A_B_C_D_mat, aie::vector<float, 16> *x_
             out += 16; 
         }else{
 
-            if constexpr(num_iteration_for_y_output == 1){
+            #if num_iteration_for_y_output == 1
                 static_assert(2*Y_SIZE <=16);// the Y_nonimpulse and Y_impulse produced in same cycle This means 2*Y_output < 16;; ceil to 16
 
                 aie::vector<float, 16> y_nonimpulse = ABCD_temp.template to_vector<float>();
@@ -221,44 +215,38 @@ void mult_with_A_B_C_D_nonimp_imp(float *A_B_C_D_mat, aie::vector<float, 16> *x_
                 aie::vector<float, 16>Y_res =   aie::add(y_nonimpulse, y_impulse);
                 Y_res.store(out);
 
-            }else{
+            #else
                 // The case need to consider both impulse and nonimpulse result of C_D
-                if( y_nonimpulse_produced <= Y_SIZE ){
+                if( num_y_produced <= Y_SIZE ){
                     // accumulate vector only contain Y_nonimpulse
                     C_D_temp[row] = ABCD_temp.to_vector<float>();
-                    y_nonimpulse_produced+=16;
+      
             
                 }else{
-                    if( y_nonimpulse_produced < Y_SIZE ){
+                    if( (num_y_produced- 16) < Y_SIZE ){
                         // means contain mix of Y_nonimpulse and Y_impulse in accumulate vector
                         C_D_temp[row] = ABCD_temp.to_vector<float>(); // some extra don't care values
                         C_D_temp[row+1] = aie::shuffle_down(C_D_temp[row], Y_SIZE%16); // extract the Y_impulse data
-                        y_nonimpulse_produced = Y_SIZE;
-                        y_impulse_produced =  Y_SIZE%16;
                         
                     }else{
                         // accumulate vector only contains Y-impulse value
                         aie::vector<float, 16> temp =   ABCD_temp.to_vector<float>();
                         C_D_temp[row] = aie::shuffle_up(  temp,  16-Y_SIZE%16  ); // store Y_impulse data 
 
-                        if(y_impulse_produced +16 >= Y_SIZE){
+                        if(num_y_produced >= 2*Y_SIZE){
                             // last iteration
-                            for(uint32_t i = 0; i < output_size_div_16; i++){
-                                aie::vector<float, 16> res= aie::add( C_D_temp[i], C_D_temp[i+output_size_div_16]  ) ;
+                            for(uint32_t i = 0; i < y_size_ceil_16_div_16; i++){
+                                aie::vector<float, 16> res= aie::add( C_D_temp[i], C_D_temp[i+y_size_ceil_16_div_16]  ) ;
                                 res.store(out);
                                 out += 16;
                             }
                         }else{
                             C_D_temp[row+1] =    aie::shuffle_down(temp, Y_SIZE%16); // store Remaining Y_impulse data to the vector
-                            y_impulse_produced+= 16;
                         }   
                     }
                     
                 }
-                
-
-            }
-
+            #endif
         
         }
 
@@ -328,28 +316,31 @@ void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur,
 
         event0();
             
-        alignas(64) float x_u_cur_temp[X_U_cur_vector_size*16];
-        mult_with_A_B(
-            retrieveMatrixOFfsetBaseOnState(externalSwitchDiodeState,A_B_C_D_MATRIX_SIZE  ,ABCD_buffer),
-            x_u_cur, x_u_cur_temp
+        alignas(64) float x_next_res[ STATE_SIZE_CEIL_TO_16]; //n NOTE: STATE_SIZE_CEIL_TO_16 could be smaller than X_U_cur_vector_size
+        static_assert( STATE_SIZE_CEIL_TO_16<=   X_U_cur_vector_size*16);
+
+        float *ABCD_ptr = retrieveMatrixOFfsetBaseOnState(externalSwitchDiodeState,A_B_C_D_MATRIX_SIZE  ,ABCD_buffer);
+        mult_with_A_B<STATE_SIZE_CEIL_TO_16>(
+            ABCD_ptr,
+            x_u_cur, x_next_res
 
         );
 
         if( external_switch_toggled || !diode_change){
-            mult_with_A_B_C_D_nonimp_imp<X_U_cur_vector_size, true>(
-                retrieveMatrixOFfsetBaseOnState(externalSwitchDiodeState,A_B_C_D_MATRIX_SIZE  ,ABCD_buffer)  +(STATE_SIZE+U_SIZE)*STATE_SIZE_CEIL_TO_16 ,
+            mult_with_C_D<true>(
+                ABCD_ptr  +(STATE_SIZE+U_SIZE)*STATE_SIZE_CEIL_TO_16 ,
                 x_u_cur,
                 out + k*OUTPUT_SIZE_PER_ITERATION
             );
         }else{
-            mult_with_A_B_C_D_nonimp_imp<X_U_cur_vector_size, false>(
-                retrieveMatrixOFfsetBaseOnState(externalSwitchDiodeState,A_B_C_D_MATRIX_SIZE  ,ABCD_buffer) + (STATE_SIZE+U_SIZE)*STATE_SIZE_CEIL_TO_16,
+            mult_with_C_D<false>(
+                ABCD_ptr  +(STATE_SIZE+U_SIZE)*STATE_SIZE_CEIL_TO_16 ,
                 x_u_cur,
                 out + k*OUTPUT_SIZE_PER_ITERATION
             );
         }
 
-        update_x_u_cur<X_U_cur_vector_size>(x_u_cur, x_u_cur_temp);
+        update_x_u_cur<X_U_cur_vector_size>(x_u_cur, x_next_res);
         // if(external_switch_toggled || ! diode_toggled){
         //     // include C_D_impulse in output
         // }else{
@@ -384,11 +375,11 @@ extern "C" {
         float* C1_DSW_Buffer, float *ABCD_buffer
     ) {
 
-        const int32_t C1_DSW_mat_size = C1_DSW_MATRIX_SIZE;
+        constexpr int32_t C1_DSW_mat_size = C1_DSW_MATRIX_SIZE;
         uint32_t externalSwitchDiodeStates = 0x0;
         
         //TODO: check later
-        const uint32_t vector_size_of_x_u_cur = BUFFER_SIZE_OF_CUR_X_U / 16;
+        constexpr uint32_t vector_size_of_x_u_cur = BUFFER_SIZE_OF_CUR_X_U / 16;
         
         static_assert(vector_size_of_x_u_cur < 12-4 ) ; //TODO: check for error  if happened use more than this number of vectors
 
