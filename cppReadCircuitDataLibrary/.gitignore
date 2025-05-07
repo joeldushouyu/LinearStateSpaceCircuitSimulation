@@ -1,3 +1,4 @@
 *.log
 *.o
 *.txt
+simplify_logic_main.py
