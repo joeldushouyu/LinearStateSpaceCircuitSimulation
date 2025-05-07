@@ -2,7 +2,7 @@
 #ifndef CIRCUIT_CONFIG_H
 #define CIRCUIT_CONFIG_H
 
-#define TRACE_SIZE 0
+#define TRACE_SIZE 16384
 #define STATE_SIZE 6
 #define U_SIZE 1
 #define Y_SIZE 14

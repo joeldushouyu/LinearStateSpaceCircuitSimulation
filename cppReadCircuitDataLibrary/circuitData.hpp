@@ -36,7 +36,7 @@ inline void to_json(nlohmann::json& j, const GeneralInfo& info) {
         {"diode_size", info.diode_size},
         {"switch_size", info.switch_size},
         {"end_time", info.end_time},
-        {"trace_size", 0},
+        {"trace_size", 16384},
         {"iteration_step_number", info.iteration_step_number}
     };
 }

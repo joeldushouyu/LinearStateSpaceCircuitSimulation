@@ -230,14 +230,14 @@ int main(int argc, const char *argv[]) {
 
 
 
-    for(auto k = 0; k < 8000* OUTPUT_SIZE_PER_ITERATION; k++){
+    // for(auto k = 0; k < 8000* OUTPUT_SIZE_PER_ITERATION; k++){
 
-        std::cout << out_0[k] << " ";
-        if( (k+1) % OUTPUT_SIZE_PER_ITERATION ==0  ){
-            std::cout << std::endl;
-        }
-    }
-    std::cout << std::endl;
+    //     std::cout << out_0[k] << " ";
+    //     if( (k+1) % OUTPUT_SIZE_PER_ITERATION ==0  ){
+    //         std::cout << std::endl;
+    //     }
+    // }
+    // std::cout << std::endl;
     // std::cout << std::endl;
 
     // uint32_t offset = A_B_C_D_ROW_SIZE;

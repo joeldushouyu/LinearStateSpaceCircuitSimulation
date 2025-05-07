@@ -13,7 +13,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
-#include "common_macro.h"
+#include "common_macro.hpp"
 #include <aie_api/aie.hpp>
 
 template <typename T, int N>

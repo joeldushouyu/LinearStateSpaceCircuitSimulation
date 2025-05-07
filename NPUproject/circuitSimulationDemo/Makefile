@@ -52,7 +52,7 @@ include $(TemplateRepoDir)/makefiles/mlir_bitstream.mk
 # HOST_HEADERS := $(HOST_HEADERS) $(EXTRA_HEADERS)
 # HOST_SRCS := $(HOST_SRCS) $(EXTRA_SRCS)
 
-
+colshift ?= $(if $(filter npu,$(devicename)),1,0)
 
 # Override child
 HOST_SRCDIR := ${HOME_DIR}/host
@@ -127,6 +127,7 @@ clean:clean_test
 	-@rm -f ${COPIED_HEADERS_IN_HOST}
 	-@rm -f ${COPIED_SRCS_IN_HOST}
 	-@rm -f ./kernel/circuitSimCore.hpp
+	-@rm -f ./kernel/common_macro.hpp
 	-@rm -f ./npuSim.csv
 config_stage:
 	${clean}
@@ -137,7 +138,7 @@ config_stage:
 	cp -f ${CPP_FILES_TO_COPY} ./host/
 	cp -f ${CPP_REFERENCE_DIR}/*.hpp ./host/
 	cp -f ./host/circuitSimCore.hpp ./kernel/circuitSimCore.hpp
-
+	cp -f ${CPP_REFERENCE_DIR}/common_macro.hpp ./kernel/common_macro.hpp
 
 
 kernel: ${KERNEL_OBJS} 
@@ -179,5 +180,5 @@ route: ${IRON_BOTH_MLIR_TARGET}
 
 
 trace: trace.txt
-	${MlirDIR}/programming_examples/utils/parse_trace.py --filename trace.txt --mlir build/mlir/mv.mlir --colshift 0 > circutSimulation.json
-	${MlirDIR}/programming_examples/utils/get_trace_summary.py --filename circutSimulation.json
+	${MlirDIR}/programming_examples/utils/parse_trace.py --input trace.txt --mlir build/mlir/mv.mlir --colshift ${colshift} --output circutSimulation.json
+	${MlirDIR}/programming_examples/utils/get_trace_summary.py --input circutSimulation.json

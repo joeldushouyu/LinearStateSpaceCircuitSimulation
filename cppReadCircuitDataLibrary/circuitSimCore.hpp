@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <bitset>
 #include "circuitConfig.hpp"
+#include "common_macro.hpp"
 #define CUSTOM_CEIL(x, mult) (((x) + (mult) - 1) / (mult) * (mult))
 
 
@@ -39,14 +40,19 @@ bool compare_and_copy_bits(T& dst, T src, T pos, T num_bits) {
   return bits_equal;
 }
 
-inline void setBit(uint32_t &num, uint8_t bitIndex, bool value) {
-  if (value) {
-      num |= (1U << bitIndex);  // Set the bit to 1
-  } else {
-      num &= ~(1U << bitIndex); // Clear the bit to 0
-  }
-}
+// inline void setBit(uint32_t &num, uint8_t bitIndex, bool value) {
+//   if (value) {
+//       num |= (1U << bitIndex);  // Set the bit to 1
+//   } else {
+//       num &= ~(1U << bitIndex); // Clear the bit to 0
+//   }
+// }
 
+inline void setBit(uint32_t &num, uint8_t bitIndex, bool value) {
+  uint32_t mask = 1U << bitIndex;
+  uint32_t vmask = 0 - static_cast<uint32_t>(value); // original idea, using cast
+  num = (num & ~mask) | (vmask & mask);
+}
 
 
 
@@ -98,10 +104,12 @@ bool diode_toggle_update( uint32_t &switch_diode_state, uint32_t *C1_res_mask, b
     // bit 2-0 of C1_res_mask[3] store the lt of diode_next, diode_natural, diode_impulse
     bool diode_change = false;
 
-
+  
+  
     
-    for(uint32_t k= 0; k <  min<uint32_t>(max_diode_switch_size, DIODE_SIZE); k++){
-        int start_bit = 3 * k;
+    #pragma clang  loop unroll(full)
+    for(uint32_t k= 0; k <  DIODE_SIZE; k++){
+        uint32_t start_bit = 3 * k;
 
         uint32_t gt_bits = extract_3bits_lsb_first<uint32_t>(C1_res_mask, 3, start_bit); 
         uint32_t lt_bits = extract_3bits_lsb_first<uint32_t>(C1_res_mask+3, 3, start_bit);

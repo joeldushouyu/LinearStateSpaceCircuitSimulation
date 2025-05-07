@@ -355,7 +355,7 @@ def single_mat_vect_mult():
         in_1_size = (A_B_C_D_buffer_size-mid_offset)  + data_flow_in_size
         
         if(trace_size > 0):
-            tiles_to_trace = [ComputeTile_0_2, ComputeTile_1_2] #TODO: also shimtile?
+            tiles_to_trace = [ComputeTile_0_2] #TODO: also shimtile?
             trace_utils.configure_packet_tracing_flow(tiles_to_trace, ShimTile_1)
 
         # leave first 6(0-5) packet id for tracing
@@ -433,6 +433,16 @@ def single_mat_vect_mult():
                     ddr_id=4,   # last in/out parameter(not just need to pass in host, did not define in sequence)
                     shim =ShimTile_1,
                     trace_size=trace_size, # beacuse have 2 tile to,
+                        coretile_events=[
+                        CoreEvent.INSTR_EVENT_0,
+                        CoreEvent.INSTR_EVENT_1,
+                        CoreEvent.INSTR_VECTOR,
+                        PortEvent(CoreEvent.PORT_RUNNING_0, 1, True),  # master(1)
+                        PortEvent(CoreEvent.PORT_RUNNING_1, 1, False),  # slave(1)
+                        CoreEvent.INSTR_LOAD,
+                        CoreEvent.INSTR_STORE,
+                        CoreEvent.LOCK_STALL,
+                    ],
                 )
             npu_dma_wait("B_CT_1_2_SHM")
             npu_dma_wait("out_CT_0_2_SHM")

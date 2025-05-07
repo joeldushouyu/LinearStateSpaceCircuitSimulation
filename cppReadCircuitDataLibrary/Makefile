@@ -8,7 +8,7 @@ EIGEN_INCLUDE ?= /usr/include/eigen3
 JSON_INCLUDE ?= /usr/include/nlohmann
 
 # Compiler and linker flags
-CXXFLAGS = -std=c++17 -g -O0 -Wall -Wextra -pedantic -march=native -ffast-math
+CXXFLAGS = -std=c++20 -g -O0 -Wall -Wextra -pedantic -march=native -ffast-math
 CXXFLAGS += -I../highfive/include -I/usr/include/hdf5/serial -I$(EIGEN_INCLUDE) -I$(JSON_INCLUDE)
 CXXFLAGS += -Wno-unused-variable -Wno-ignored-attributes
 LDFLAGS = -L/usr/lib/x86_64-linux-gnu/hdf5/serial
