@@ -220,7 +220,7 @@ int main(int argc, const char *argv[]) {
     if(pass==false){
         std::cout << "FAil stage2" <<std::endl;
     }
-    for (size_t i = 8*(C1_DSW_ROW_SIZE + A_B_C_D_ROW_SIZE); i < 8*(C1_DSW_ROW_SIZE + A_B_C_D_ROW_SIZE) +C1_DSW_ROW_SIZE ; i++) {
+    for (size_t i = 0; i < 16; i++) {
         std::cout << std::scientific      // Use exponential notation
                   << std::setprecision(6) // Show 2 digits after decimal
                   << "out_0[" << i << "] = " << out_0[i]
@@ -229,19 +229,19 @@ int main(int argc, const char *argv[]) {
     }
 
 
+    uint32_t offset = 0;
+    std::cout << "Switch states reference: " 
+    << std::bitset<sizeof(uint32_t) * 8>(std::bit_cast<uint32_t>(switch_diode_status_buffer_after_iteration[0]))
+    << " result: " 
+    << std::bitset<sizeof(float) * 8>(std::bit_cast<uint32_t>(out_0[offset]))
+     << "  with input switch of" << std::bitset<sizeof(float) * 8>(std::bit_cast<uint32_t>(in_0[1]))  <<std::endl;
 
-    // std::cout << "Switch states reference: " 
-    // << std::bitset<sizeof(uint32_t) * 8>(std::bit_cast<uint32_t>(switch_diode_status_buffer_after_iteration[0]))
-    // << " result: " 
-    // << std::bitset<sizeof(float) * 8>(std::bit_cast<uint32_t>(out_0[16]))
-    //  << " with input switch of" << std::bitset<sizeof(float) * 8>(std::bit_cast<uint32_t>(in_0[1]))  <<std::endl;
+    for(size_t i = 0; i< 6; i++ ){
 
-    // for(size_t i = 0; i< 6; i++ ){
+        std::cout << "C1_mask_result reference: " <<  std::bitset<sizeof(float) * 8>(std::bit_cast<uint32_t>(C1_RES_MASK_BUFFER[i])) <<
+        "  result fron NPU" <<std::bitset<sizeof(float) * 8>(std::bit_cast<uint32_t>(out_0[i+offset+1])) <<std::endl;
 
-    //     std::cout << "C1_mask_result reference: " <<  std::bitset<sizeof(float) * 8>(std::bit_cast<uint32_t>(C1_RES_MASK_BUFFER[i])) <<
-    //     "result fron NPU" <<std::bitset<sizeof(float) * 8>(std::bit_cast<uint32_t>(out_0[i+16])) <<std::endl;
-
-    // }
+    }
 
 
     if (pass){

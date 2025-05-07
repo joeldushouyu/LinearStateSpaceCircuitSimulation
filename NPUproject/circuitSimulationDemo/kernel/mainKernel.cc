@@ -94,23 +94,24 @@ void mult_with_C1_DSW(float *C1_DSW_mat, aie::vector<float, 16> *x_u_cur, uint32
 
         }
         // for now, store  back to out
-        aie::store_v(out ,C1_DSW_temp.template to_vector<float>() );
-        out += 16;
 
-        // aie::vector<float, 16> res_vec = C1_DSW_temp.template to_vector<float>();
-        // aie::mask<16> lt_res = aie::lt< aie::vector<float, 16> , float>(  res_vec ,0);
-        // aie::mask<16> gt_res = aie::gt< aie::vector<float, 16> , float>(  res_vec ,0);
+        // aie::store_v(out ,C1_DSW_temp.template to_vector<float>() );
+        // out += 16;
 
-        // if(row %2 == 0){
-        //     c1_res_mask[c1_res_offset]=  gt_res.to_uint32() & 0x0000FFFF;
-        //     c1_res_mask[c1_res_offset+3]=  lt_res.to_uint32() & 0x0000FFFF;
+        aie::vector<float, 16> res_vec = C1_DSW_temp.template to_vector<float>();
+        aie::mask<16> lt_res = aie::lt< aie::vector<float, 16> , float>(  res_vec ,0);
+        aie::mask<16> gt_res = aie::gt< aie::vector<float, 16> , float>(  res_vec ,0);
+
+        if(row %2 == 0){
+            c1_res_mask[c1_res_offset]=  gt_res.to_uint32() & 0x0000FFFF;
+            c1_res_mask[c1_res_offset+3]=  lt_res.to_uint32() & 0x0000FFFF;
 
 
-        // }else{
-        //     c1_res_mask[c1_res_offset]=  gt_res.to_uint32()  <<16;
-        //     c1_res_mask[c1_res_offset+3]=  lt_res.to_uint32() <<16;
-        //     c1_res_offset ++;
-        // }
+        }else{
+            c1_res_mask[c1_res_offset]=  gt_res.to_uint32()  <<16;
+            c1_res_mask[c1_res_offset+3]=  lt_res.to_uint32() <<16;
+            c1_res_offset ++;
+        }
     }
 
 }
@@ -215,18 +216,14 @@ void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur,
             out // for debug
         );
 
-        // for(uint32_t i = 0; i < 16; i++){
-        //     *out++ = x_u_cur[0].get(i);
-
-        // }
-        // bool diode_toggled = diode_toggle_update<MAX_SW_DIODE_SIZE, 6> (externalSwitchDiodeState,
-        //     C1_Mask_Res, external_switch_toggled
-        // );
+        bool diode_toggled = diode_toggle_update<MAX_SW_DIODE_SIZE, 6> (externalSwitchDiodeState,
+            C1_Mask_Res, external_switch_toggled
+        );
 
 
         // for now, write both the diode state and the C1_MASK_RES 
 
-        uint32_t *pt_uint32 = (uint32_t*) (out +16 );
+        uint32_t *pt_uint32 = (uint32_t*) (out );
         *pt_uint32 ++ = externalSwitchDiodeState;
 
 
@@ -279,34 +276,34 @@ extern "C" {
             acquire_greater_equal(buffer_out_prod_lock_id + 48, 1);
 
 
-            float *test_out = out;
-            // //only do number of switch for now
-            for(uint32_t k = 0; k < 16; k++){
+            // float *test_out = out;
+            // // //only do number of switch for now
+            // for(uint32_t k = 0; k < 16; k++){
 
-                #pragma clang loop unroll_count(U_SIZE)
-                for(auto i = STATE_SIZE; i < U_SIZE+STATE_SIZE ; i++ ){
+            //     #pragma clang loop unroll_count(U_SIZE)
+            //     for(auto i = STATE_SIZE; i < U_SIZE+STATE_SIZE ; i++ ){
                     
       
-                    x_u_cur[ i /16 ].set(*in, i%16);
-                    in++;
-                }
-                in++; // the input switch state offset for later usage
-                uint32_t testbuf[6];
-                mult_with_C1_DSW<6>( retrieveMatrixOFfsetBaseOnState(k,C1_DSW_MATRIX_SIZE  ,C1_DSW_Buffer), 
-                x_u_cur, testbuf,  test_out ); // for now write 16each time  
-                test_out += C1_DSW_ROW_SIZE;
+            //         x_u_cur[ i /16 ].set(*in, i%16);
+            //         in++;
+            //     }
+            //     in++; // the input switch state offset for later usage
+            //     uint32_t testbuf[6];
+            //     mult_with_C1_DSW<6>( retrieveMatrixOFfsetBaseOnState(k,C1_DSW_MATRIX_SIZE  ,C1_DSW_Buffer), 
+            //     x_u_cur, testbuf,  test_out ); // for now write 16each time  
+            //     test_out += C1_DSW_ROW_SIZE;
 
-                mult_with_A_B_C_D_nonimp_imp(
-                    retrieveMatrixOFfsetBaseOnState(k, A_B_C_D_MATRIX_SIZE,ABCD_buffer),
-                    x_u_cur, test_out
-                );
-                test_out += A_B_C_D_ROW_SIZE;
+            //     mult_with_A_B_C_D_nonimp_imp(
+            //         retrieveMatrixOFfsetBaseOnState(k, A_B_C_D_MATRIX_SIZE,ABCD_buffer),
+            //         x_u_cur, test_out
+            //     );
+            //     test_out += A_B_C_D_ROW_SIZE;
 
-            }
+            // }
     
-            // iteration_core(
-            //     in,out, x_u_cur, C1_DSW_Buffer, ABCD_buffer, externalSwitchDiodeStates
-            // );
+            iteration_core(
+                in,out, x_u_cur, C1_DSW_Buffer, ABCD_buffer, externalSwitchDiodeStates
+            );
             release(buffer_in_prod_lock_id + 48, 1);
             release(buffer_out_con_lock_id + 48, 1);
 
