@@ -116,6 +116,7 @@ clean:clean_test
 	-@rm -rf log
 	-@rm -rf *.exe
 	-@rm -rf trace*
+	-@rm -rf circutSimulation.json
 	-@rm -rf route.json
 	-@rm -rf generated.txt
 	-@rm -rf route*.txt

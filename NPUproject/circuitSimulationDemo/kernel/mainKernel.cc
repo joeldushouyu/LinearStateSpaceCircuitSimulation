@@ -29,7 +29,7 @@ inline float* retrieveMatrixOFfsetBaseOnState(const uint32_t state, const int32_
 }
 
 
-
+/*
 template<typename T>
 __attribute__((noinline)) void accumValue(float* restrict in, float* restrict out,
     const int32_t in_offset, const int32_t out_offset
@@ -65,7 +65,7 @@ void accum_float_value(float* in, float* out,
     accumValue<float>(in, out, in_offset, out_offset);
     event1();
 }
-
+*/
 
 
 template<uint32_t C1_RES_MASK_LEN>
@@ -82,15 +82,14 @@ void mult_with_C1_DSW(float *C1_DSW_mat, aie::vector<float, 16> *x_u_cur, uint32
 
 
     AIE_PREPARE_FOR_PIPELINE
-    // #pragma clang  loop max_iteration_count( C1_DSW_ROW_SIZE_DIV_16)
-    // AIE_LOOP_FLATTEN
+    #pragma clang  loop max_iteration_count( C1_DSW_ROW_SIZE_DIV_16)
     for(uint32_t row = 0; row < C1_DSW_ROW_SIZE_DIV_16; row++){
 
         aie::accum<accfloat, 16> C1_DSW_temp = aie::zeros<accfloat, 16>();
 
 
-        // AIE_PREPARE_FOR_PIPELINE
-        // #pragma clang  loop unroll(full)
+        AIE_PREPARE_FOR_PIPELINE
+        #pragma clang  loop unroll(full)
         for(uint32_t col = 0; col < U_SIZE+ STATE_SIZE; col++){
 
             const uint32_t col_div_16 = col/16;
@@ -130,11 +129,44 @@ void mult_with_C1_DSW(float *C1_DSW_mat, aie::vector<float, 16> *x_u_cur, uint32
 
 
 
+// template<uint32_t X_NEXT_BUFFER_SIZE>
+// void mult_with_A_B_To_Vector_Array(float *A_B_C_D_mat, aie::vector<float, 16> *x_u_cur,  aie::vector<float, 16> *x_next_res){
+//     static_assert(X_NEXT_BUFFER_SIZE == STATE_SIZE_CEIL_TO_16);
+
+//     AIE_PREPARE_FOR_PIPELINE
+//     #pragma clang loop max_iteration_count(STATE_SIZE_CEIL_TO_16)
+//     for(uint32_t row = 0; row < STATE_SIZE_CEIL_TO_16/16; row++){
+//         aie::accum<accfloat, 16> ABtemp = aie::zeros<accfloat, 16>();
+//         #pragma clang loop_unroll(full)
+//         for(uint32_t col = 0; col < U_SIZE+STATE_SIZE; col++){
+
+
+//             const uint32_t col_div_16 = col/16;
+//             const uint32_t col_mod_16 = col%16 ;
+            
+//             aie::vector<float, 16> a = aie::load_v<16>(A_B_C_D_mat);
+//             A_B_C_D_mat += 16; // next column
+            
+//             aie::vector<float, 16>b= aie::broadcast<float, 16>(   (x_u_cur+col_div_16)->get(col_mod_16)  );
+
+//             ABtemp = mac_elem_16_accuracy_safe(a,b, ABtemp,0,0,0  );
+//         }
+//         // aie::store_v(x_next_res+16*row, ABtemp.template to_vector<float>());
+
+//         *(x_next_res+row) = ABtemp.template to_vector<float>(); 
+//     }
+// }
+
+
 template<uint32_t X_NEXT_BUFFER_SIZE>
-void mult_with_A_B(float *A_B_C_D_mat, aie::vector<float, 16> *x_u_cur, float *x_next_res){
+void mult_with_A_B_To_Array(float *A_B_C_D_mat, aie::vector<float, 16> *x_u_cur, float *x_next_res){
     static_assert(X_NEXT_BUFFER_SIZE == STATE_SIZE_CEIL_TO_16);
+
+    AIE_PREPARE_FOR_PIPELINE
+    #pragma clang loop max_iteration_count(STATE_SIZE_CEIL_TO_16)
     for(uint32_t row = 0; row < STATE_SIZE_CEIL_TO_16/16; row++){
         aie::accum<accfloat, 16> ABtemp = aie::zeros<accfloat, 16>();
+        #pragma clang loop_unroll(full)
         for(uint32_t col = 0; col < U_SIZE+STATE_SIZE; col++){
 
 
@@ -153,15 +185,29 @@ void mult_with_A_B(float *A_B_C_D_mat, aie::vector<float, 16> *x_u_cur, float *x
 }
 
 template<uint32_t X_U_cur_vector_size>
-void update_x_u_cur( aie::vector<float, 16> *x_u_cur, float *x_u_cur_res ){
+void update_x_u_cur_From_Array( aie::vector<float, 16> *x_u_cur, float *x_u_cur_res ){
 
-    static_assert(BUFFER_SIZE_OF_CUR_X_U/16 == X_U_cur_vector_size);
+    static_assert(STATE_SIZE_CEIL_TO_16/16 == X_U_cur_vector_size);
     //now rewrite the x_u_cur wit new value from iteration
+    #pragma clang loop_unroll(full)
     for(uint32_t i = 0; i< X_U_cur_vector_size; i++){
         (x_u_cur+i)->load(x_u_cur_res + 16* i);
     }
 
 }
+
+
+// template<uint32_t X_U_cur_vector_size>
+// void update_x_u_cur_From_Vector_Array( aie::vector<float, 16> *x_u_cur, aie::vector<float, 16> *x_u_cur_res ){
+
+//     static_assert(STATE_SIZE_CEIL_TO_16/16 == X_U_cur_vector_size);
+//     //now rewrite the x_u_cur wit new value from iteration
+//     #pragma clang loop_unroll(full)
+//     for(uint32_t i = 0; i< X_U_cur_vector_size; i++){
+//         *(x_u_cur+i) = *(x_u_cur_res+i);
+//     }
+
+// }
 
 template<bool INCLUDE_C_D_IMPULSE>
 void mult_with_C_D(float *A_B_C_D_mat, aie::vector<float, 16> *x_u_cur, float*out){
@@ -183,7 +229,12 @@ void mult_with_C_D(float *A_B_C_D_mat, aie::vector<float, 16> *x_u_cur, float*ou
     for(uint32_t row = 0; row < num_iteration_for_y_output; row++){
 
         aie::accum<accfloat, 16> ABCD_temp = aie::zeros<accfloat, 16>();
-      
+        
+
+        //NOTE: caused error? #pragma clang loop unroll_count(U_SIZE+ STATE_SIZE)
+        
+        AIE_PREPARE_FOR_PIPELINE
+        #pragma clang  loop max_iteration_count( U_SIZE+STATE_SIZE)
         for(uint32_t col = 0; col < U_SIZE+ STATE_SIZE; col++){
 
             const uint32_t col_div_16 = col/16;
@@ -315,16 +366,22 @@ void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur,
         );
 
         event0();
-            
+        float *ABCD_ptr = retrieveMatrixOFfsetBaseOnState(externalSwitchDiodeState,A_B_C_D_MATRIX_SIZE  ,ABCD_buffer);
+        // for performance reason, use the version below for now?  TODO: error if run out of registers?
         alignas(64) float x_next_res[ STATE_SIZE_CEIL_TO_16]; //n NOTE: STATE_SIZE_CEIL_TO_16 could be smaller than X_U_cur_vector_size
         static_assert( STATE_SIZE_CEIL_TO_16<=   X_U_cur_vector_size*16);
-
-        float *ABCD_ptr = retrieveMatrixOFfsetBaseOnState(externalSwitchDiodeState,A_B_C_D_MATRIX_SIZE  ,ABCD_buffer);
-        mult_with_A_B<STATE_SIZE_CEIL_TO_16>(
+        mult_with_A_B_To_Array<STATE_SIZE_CEIL_TO_16>(
             ABCD_ptr,
             x_u_cur, x_next_res
 
         );
+
+        // static_assert( STATE_SIZE_CEIL_TO_16<=   X_U_cur_vector_size*16);
+        // aie::vector<float, 16> x_next_temp [STATE_SIZE_CEIL_TO_16/16];
+
+        // mult_with_A_B_To_Vector_Array<STATE_SIZE_CEIL_TO_16>(ABCD_ptr, x_u_cur, x_next_temp);
+
+        event0();
 
         if( external_switch_toggled || !diode_change){
             mult_with_C_D<true>(
@@ -340,7 +397,14 @@ void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur,
             );
         }
 
-        update_x_u_cur<X_U_cur_vector_size>(x_u_cur, x_next_res);
+        event0();
+  
+        // // for performance reason, use the version below for now?  TODO: error if run out of registers?
+        update_x_u_cur_From_Array<STATE_SIZE_CEIL_TO_16/16>(x_u_cur, x_next_res);
+
+        // update_x_u_cur_From_Vector_Array<STATE_SIZE_CEIL_TO_16/16>(x_u_cur, x_next_temp);
+
+        event0();
         // if(external_switch_toggled || ! diode_toggled){
         //     // include C_D_impulse in output
         // }else{
@@ -381,7 +445,8 @@ extern "C" {
         //TODO: check later
         constexpr uint32_t vector_size_of_x_u_cur = BUFFER_SIZE_OF_CUR_X_U / 16;
         
-        static_assert(vector_size_of_x_u_cur < 12-4 ) ; //TODO: check for error  if happened use more than this number of vectors
+        constexpr uint32_t Y_OUTPUT_ROW = (A_B_C_D_ROW_SIZE-STATE_SIZE_CEIL_TO_16)/ 16; // number of possible vector it used in mult_with_C_D
+        static_assert(vector_size_of_x_u_cur *2 +Y_OUTPUT_ROW  < 12 ) ; //TODO: check for error  if happened use more than this number of vectors
 
 
         // Define storage for the accumulators
