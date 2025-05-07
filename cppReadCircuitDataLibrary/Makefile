@@ -52,4 +52,5 @@ clean:
 	rm -f *.json
 	rm -f hostSim.csv
 	rm -f *.txt
+	rm -f npuSim.csv
 	

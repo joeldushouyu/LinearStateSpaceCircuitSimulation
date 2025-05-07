@@ -128,7 +128,7 @@ def single_mat_vect_mult():
     buffer_size_of_cur_X_U = extracted_data.get("buffer_size_of_cur_X_U")
     buffer_size_of_C1_DSW_mat_res = extracted_data.get("buffer_size_of_C1_DSW_mat_res")
     buffer_size_of_A_B_C_D_mat_res = extracted_data.get("buffer_size_of_A_B_C_D_mat_res")
-    
+    stack_size_in_byte = extracted_data.get("stack_size")
     total_switch_diode_state = extracted_data.get("total_switch_diode_state")
     dtype_in = np.dtype[np.float32]
     dtype_out = np.dtype[np.float32]
@@ -152,9 +152,10 @@ def single_mat_vect_mult():
 
         
         #NOTE: mem_bank flag seem not working anymore after Tile() is configure to basic-sequential address mode
-        offset = 1024
+        offset = stack_size_in_byte
+        assert stack_size_in_byte %64 == 0
         in_buffer = [
-          buffer_raw(tile=ComputeTile_0_2, buffer=try_convert_np_type_to_mlir_type(in_data_ty), sym_name=f"in_buffer_{0}", address=offset), # 1024 offset, reserve for stack
+          buffer_raw(tile=ComputeTile_0_2, buffer=try_convert_np_type_to_mlir_type(in_data_ty), sym_name=f"in_buffer_{0}", address=offset),
 
         ]
         in_buffer_prod_lock = lock(ComputeTile_0_2, lock_id=8, init=2, sym_name="in_buffer_p_lock")
@@ -296,7 +297,7 @@ def single_mat_vect_mult():
             switch_diode_matrix_ty, A_B_C_D_ty
         ])
 
-        @core(ComputeTile_0_2, "mainKernel.o")
+        @core(ComputeTile_0_2, "mainKernel.o", stack_size=stack_size_in_byte)
         def core_body():
             # for _ in range_(sys.maxsize):
             CT_0_2_main_func(

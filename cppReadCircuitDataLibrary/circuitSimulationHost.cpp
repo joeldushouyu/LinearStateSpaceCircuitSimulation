@@ -230,9 +230,9 @@ void iteration(   float* C1_DSW_buffer, float*ABCD_buffer, float*input_buffers, 
         if(printDebug){
             std::cout << "ABCD_mat_res" << std::endl;
             print_matrix_column_major(ABCD_mat, A_B_C_D_ROW_SIZE, A_B_C_D_COL_SIZE);
-            std::cout << "cur_x_u_res" << std::endl;
-            for(auto k = 0; k < BUFFER_SIZE_OF_A_B_C_D_MAT_RES; k++){
-                std::cout << ABCD_mat_res[k] << " ";
+            std::cout << "cur_x_u_res used for iteration" << std::endl;
+            for(auto k = 0; k < BUFFER_SIZE_OF_CUR_X_U; k++){
+                std::cout << x_and_u_cur[k] << " ";
             }
             std::cout << std::endl;
         }
@@ -243,13 +243,39 @@ void iteration(   float* C1_DSW_buffer, float*ABCD_buffer, float*input_buffers, 
         if( externalSwitchToggled  || !diode_change){
             // either exteranl swithc toggled or non diode soft switch changed
             vector_add( ABCD_mat_res+STATE_SIZE_CEIL_TO_16,  cur_out, Y_SIZE  ); // vector additon of both the impulse and non-impulse response
-
+            if(printDebug){std::cout << "USE both impulse and nonimpulse in output" << std::endl;}
         }else{
             memcpy(cur_out,  ABCD_mat_res+STATE_SIZE_CEIL_TO_16, sizeof(float) *(Y_SIZE)  );
+            if(printDebug){std::cout << "USE only nonimpulrse in output" << std::endl;}
         }
         
+        if(printDebug){
+            std::cout << "cur_x_u_res after iteration" << std::endl;
+            for(auto k = 0; k < STATE_SIZE; k++){
+                std::cout << ABCD_mat_res[k] << " ";
+            }
+            std::cout << std::endl;
 
+            std::cout << "nonimpulse output" << std::endl;
+            for(auto k = 0; k < Y_SIZE; k++){
+                std::cout << ABCD_mat_res[k+STATE_SIZE_CEIL_TO_16] << " ";
+            }
+            std::cout << std::endl;
 
+            std::cout << "impulse output" << std::endl;
+            for(auto k = 0; k < Y_SIZE; k++){
+                std::cout << ABCD_mat_res[k+STATE_SIZE_CEIL_TO_16+Y_SIZE] << " ";
+            }
+            std::cout << std::endl;
+
+            std::cout << "output after iteration" << std::endl;
+            for(auto i = 0; i < Y_SIZE; i++){
+                std::cout << cur_out[i] << " ";
+            }
+            std::cout << std::endl;
+
+        }
+        
         // writing stuff back for debugging purpose
         memcpy(  C1_res_mask_Buffer+i*6, mask_res, 6*sizeof(uint32_t));
         *switch_diode_state_buffer_after_iteration++  = switch_diode_state;

@@ -127,6 +127,7 @@ clean:clean_test
 	-@rm -f ${COPIED_HEADERS_IN_HOST}
 	-@rm -f ${COPIED_SRCS_IN_HOST}
 	-@rm -f ./kernel/circuitSimCore.hpp
+	-@rm -f ./npuSim.csv
 config_stage:
 	${clean}
 	cp -f ${CPP_REFERENCE_DIR}/final_config.json ./iron/final_config.json
@@ -159,6 +160,9 @@ clean_host:
 
 run: ${HOST_C_TARGET} ${XCLBIN_TARGETS} ${INSTS_TARGETS} 
 	./${HOST_C_TARGET} | tee out.log
+	
+	-@rm -f  ${CPP_REFERENCE_DIR}/npuSim.csv
+	cp -f ./npuSim.csv ${CPP_REFERENCE_DIR}/npuSim.csv
 # compare the generated.txt with the insts, if not the same, say error
 # @if diff -q generated.txt ${INSTS_TARGETS}; then \
 # 	echo "PASS"; \

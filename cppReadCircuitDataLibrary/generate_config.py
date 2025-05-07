@@ -93,17 +93,20 @@ def main(json_config_file:str, output_json_file:str, output_header_file:str ):
             buffer_size_of_switch_diode = total_switch_size*switch_diode_mat_size
             buffer_A_B_C_D_size = total_switch_size * A_B_C_D_mat_size
             
+            
+            #INTENDED to be allocated on stack for it
             buffer_size_of_cur_X_U = custom_ceil(  state_size+ u_size , 16)
             buffer_size_of_C1_DSW_mat_res = C1_DSW_row_size
             buffer_size_of_A_B_C_D_mat_res =_A_B_C_D_mat_row
             
-            
+            stack_size = 1024 # default value
+            stack_size += (buffer_size_of_cur_X_U +buffer_size_of_C1_DSW_mat_res  + buffer_size_of_A_B_C_D_mat_res )*4 # 4 byte for float
+
             # note: because load 16 float at a time for vector instruction, need to ensure the address are aligned to 64byte(4*16)
-            buffer_size_for_in_out = ((63)*(1024))//4 - (buffer_size_of_switch_diode +buffer_A_B_C_D_size\
-                + buffer_size_of_cur_X_U  + buffer_size_of_C1_DSW_mat_res + buffer_size_of_A_B_C_D_mat_res)
-            # define a ping pong for it?
+            buffer_size_for_in_out_in_float = ((64)*(1024) - stack_size)//4 - (buffer_size_of_switch_diode +buffer_A_B_C_D_size)  # 4 byte for float
+            # define a ping pong for it? 
             
-            _max_iteration_step = int(custom_floor( buffer_size_for_in_out//(len_of_input_for_each_iteration + len_of_output_for_each_iteration),2)) #TODO: round down instead?
+            _max_iteration_step = int(custom_floor( buffer_size_for_in_out_in_float//(len_of_input_for_each_iteration + len_of_output_for_each_iteration),2)) #TODO: round down instead?
             iteration_step_per_buffer = _max_iteration_step //2
             buffer_size_of_in_ping_pong = len_of_input_for_each_iteration*(iteration_step_per_buffer)
             buffer_size_of_out_ping_pong = len_of_output_for_each_iteration*(iteration_step_per_buffer)
@@ -146,7 +149,8 @@ def main(json_config_file:str, output_json_file:str, output_header_file:str ):
                 "buffer_size_of_A_B_C_D_mat_res": buffer_size_of_A_B_C_D_mat_res,
                 
                 "iteration_step_number":iteration_step_number,
-                "state_size_ceil_to_16": state_size_ceil_to_16
+                "state_size_ceil_to_16": state_size_ceil_to_16,
+                "stack_size": stack_size
                 
             }            
             with open(output_json_file,"w") as outfile:
