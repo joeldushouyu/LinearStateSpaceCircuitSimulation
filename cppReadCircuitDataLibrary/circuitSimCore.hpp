@@ -65,8 +65,8 @@ inline void setBit(uint32_t &num, uint8_t bitIndex, bool value) {
 
 // Extract 3 bits starting at bit_pos (0=LSB) in an N‑word buffer,
 // where data[0] is the least-significant word and data[N-1] the most.
-template <typename T>
-uint32_t extract_3bits_lsb_first(const T* data, size_t N, T bit_pos) {
+template <typename T, size_t N>
+uint32_t extract_3bits_lsb_first(const T* data, T bit_pos) {
   static_assert( std::is_same<T, uint32_t >::value);
   const int total_bits = N * 32;
 
@@ -110,19 +110,18 @@ bool diode_toggle_update( uint32_t &switch_diode_state, uint32_t *C1_res_mask, b
     // bit 2-0 of C1_res_mask[3] store the lt of diode_next, diode_natural, diode_impulse
     bool diode_change = false;
 
-  
-  
+    constexpr uint32_t  imp_mask = 0b001;
+    constexpr uint32_t natural_mask = 0b010;
+    constexpr uint32_t diode_next_mask = 0b100;
+
     
     #pragma clang  loop unroll(full)
     for(uint32_t k= 0; k <  DIODE_SIZE; k++){
         uint32_t start_bit = 3 * k;
 
-        uint32_t gt_bits = extract_3bits_lsb_first<uint32_t>(C1_res_mask, 3, start_bit); 
-        uint32_t lt_bits = extract_3bits_lsb_first<uint32_t>(C1_res_mask+3, 3, start_bit);
+        uint32_t gt_bits = extract_3bits_lsb_first<uint32_t,3>(C1_res_mask, start_bit); 
+        uint32_t lt_bits = extract_3bits_lsb_first<uint32_t,3>(C1_res_mask+3, start_bit);
 
-        uint32_t imp_mask = 0b001;
-        uint32_t natural_mask = 0b010;
-        uint32_t diode_next_mask = 0b100;
 
         uint32_t diode_state_bit_ind = (DIODE_SIZE-1-k);
         uint32_t diode_state_mask = 1<<diode_state_bit_ind;
