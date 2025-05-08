@@ -88,8 +88,8 @@ void mult_with_C1_DSW(float *C1_DSW_mat, aie::vector<float, 16> *x_u_cur, uint32
         aie::accum<accfloat, 16> C1_DSW_temp = aie::zeros<accfloat, 16>();
 
 
-        AIE_PREPARE_FOR_PIPELINE
-        #pragma clang  loop unroll(full)
+        // AIE_PREPARE_FOR_PIPELINE
+        // #pragma clang  loop unroll(full)
         for(uint32_t col = 0; col < U_SIZE+ STATE_SIZE; col++){
 
             const uint32_t col_div_16 = col/16;
@@ -166,7 +166,7 @@ void mult_with_A_B_To_Array(float *A_B_C_D_mat, aie::vector<float, 16> *x_u_cur,
     #pragma clang loop max_iteration_count(STATE_SIZE_CEIL_TO_16)
     for(uint32_t row = 0; row < STATE_SIZE_CEIL_TO_16/16; row++){
         aie::accum<accfloat, 16> ABtemp = aie::zeros<accfloat, 16>();
-        #pragma clang loop_unroll(full)
+        // #pragma clang loop_unroll(full)
         for(uint32_t col = 0; col < U_SIZE+STATE_SIZE; col++){
 
 
@@ -189,7 +189,7 @@ void update_x_u_cur_From_Array( aie::vector<float, 16> *x_u_cur, float *x_u_cur_
 
     static_assert(STATE_SIZE_CEIL_TO_16/16 == X_U_cur_vector_size);
     //now rewrite the x_u_cur wit new value from iteration
-    #pragma clang loop_unroll(full)
+    // #pragma clang loop_unroll(full)
     for(uint32_t i = 0; i< X_U_cur_vector_size; i++){
         (x_u_cur+i)->load(x_u_cur_res + 16* i);
     }
