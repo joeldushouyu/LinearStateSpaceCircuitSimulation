@@ -39,14 +39,24 @@ void matvec_row_major(const float* A, const float* x, float* y, int rows, int co
     }
 }
 
-void vector_add(const float* ptr, float* y, size_t length) {
-    const float* a = ptr;             // First vector
-    const float* b = ptr + length;    // Second vector
 
-    for (size_t i = 0; i < length; ++i) {
+void vector_add(const float* a, const float*b, float *y, size_t length){
+    
+
+    for(size_t i = 0; i < length; i++){
         y[i] = a[i] + b[i];
     }
+
+
 }
+// void vector_add(const float* ptr, float* y, size_t length) {
+//     const float* a = ptr;             // First vector
+//     const float* b = ptr + length;    // Second vector
+
+//     for (size_t i = 0; i < length; ++i) {
+//         y[i] = a[i] + b[i];
+//     }
+// }
 
 
 
@@ -242,7 +252,9 @@ void iteration(   float* C1_DSW_buffer, float*ABCD_buffer, float*input_buffers, 
         memcpy( x_and_u_cur,  ABCD_mat_res, sizeof(float) *(STATE_SIZE)  );
         if( externalSwitchToggled  || !diode_change){
             // either exteranl swithc toggled or non diode soft switch changed
-            vector_add( ABCD_mat_res+STATE_SIZE_CEIL_TO_16,  cur_out, Y_SIZE  ); // vector additon of both the impulse and non-impulse response
+            //vector_add( ABCD_mat_res+STATE_SIZE_CEIL_TO_16,  cur_out, Y_SIZE  ); // vector additon of both the impulse and non-impulse response
+
+            vector_add(ABCD_mat_res+STATE_SIZE_CEIL_TO_16, ABCD_mat_res+STATE_SIZE_CEIL_TO_16+Y_SIZE_CEIL_TO_16, cur_out, Y_SIZE );
             if(printDebug){std::cout << "USE both impulse and nonimpulse in output" << std::endl;}
         }else{
             memcpy(cur_out,  ABCD_mat_res+STATE_SIZE_CEIL_TO_16, sizeof(float) *(Y_SIZE)  );
@@ -432,15 +444,26 @@ MatrixRowMajor formABCDMAtrix(SwitchCaseData &data)
 
     // ABCD.block(0,0,  STATE_SIZE, STATE_SIZE+U_SIZE) = data.A_B_C_D_nonimp_imp;
     
-    
+    // For ease of computation, the rows of A_B_C_D are defined as
+    // STATE_SIZE_CEIL_16 +Y_SIZE_CEIL_16 + Y_SIZE_CEIL_16
     for(uint32_t i = 0; i<  STATE_SIZE; i++){
         ABCD.block(i,0,  1, STATE_SIZE+U_SIZE) = data.A_B_C_D_nonimp_imp.row(i);  
     }
 
-    for(uint32_t i = 0; i < 2*Y_SIZE; i++){
-        ABCD.block( STATE_SIZE_CEIL_TO_16+i  ,0,  1, STATE_SIZE+U_SIZE)
-         = data.A_B_C_D_nonimp_imp.row(STATE_SIZE + i);  
+    for(uint32_t i = 0; i < Y_SIZE; i++){
+        ABCD.block( STATE_SIZE_CEIL_TO_16+i, 0, 1, STATE_SIZE+U_SIZE )
+            =  data.A_B_C_D_nonimp_imp.row(STATE_SIZE+i);
     }
+
+    for(uint32_t i = 0; i < Y_SIZE; i++){
+        ABCD.block(STATE_SIZE_CEIL_TO_16+Y_SIZE_CEIL_TO_16+i, 0, 1, STATE_SIZE+U_SIZE)
+            = data.A_B_C_D_nonimp_imp.row(STATE_SIZE+Y_SIZE+i);
+    }
+
+    // for(uint32_t i = 0; i < 2*Y_SIZE; i++){
+    //     ABCD.block( STATE_SIZE_CEIL_TO_16+i  ,0,  1, STATE_SIZE+U_SIZE)
+    //      = data.A_B_C_D_nonimp_imp.row(STATE_SIZE + i);  
+    // }
 
     return ABCD;
 

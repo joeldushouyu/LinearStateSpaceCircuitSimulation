@@ -26,7 +26,8 @@ using MatrixColMajor = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eige
 // // y= A * x (A is column-major matrix of size rows x cols)
 // void matvec_column_major(const float *A, const float *x, float *y, int rows, int cols);
 void matvec_row_major(const float* A, const float* x, float* y, int rows, int cols);
-void vector_add(const float *ptr, float *y, size_t length);
+// void vector_add(const float *ptr, float *y, size_t length);
+void vector_add(const float* a, const float*b, float *y, size_t length);
 
 void print_matrix_column_major(const float *matrix, size_t rows, size_t cols);
 

@@ -82,13 +82,14 @@ def main(json_config_file:str, output_json_file:str, output_header_file:str ):
             # and C_non_impulse_matrix, D_non_impulse_matrix can be combined into another matrix of size (Y_size x (state_size+u_size))
             
             state_size_ceil_to_16 = custom_ceil(state_size, 16)
-            _A_B_C_D_mat_row =   state_size_ceil_to_16 +  custom_ceil(  2*y_size, 16)
+            y_size_ceil_to_16 = custom_ceil(y_size, 16)
+            _A_B_C_D_mat_row =   state_size_ceil_to_16 +  y_size_ceil_to_16*2  # For ease of computation, use CEIL(,16) for all dimeison/size
             _A_B_C_D_mat_col = (state_size + u_size)
             A_B_C_D_mat_size = _A_B_C_D_mat_row * _A_B_C_D_mat_col
             
             _len_of_switch_size = (custom_ceil(switch_size+diode_size,32)//32 )   # number of 4byte(float) use for sending external switch for each iteration
             len_of_input_for_each_iteration = u_size+ _len_of_switch_size
-            len_of_output_for_each_iteration = custom_ceil(y_size, 16)
+            len_of_output_for_each_iteration =y_size_ceil_to_16
             
             buffer_size_of_switch_diode = total_switch_size*switch_diode_mat_size
             buffer_A_B_C_D_size = total_switch_size * A_B_C_D_mat_size
@@ -150,6 +151,7 @@ def main(json_config_file:str, output_json_file:str, output_header_file:str ):
                 
                 "iteration_step_number":iteration_step_number,
                 "state_size_ceil_to_16": state_size_ceil_to_16,
+                "y_size_ceil_to_16":y_size_ceil_to_16,
                 "stack_size": stack_size
                 
             }            

@@ -21,7 +21,7 @@
 #include <cstdlib>
 #include <stdlib.h>      // <- This is necessary
 
-#define MAX_SW_DIODE_SIZE 32
+#define MAX_SW_DIODE_SIZE 32  //TODO: fix this, or better warning and number generate at both c++ host and kernel
 
 inline float* retrieveMatrixOFfsetBaseOnState(const uint32_t state, const int32_t matrix_size, float* matrix_ptr) {
 
@@ -209,116 +209,198 @@ void update_x_u_cur_From_Array( aie::vector<float, 16> *x_u_cur, float *x_u_cur_
 
 // }
 
-template<bool INCLUDE_C_D_IMPULSE>
-void mult_with_C_D(float *A_B_C_D_mat, aie::vector<float, 16> *x_u_cur, float*out){
+// template<bool INCLUDE_C_D_IMPULSE>
+// void mult_with_C_D(float *A_B_C_D_mat, aie::vector<float, 16> *x_u_cur, float*out){
 
-    static constexpr uint32_t y_size_ceil_16 = CUSTOM_CEIL(Y_SIZE, 16);
-    uint32_t num_iteration_for_y_output = (A_B_C_D_ROW_SIZE - STATE_SIZE_CEIL_TO_16)/16;
-    // Recall A_B_C_D_ROW_SIZE  = STATE_SIZE_CEIL_TO_16 = CUSTOM_CEIL(2*Y_SIZE, 16);
-    ///ISSUE: worst performance below?
-    // static constexpr uint32_t num_iteration_for_y_output = 
-    //     INCLUDE_C_D_IMPULSE 
-    //     ? CUSTOM_CEIL(Y_SIZE, 16) 
-    //     : ((A_B_C_D_ROW_SIZE - STATE_SIZE_CEIL_TO_16) / 16);
-    static constexpr uint32_t y_size_ceil_16_div_16 = y_size_ceil_16/16;
-    static_assert(OUTPUT_SIZE_PER_ITERATION  == y_size_ceil_16 );
+//     static constexpr uint32_t y_size_ceil_16 = CUSTOM_CEIL(Y_SIZE, 16);
+//     uint32_t num_iteration_for_y_output = (A_B_C_D_ROW_SIZE - STATE_SIZE_CEIL_TO_16)/16;
+//     // Recall A_B_C_D_ROW_SIZE  = STATE_SIZE_CEIL_TO_16 = CUSTOM_CEIL(2*Y_SIZE, 16);
+//     ///ISSUE: worst performance below?
+//     // static constexpr uint32_t num_iteration_for_y_output = 
+//     //     INCLUDE_C_D_IMPULSE 
+//     //     ? CUSTOM_CEIL(Y_SIZE, 16) 
+//     //     : ((A_B_C_D_ROW_SIZE - STATE_SIZE_CEIL_TO_16) / 16);
+//     static constexpr uint32_t y_size_ceil_16_div_16 = y_size_ceil_16/16;
+//     static_assert(OUTPUT_SIZE_PER_ITERATION  == y_size_ceil_16 );
     
-    // First store the 
-    aie::vector<float, 16> C_D_temp [y_size_ceil_16_div_16*2];  //TODO: check if enough vector left? llvm issues
+//     // First store the 
+//     aie::vector<float, 16> C_D_temp [y_size_ceil_16_div_16*2];  //TODO: check if enough vector left? llvm issues
 
-    for(uint32_t row = 0; row < num_iteration_for_y_output; row++){
+//     for(uint32_t row = 0; row < num_iteration_for_y_output; row++){
 
-        aie::accum<accfloat, 16> ABCD_temp = aie::zeros<accfloat, 16>();
+//         aie::accum<accfloat, 16> ABCD_temp = aie::zeros<accfloat, 16>();
         
 
-        //NOTE: caused error? #pragma clang loop unroll_count(U_SIZE+ STATE_SIZE)
+//         //NOTE: caused error? #pragma clang loop unroll_count(U_SIZE+ STATE_SIZE)
         
-        AIE_PREPARE_FOR_PIPELINE
-        #pragma clang  loop max_iteration_count( U_SIZE+STATE_SIZE)
-        for(uint32_t col = 0; col < U_SIZE+ STATE_SIZE; col++){
+//         AIE_PREPARE_FOR_PIPELINE
+//         #pragma clang  loop max_iteration_count( U_SIZE+STATE_SIZE)
+//         for(uint32_t col = 0; col < U_SIZE+ STATE_SIZE; col++){
 
-            const uint32_t col_div_16 = col/16;
-            const uint32_t col_mod_16 = col%16 ;
+//             const uint32_t col_div_16 = col/16;
+//             const uint32_t col_mod_16 = col%16 ;
             
-            aie::vector<float, 16> a = aie::load_v<16>(A_B_C_D_mat);
-            A_B_C_D_mat += 16; // next column
+//             aie::vector<float, 16> a = aie::load_v<16>(A_B_C_D_mat);
+//             A_B_C_D_mat += 16; // next column
             
-            aie::vector<float, 16>b= aie::broadcast<float, 16>(   (x_u_cur+col_div_16)->get(col_mod_16)  );
+//             aie::vector<float, 16>b= aie::broadcast<float, 16>(   (x_u_cur+col_div_16)->get(col_mod_16)  );
 
-            ABCD_temp = mac_elem_16_accuracy_safe(a,b, ABCD_temp,0,0,0  );
-        }
+//             ABCD_temp = mac_elem_16_accuracy_safe(a,b, ABCD_temp,0,0,0  );
+//         }
 
-        uint32_t num_y_produced = (row+1)*16;
-        if( !INCLUDE_C_D_IMPULSE){
-            //TODO: need to constraint the size to prevent redundant writes
-            // just write it back to output
-            // ALSO, reacall OUTPUT_SIZE_PER_ITERATION is ceil to 16 already
-            aie::store_v(  out ,ABCD_temp.template to_vector<float>() );
-            out += 16; 
-        }else{
+//         uint32_t num_y_produced = (row+1)*16;
+//         if( !INCLUDE_C_D_IMPULSE){
+//             //TODO: need to constraint the size to prevent redundant writes
+//             // just write it back to output
+//             // ALSO, reacall OUTPUT_SIZE_PER_ITERATION is ceil to 16 already
+//             aie::store_v(  out ,ABCD_temp.template to_vector<float>() );
+//             out += 16; 
+//         }else{
 
-            #if num_iteration_for_y_output == 1
-                static_assert(2*Y_SIZE <=16);// the Y_nonimpulse and Y_impulse produced in same cycle This means 2*Y_output < 16;; ceil to 16
+//             #if num_iteration_for_y_output == 1
+//                 static_assert(2*Y_SIZE <=16);// the Y_nonimpulse and Y_impulse produced in same cycle This means 2*Y_output < 16;; ceil to 16
 
-                aie::vector<float, 16> y_nonimpulse = ABCD_temp.template to_vector<float>();
-                aie::vector<float, 16> y_impulse = aie::shuffle_down(y_nonimpulse, Y_SIZE);
-                // then do element wise operation and store it back
-                aie::vector<float, 16>Y_res =   aie::add(y_nonimpulse, y_impulse);
-                Y_res.store(out);
+//                 aie::vector<float, 16> y_nonimpulse = ABCD_temp.template to_vector<float>();
+//                 aie::vector<float, 16> y_impulse = aie::shuffle_down(y_nonimpulse, Y_SIZE);
+//                 // then do element wise operation and store it back
+//                 aie::vector<float, 16>Y_res =   aie::add(y_nonimpulse, y_impulse);
+//                 Y_res.store(out);
 
-            #else
-                // The case need to consider both impulse and nonimpulse result of C_D
-                if( num_y_produced <= Y_SIZE ){
-                    // accumulate vector only contain Y_nonimpulse
-                    C_D_temp[row] = ABCD_temp.to_vector<float>();
+//             #else
+//                 // The case need to consider both impulse and nonimpulse result of C_D
+//                 if( num_y_produced <= Y_SIZE ){
+//                     // accumulate vector only contain Y_nonimpulse
+//                     C_D_temp[row] = ABCD_temp.to_vector<float>();
       
             
-                }else{
-                    if( (num_y_produced- 16) < Y_SIZE ){
-                        // means contain mix of Y_nonimpulse and Y_impulse in accumulate vector
-                        C_D_temp[row] = ABCD_temp.to_vector<float>(); // some extra don't care values
-                        C_D_temp[row+1] = aie::shuffle_down(C_D_temp[row], Y_SIZE%16); // extract the Y_impulse data
+//                 }else{
+//                     if( (num_y_produced- 16) < Y_SIZE ){
+//                         // means contain mix of Y_nonimpulse and Y_impulse in accumulate vector
+//                         C_D_temp[row] = ABCD_temp.to_vector<float>(); // some extra don't care values
+//                         C_D_temp[row+1] = aie::shuffle_down(C_D_temp[row], Y_SIZE%16); // extract the Y_impulse data
                         
-                    }else{
-                        // accumulate vector only contains Y-impulse value
-                        aie::vector<float, 16> temp =   ABCD_temp.to_vector<float>();
-                        C_D_temp[row] = aie::shuffle_up(  temp,  16-Y_SIZE%16  ); // store Y_impulse data 
+//                     }else{
+//                         // accumulate vector only contains Y-impulse value
+//                         aie::vector<float, 16> temp =   ABCD_temp.to_vector<float>();
+//                         C_D_temp[row] = aie::shuffle_up(  temp,  16-Y_SIZE%16  ); // store Y_impulse data 
 
-                        if(num_y_produced >= 2*Y_SIZE){
-                            // last iteration
-                            for(uint32_t i = 0; i < y_size_ceil_16_div_16; i++){
-                                aie::vector<float, 16> res= aie::add( C_D_temp[i], C_D_temp[i+y_size_ceil_16_div_16]  ) ;
-                                res.store(out);
-                                out += 16;
-                            }
-                        }else{
-                            C_D_temp[row+1] =    aie::shuffle_down(temp, Y_SIZE%16); // store Remaining Y_impulse data to the vector
-                        }   
-                    }
+//                         if(num_y_produced >= 2*Y_SIZE){
+//                             // last iteration
+//                             for(uint32_t i = 0; i < y_size_ceil_16_div_16; i++){
+//                                 aie::vector<float, 16> res= aie::add( C_D_temp[i], C_D_temp[i+y_size_ceil_16_div_16]  ) ;
+//                                 res.store(out);
+//                                 out += 16;
+//                             }
+//                         }else{
+//                             C_D_temp[row+1] =    aie::shuffle_down(temp, Y_SIZE%16); // store Remaining Y_impulse data to the vector
+//                         }   
+//                     }
                     
-                }
-            #endif
+//                 }
+//             #endif
         
-        }
+//         }
 
         
  
+//     }
+
+//     // //now rewrite the x_u_cur wit new value from iteration
+//     // for(uint32_t i = 0; i< X_U_cur_vector_size; i++){
+//     //     (x_u_cur+i)->load(x_u_cur_temp + 16* i);
+//     // }
+
+//     // // write back to *out for debug purpose
+//     // for(uint32_t i = 0; i < X_U_cur_vector_size; i++){
+//     //     //aie::store_v(out, (x_u_cur+i));
+
+//     //     (x_u_cur+i)->store(out);
+//     //     out += 16;
+//     // }
+
+// }
+
+void mult_with_C_D_aligned_nonimpulse_only(float *C_D_mat, aie::vector<float, 16> *x_u_cur, float*out){
+
+    static_assert(Y_SIZE_CEIL_TO_16%16 == 0);
+    constexpr uint32_t num_of_iteration = Y_SIZE_CEIL_TO_16/16;
+
+    AIE_PREPARE_FOR_PIPELINE
+    #pragma clang  loop max_iteration_count( num_of_iteration)
+    for(uint32_t row = 0; row < num_of_iteration; row++){
+        aie::accum<accfloat, 16> C_D_temp = aie::zeros<accfloat, 16>();
+
+        for(uint32_t col = 0; col <U_SIZE+STATE_SIZE; col++){
+            const uint32_t col_div_16 = col/16;
+            const uint32_t col_mod_16 = col%16 ;         
+
+            aie::vector<float, 16> a = aie::load_v<16>(C_D_mat);
+            C_D_mat += 16; // next column
+            aie::vector<float, 16>b= aie::broadcast<float, 16>(   (x_u_cur+col_div_16)->get(col_mod_16)  );
+            C_D_temp = mac_elem_16_accuracy_safe(a,b, C_D_temp,0,0,0  );
+        }
+        // now write the result back to out, since only consider the non-impulse response result
+        aie::store_v(out, C_D_temp.template to_vector<float>());    
+        out += 16;
     }
 
-    // //now rewrite the x_u_cur wit new value from iteration
-    // for(uint32_t i = 0; i< X_U_cur_vector_size; i++){
-    //     (x_u_cur+i)->load(x_u_cur_temp + 16* i);
-    // }
-
-    // // write back to *out for debug purpose
-    // for(uint32_t i = 0; i < X_U_cur_vector_size; i++){
-    //     //aie::store_v(out, (x_u_cur+i));
-
-    //     (x_u_cur+i)->store(out);
-    //     out += 16;
-    // }
 
 }
+
+
+void mult_with_C_D_aligned_nonimpulse_and_impulse(float *C_D_mat, aie::vector<float, 16> *x_u_cur, float*out){
+
+    static_assert(Y_SIZE_CEIL_TO_16%16 == 0);
+    constexpr uint32_t num_of_iteration = (2*Y_SIZE_CEIL_TO_16)/16;
+    constexpr uint32_t Y_SIZE_CEIL_TO_16_DIV_16 = Y_SIZE_CEIL_TO_16/16;
+
+
+    aie::vector<float, 16> C_D_nonimp_res [Y_SIZE_CEIL_TO_16_DIV_16];
+    
+    // loop one, write the c_D_nonimpulse result to C_D_nonimp_res
+    AIE_PREPARE_FOR_PIPELINE
+    #pragma clang  loop max_iteration_count( num_of_iteration/2)
+    for(uint32_t row = 0; row < num_of_iteration/2; row++){
+        aie::accum<accfloat, 16> C_D_temp = aie::zeros<accfloat, 16>();
+
+        for(uint32_t col = 0; col <U_SIZE+STATE_SIZE; col++){
+            const uint32_t col_div_16 = col/16;
+            const uint32_t col_mod_16 = col%16 ;         
+
+            aie::vector<float, 16> a = aie::load_v<16>(C_D_mat);
+            C_D_mat += 16; // next column
+            aie::vector<float, 16>b= aie::broadcast<float, 16>(   (x_u_cur+col_div_16)->get(col_mod_16)  );
+            C_D_temp = mac_elem_16_accuracy_safe(a,b, C_D_temp,0,0,0  );
+        }
+        C_D_nonimp_res[row] = C_D_temp.template to_vector<float>();
+    }
+
+    // another loop that calculdate C_D_impulse result
+    // loop one, write the c_D_nonimpulse result to C_D_nonimp_res
+    AIE_PREPARE_FOR_PIPELINE
+    #pragma clang  loop max_iteration_count( num_of_iteration/2)
+    for(uint32_t row = 0; row < num_of_iteration/2; row++){
+        aie::accum<accfloat, 16> C_D_temp = aie::zeros<accfloat, 16>();
+
+        for(uint32_t col = 0; col <U_SIZE+STATE_SIZE; col++){
+            const uint32_t col_div_16 = col/16;
+            const uint32_t col_mod_16 = col%16 ;         
+
+            aie::vector<float, 16> a = aie::load_v<16>(C_D_mat);
+            C_D_mat += 16; // next column
+            aie::vector<float, 16>b= aie::broadcast<float, 16>(   (x_u_cur+col_div_16)->get(col_mod_16)  );
+            C_D_temp = mac_elem_16_accuracy_safe(a,b, C_D_temp,0,0,0  );
+        }
+
+        // do elementwise addition with C_D_nonimpulse_res and write back to output
+        aie::vector<float, 16> res = aie::add(C_D_temp,  C_D_nonimp_res[row] );
+        res.store(out);
+        out+=16;
+        
+    }
+}
+
+
 
 // Return true if externalSwitch toggled
 bool update_x_u_cur_with_input(aie::vector<float, 16> *x_u_cur, float*in, uint32_t &externalSwitchDiodeStates){
@@ -384,14 +466,28 @@ void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur,
         event0();
 
         if( external_switch_toggled || !diode_change){
-            mult_with_C_D<true>(
-                ABCD_ptr  +(STATE_SIZE+U_SIZE)*STATE_SIZE_CEIL_TO_16 ,
+            // mult_with_C_D<true>(
+            //     ABCD_ptr  +(STATE_SIZE+U_SIZE)*STATE_SIZE_CEIL_TO_16 ,
+            //     x_u_cur,
+            //     out + k*OUTPUT_SIZE_PER_ITERATION
+            // );
+            mult_with_C_D_aligned_nonimpulse_and_impulse(
+                ABCD_ptr  +(STATE_SIZE+U_SIZE)*STATE_SIZE_CEIL_TO_16,
                 x_u_cur,
                 out + k*OUTPUT_SIZE_PER_ITERATION
             );
+
+            // float *ptr =  out + k*OUTPUT_SIZE_PER_ITERATION;
+            // *ptr = 100;
+            // ptr++;
         }else{
-            mult_with_C_D<false>(
-                ABCD_ptr  +(STATE_SIZE+U_SIZE)*STATE_SIZE_CEIL_TO_16 ,
+            // mult_with_C_D<false>(
+            //     ABCD_ptr  +(STATE_SIZE+U_SIZE)*STATE_SIZE_CEIL_TO_16 ,
+            //     x_u_cur,
+            //     out + k*OUTPUT_SIZE_PER_ITERATION
+            // );
+            mult_with_C_D_aligned_nonimpulse_only(
+                ABCD_ptr  +(STATE_SIZE+U_SIZE)*STATE_SIZE_CEIL_TO_16,
                 x_u_cur,
                 out + k*OUTPUT_SIZE_PER_ITERATION
             );
