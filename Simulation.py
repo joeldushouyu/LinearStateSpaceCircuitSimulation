@@ -36,6 +36,7 @@ from plotly.subplots import make_subplots
 import csv
 import warnings
 import h5py
+from progress.bar import Bar
 @total_ordering
 class SimulationModule:
     def __init__(self):
@@ -87,19 +88,20 @@ class SystemClockSimulationModule:
         )
 
         
-        # now, regular clock
-        for step in range( stop_step_size):
-            
-
-            
-            self.system_clock_message.set_time(step * (1 / self.system_clock_frequency))
-            for level in self.module_level_depend_map.keys():
-                self.system_clock_message.message_manager.publish_message(level)
-                #TODO: invoke module calculation
+        with Bar('Processing', max=stop_step_size) as bar:
+            # now, regular clock
+            for step in range( stop_step_size):
                 
-                for mod in self.module_level_depend_map[level]:
-                    mod.publish()
-        return stop_step_size
+
+                
+                self.system_clock_message.set_time(step * (1 / self.system_clock_frequency))
+                for level in self.module_level_depend_map.keys():
+                    self.system_clock_message.message_manager.publish_message(level)
+                    #TODO: invoke module calculation
+                    
+                    for mod in self.module_level_depend_map[level]:
+                        mod.publish()
+            return stop_step_size
 
 
 class VoltageCurrentSimulationModule(SimulationModule):
@@ -442,6 +444,8 @@ class StateSpaceSimulationModule(SimulationModule):
             # now, go ahead and    
             self.swap_difference(bool_states)
             
+            if(case % 500 == 0):
+                print(case)
         # now, swap back to initial states 
         self.swap_difference(current_switch_states)
         
@@ -649,7 +653,7 @@ class StateSpaceSimulationModule(SimulationModule):
                 redundant_offset=self.network_matrix.redundant_size
             )
             
-            self.forced_switch_mapping = self.force_triggered_events()
+            # self.forced_switch_mapping = self.force_triggered_events()
             
             
             # filter out inconsistent labels from y _labels
