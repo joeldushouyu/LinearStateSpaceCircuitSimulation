@@ -157,8 +157,8 @@ void mult_with_C1_DSW(float *C1_DSW_mat, aie::vector<float, 16> *x_u_cur, uint32
 
 
         }else{
-            c1_res_mask[c1_res_offset]=  gt_res.to_uint32()  <<16;
-            c1_res_mask[c1_res_offset+3]=  lt_res.to_uint32() <<16;
+            c1_res_mask[c1_res_offset] |=   gt_res.to_uint32()  <<16;
+            c1_res_mask[c1_res_offset+3] |=   lt_res.to_uint32() <<16;
             c1_res_offset ++;
         }
     }

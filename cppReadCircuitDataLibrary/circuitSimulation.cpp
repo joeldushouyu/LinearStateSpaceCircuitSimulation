@@ -19,7 +19,7 @@ using json = nlohmann::json;
 #include <cassert>
 #include "circuitSimulationHost.hpp"
 
-
+#include <stdlib.h>  // for malloc, free
 
 
 int main(int argc, char *argv[])
@@ -34,18 +34,46 @@ int main(int argc, char *argv[])
     CircuitData dataFromFile = CircuitData();
     const uint32_t iteration_steps_num = dataFromFile.switch_diode_status_record.size();
 
-    float C1_DSW_buffer[C1_DSW_BUFFER_SIZE];
+    // float C1_DSW_buffer[C1_DSW_BUFFER_SIZE];
 
-    float ABCD_buffer[A_B_C_D_BUFFER_SIZE];
-    float input_buffers [ITERATION_STEP_NUMBER*INPUT_SIZE_PER_ITERATION];
-    uint32_t C1_RES_MASK_BUFFER [ITERATION_STEP_NUMBER*6];
-    uint32_t switch_diode_status_buffer_after_iteration [ITERATION_STEP_NUMBER];
+    // float ABCD_buffer[A_B_C_D_BUFFER_SIZE];
+    // float input_buffers [ITERATION_STEP_NUMBER*INPUT_SIZE_PER_ITERATION];
+    // uint32_t C1_RES_MASK_BUFFER [ITERATION_STEP_NUMBER*6];
+    // uint32_t switch_diode_status_buffer_after_iteration [ITERATION_STEP_NUMBER];
+
+
+
+    // Allocate buffers on the heap
+    float* C1_DSW_buffer = (float*) malloc(C1_DSW_BUFFER_SIZE * sizeof(float));
+    float* ABCD_buffer = (float*) malloc(A_B_C_D_BUFFER_SIZE * sizeof(float));
+    float* input_buffers = (float*) malloc(ITERATION_STEP_NUMBER * INPUT_SIZE_PER_ITERATION * sizeof(float));
+    uint32_t* C1_RES_MASK_BUFFER = (uint32_t*) malloc(ITERATION_STEP_NUMBER * 6 * sizeof(uint32_t));
+    uint32_t* switch_diode_status_buffer_after_iteration = (uint32_t*) malloc(ITERATION_STEP_NUMBER * sizeof(uint32_t));
+
+    // Always check if the allocation succeeded
+    if (!C1_DSW_buffer || !ABCD_buffer || !input_buffers || 
+        !C1_RES_MASK_BUFFER || !switch_diode_status_buffer_after_iteration) {
+        // Handle allocation failure
+        fprintf(stderr, "Memory allocation failed\n");
+        exit(EXIT_FAILURE);
+    }
+
 
     prepareDataForIteration(argv[1], dataFromFile, C1_DSW_buffer, ABCD_buffer, input_buffers);
 
-    // now doing some iteration
-    float output_buffer[OUTPUT_SIZE_PER_ITERATION *ITERATION_STEP_NUMBER ];
-    iteration(C1_DSW_buffer, ABCD_buffer, input_buffers, output_buffer,  dataFromFile.switch_diode_status_record, C1_RES_MASK_BUFFER,switch_diode_status_buffer_after_iteration );
+    // // now doing some iteration
+    // float output_buffer[OUTPUT_SIZE_PER_ITERATION *ITERATION_STEP_NUMBER ];
+
+
+    float* output_buffer = (float*) malloc(OUTPUT_SIZE_PER_ITERATION * ITERATION_STEP_NUMBER * sizeof(float));
+    if (!output_buffer) {
+        fprintf(stderr, "Failed to allocate output_buffer\n");
+        exit(EXIT_FAILURE);
+    }
+    
+
+
+    iteration(C1_DSW_buffer, ABCD_buffer, input_buffers, output_buffer,  dataFromFile.switch_diode_status_record, C1_RES_MASK_BUFFER,switch_diode_status_buffer_after_iteration, false );
     
     
     writeDataToCsvFile("hostSim.csv", dataFromFile, output_buffer);

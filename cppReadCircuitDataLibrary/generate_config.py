@@ -42,7 +42,7 @@ def custom_ceil(x, multiplier):
 
 
 
-def main(json_config_file:str, output_json_file:str, output_header_file:str ):
+def main(json_config_file:str, output_json_file:str, output_header_file:str , override_memory_limit:bool):
     try:
         with open(json_config_file, "r") as f:
             config_data = json.load(f)
@@ -106,8 +106,13 @@ def main(json_config_file:str, output_json_file:str, output_header_file:str ):
             # note: because load 16 float at a time for vector instruction, need to ensure the address are aligned to 64byte(4*16)
             buffer_size_for_in_out_in_float = ((64)*(1024) - stack_size)//4 - (buffer_size_of_switch_diode +buffer_A_B_C_D_size)  # 4 byte for float
             # define a ping pong for it? 
-            
+
             _max_iteration_step = int(custom_floor( buffer_size_for_in_out_in_float//(len_of_input_for_each_iteration + len_of_output_for_each_iteration),2)) #TODO: round down instead?
+            if(_max_iteration_step < 2):
+                if override_memory_limit:
+                    _max_iteration_step = 2
+                else:
+                    raise ValueError("FATAIL, no enough memory left") 
             iteration_step_per_buffer = _max_iteration_step //2
             buffer_size_of_in_ping_pong = len_of_input_for_each_iteration*(iteration_step_per_buffer)
             buffer_size_of_out_ping_pong = len_of_output_for_each_iteration*(iteration_step_per_buffer)
@@ -180,7 +185,13 @@ if __name__ == "__main__":
     parser.add_argument("input_json", help="Path to the input configuration JSON file.")
     parser.add_argument("--final_json", default="final_config.json", help="Path to output processed JSON file.")
     parser.add_argument("--header", default="circuitConfig.h", help="Path to output C header file.")
-
+    parser.add_argument("--override", default="FALSE", help="Option to consider the memory size limit on single CT")
     args = parser.parse_args()
 
-    main(args.input_json, args.final_json, args.header)
+    if args.override == "FALSE":
+        override_opt = False
+    else:
+        override_opt = True
+    main(args.input_json, args.final_json, args.header,override_opt)
+    
+        
