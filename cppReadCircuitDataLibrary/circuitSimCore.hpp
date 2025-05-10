@@ -88,6 +88,41 @@ uint32_t extract_3bits_lsb_first(const T* data, T bit_pos) {
   }
 }
 
+inline bool diode_toggle_update2(bool externalSwitchToggled, uint32_t &switch_diode_state,
+  const uint32_t  diode_impulse_gt_0, const uint32_t diode_impulse_lt_0,
+  const uint32_t diode_natural_gt_0, const uint32_t diode_natural_lt_0,
+  const uint32_t diode_next_gt_0, const uint32_t diode_next_lt_0
+){
+  uint32_t switch_diode_state_old = switch_diode_state;
+
+  // okay, now to bit masking to determine diode toggling and stuff son on
+  uint32_t external_switch_toggled_bits = externalSwitchToggled ? ~0u : 0u;
+  uint32_t  diode_state_only= switch_diode_state & ((1U << DIODE_SIZE) - 1); // assume bits from MSB->LSB is switchState, then DiodeState;
+                                                                              // for example, S1, S2, D1, D2
+
+  // now bitwise logic for doing
+  uint32_t impulse_on_force = (external_switch_toggled_bits&diode_impulse_gt_0);
+  uint32_t impulse_off_force = (external_switch_toggled_bits&diode_impulse_lt_0);
+
+  uint32_t diode_off_to_on_soft = (~diode_state_only) & diode_natural_gt_0 & diode_next_gt_0;
+  uint32_t diode_on_to_off_soft = (diode_state_only) & diode_natural_lt_0 & diode_next_lt_0;
+
+  uint32_t diode_toggle_to_on = impulse_on_force | diode_off_to_on_soft;
+  uint32_t diode_toggle_to_off = impulse_off_force | diode_on_to_off_soft;
+
+  // // do a sanity check first
+  // assert(( diode_toggle_to_on & diode_toggle_to_off) == 0);
+
+  constexpr uint32_t DIODE_MASK = (1u << DIODE_SIZE) - 1;
+  // simply XOR the bits to set the diode state in switch_diode_state
+  switch_diode_state ^= ( (diode_toggle_to_on | diode_toggle_to_off) & DIODE_MASK );
+
+
+  return  (switch_diode_state != switch_diode_state_old );
+
+}
+
+
 
 template<uint32_t max_diode_switch_size, uint32_t C1_RES_MASK_SIZE>
 bool diode_toggle_update( uint32_t &switch_diode_state, uint32_t *C1_res_mask, bool externalSwitchToggled ){

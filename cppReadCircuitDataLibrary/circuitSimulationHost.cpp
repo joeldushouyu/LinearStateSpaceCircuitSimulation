@@ -158,9 +158,11 @@ void iteration(   float* C1_DSW_buffer, float*ABCD_buffer, float*input_buffers, 
         }
 
         /*
+        bool debug_diode_change = false;
+        uint32_t switch_diode_state_debug = switch_diode_state;
         // boolean logic to update diode
         //TODO: ensure the diode order is from MSB to LSB, just like switch order from MSB to KSB in switch_diode_state
-        for(auto k = 0; k < DIODE_SIZE; k++){
+        for(auto k = 0; k < DIODE_SIZE; k++){  // Start from Diode1, then diode 2
             uint32_t diode_state_bit_ind = (DIODE_SIZE-1-k);
             uint32_t diode_state_mask = 1<<diode_state_bit_ind;
 
@@ -173,60 +175,111 @@ void iteration(   float* C1_DSW_buffer, float*ABCD_buffer, float*input_buffers, 
             // bool diode_natural_is_negative = C1_DSW_mat_res[k+DIODE_SIZE] <0 ;
             // bool diode_next_is_negative =  C1_DSW_mat_res[k+2*DIODE_SIZE] < 0;
 
-            bool diode_is_on = (switch_diode_state &diode_state_mask);
-            bool impulse_is_positive = C1_DSW_mat_res[k*3] > 0;
-            bool diode_natural_is_positive = C1_DSW_mat_res[k*3+1] >0 ;
-            bool diode_next_is_positive =  C1_DSW_mat_res[k*3+2] > 0;
+            // bool diode_is_on = (switch_diode_state &diode_state_mask);
+            // bool impulse_is_positive = C1_DSW_mat_res[k*3] > 0;
+            // bool diode_natural_is_positive = C1_DSW_mat_res[k*3+1] >0 ;
+            // bool diode_next_is_positive =  C1_DSW_mat_res[k*3+2] > 0;
             
-            bool  impulse_is_negative = C1_DSW_mat_res[k*3] < 0;
-            bool diode_natural_is_negative = C1_DSW_mat_res[k*3+1] <0 ;
-            bool diode_next_is_negative =  C1_DSW_mat_res[k*3+2] < 0;
+            // bool  impulse_is_negative = C1_DSW_mat_res[k*3] < 0;
+            // bool diode_natural_is_negative = C1_DSW_mat_res[k*3+1] <0 ;
+            // bool diode_next_is_negative =  C1_DSW_mat_res[k*3+2] < 0;
 
 
+            int offset =   ((DIODE_SIZE-k-1)/5)*16 +   ((DIODE_SIZE-k-1)%5);
 
+            bool diode_is_on = (switch_diode_state_debug &diode_state_mask);
+            bool impulse_is_positive = C1_DSW_mat_res[offset] > 0;
+            bool diode_natural_is_positive = C1_DSW_mat_res[offset+5] >0 ;
+            bool diode_next_is_positive =  C1_DSW_mat_res[offset + 10] > 0;
+            
+            bool  impulse_is_negative = C1_DSW_mat_res[offset] < 0;
+            bool diode_natural_is_negative = C1_DSW_mat_res[offset+5] <0 ;
+            bool diode_next_is_negative =  C1_DSW_mat_res[offset+10] < 0;
             if(   (externalSwitchToggled &&   impulse_is_positive) // only when actual external switch toggleds
                   || ( !diode_is_on && diode_natural_is_positive && diode_next_is_positive  )   ){
-                setBit( switch_diode_state, diode_state_bit_ind, 1);
-                diode_change=true;
+                setBit( switch_diode_state_debug, diode_state_bit_ind, 1);
+                std::cout << "turn on diode :" << k << std::endl;
+                debug_diode_change=true;
             }
             else if(    (externalSwitchToggled && impulse_is_negative) 
                 || (diode_is_on && diode_natural_is_negative && diode_next_is_negative)  ){
-                setBit( switch_diode_state, diode_state_bit_ind, 0);
-                diode_change=true;
+                setBit( switch_diode_state_debug, diode_state_bit_ind, 0);
+                std::cout << "turn off diode : " << k <<std::endl;
+                debug_diode_change=true;
             }
         }*/
-
-
-        // try to do similar on what npu will do in this case
-        uint32_t mask_res[6] = {0};// assume less than 32 diodes
-
-        static_assert(BUFFER_SIZE_OF_C1_DSW_MAT_RES %16 == 0);
-        uint32_t mask_res_ind = 0;
+        
+        static_assert(DIODE_SIZE <= 30); // for now
+        uint32_t impulse_mask = 0b11111;
+        uint32_t natural_mask = impulse_mask<<5;
+        uint32_t diode_next_mask  = natural_mask<< 5;
+        
+        // use 64 bit here
+        uint32_t diode_impulse_gt_0 = 0x0;
+        uint32_t diode_impulse_lt_0 = 0x0;
+        uint32_t diode_natural_gt_0 = 0x0;
+        uint32_t diode_natural_lt_0 = 0x0;
+        uint32_t diode_next_lt_0 = 0x0;
+        uint32_t diode_next_gt_0 = 0x0;
+        uint32_t  switch_diode_state_old = switch_diode_state;
         for(uint32_t k = 0; k < BUFFER_SIZE_OF_C1_DSW_MAT_RES/ 16; k+=16 ){
+            // first 5 is the impulse
 
-            bool impulse_is_positive = C1_DSW_mat_res[k*3] > 0;
-            bool diode_natural_is_positive = C1_DSW_mat_res[k*3+1] >0 ;
-            bool diode_next_is_positive =  C1_DSW_mat_res[k*3+2] > 0;
-            
-            bool  impulse_is_negative = C1_DSW_mat_res[k*3] < 0;
-            bool diode_natural_is_negative = C1_DSW_mat_res[k*3+1] <0 ;
-            bool diode_next_is_negative =  C1_DSW_mat_res[k*3+2] < 0;
+            // next 5 is the diode's natural
 
+            // last 5 is the diode's diode_next
+            uint32_t gt_res =mask_greater_than_zero(&(C1_DSW_mat_res[k]));
+            uint32_t lt_res = mask_less_than_zero(&(C1_DSW_mat_res[k]));
 
-            if(k%2 == 0){
-                //MSB 16 bit
-                mask_res[mask_res_ind]=  mask_greater_than_zero(&(C1_DSW_mat_res[k])) & 0x0000FFFF;
-                mask_res[mask_res_ind+3]=  mask_less_than_zero(&(C1_DSW_mat_res[k])) & 0x0000FFFF;
+            uint32_t iteration_bit_shift = 5*k;
 
+            diode_impulse_gt_0 |=  (gt_res&impulse_mask)<< iteration_bit_shift;
+            diode_impulse_lt_0 |=  (lt_res&impulse_mask)<< iteration_bit_shift;
 
-            }else if(k %2 != 0){
-                mask_res[mask_res_ind]=  mask_greater_than_zero(&(C1_DSW_mat_res[k]))<<16 ;
-                mask_res[mask_res_ind+3]=  mask_less_than_zero(&(C1_DSW_mat_res[k])) <<16;
-                mask_res_ind ++;
-            }
+            diode_natural_gt_0 |=  (((gt_res&natural_mask) >> 5) &0x1F)  << iteration_bit_shift;
+            diode_natural_lt_0 |=  (((lt_res&natural_mask) >> 5) &0x1F)<< iteration_bit_shift;
+
+            diode_next_gt_0 |= (((gt_res&diode_next_mask) >> 10) &0x1F) << iteration_bit_shift;
+            diode_next_lt_0 |= (((lt_res&diode_next_mask) >>10) & 0x1F) << iteration_bit_shift;
         }
-        // now, step through 
-        diode_change = diode_toggle_update<32, 6>( switch_diode_state, mask_res,externalSwitchToggled  );
+
+        // // okay, now to bit masking to determine diode toggling and stuff son on
+        // uint32_t external_switch_toggled_bits = externalSwitchToggled ? ~0u : 0u;
+        // uint32_t  diode_state_only= switch_diode_state & ((1U << DIODE_SIZE) - 1); // assume bits from MSB->LSB is switchState, then DiodeState;
+        //                                                                             // for example, S1, S2, D1, D2
+    
+        // // now bitwise logic for doing
+        // uint32_t impulse_on_force = (external_switch_toggled_bits&diode_impulse_gt_0);
+        // uint32_t impulse_off_force = (external_switch_toggled_bits&diode_impulse_lt_0);
+
+        // uint32_t diode_off_to_on_soft = (~diode_state_only) & diode_natural_gt_0 & diode_next_gt_0;
+        // uint32_t diode_on_to_off_soft = (diode_state_only) & diode_natural_lt_0 & diode_next_lt_0;
+
+        // uint32_t diode_toggle_to_on = impulse_on_force | diode_off_to_on_soft;
+        // uint32_t diode_toggle_to_off = impulse_off_force | diode_on_to_off_soft;
+
+        // // do a sanity check first
+        // assert(( diode_toggle_to_on & diode_toggle_to_off) == 0);
+
+        // constexpr uint32_t DIODE_MASK = (1u << DIODE_SIZE) - 1;
+        // // simply XOR the bits to set the diode state in switch_diode_state
+        // switch_diode_state ^= ( (diode_toggle_to_on | diode_toggle_to_off) & DIODE_MASK );
+
+
+        // diode_change = (switch_diode_state != switch_diode_state_old );
+
+        // if( (diode_change != debug_diode_change) || (switch_diode_state_debug != switch_diode_state)){
+        //     std::cout << "different at iteration i " << i <<std::endl;
+        //     assert(false);
+        // }
+
+        diode_change  =diode_toggle_update2(
+            externalSwitchToggled, switch_diode_state,
+            diode_impulse_gt_0, diode_impulse_lt_0,
+            diode_natural_gt_0, diode_natural_lt_0,
+            diode_next_gt_0, diode_next_lt_0
+        );
+    
 
         if(printDebug){
             std::cout <<"diode change: " <<diode_change << std::endl;
@@ -289,7 +342,7 @@ void iteration(   float* C1_DSW_buffer, float*ABCD_buffer, float*input_buffers, 
         }
         
         // writing stuff back for debugging purpose
-        memcpy(  C1_res_mask_Buffer+i*6, mask_res, 6*sizeof(uint32_t));
+        // memcpy(  C1_res_mask_Buffer+i*6, mask_res, 6*sizeof(uint32_t));
         *switch_diode_state_buffer_after_iteration++  = switch_diode_state;
 
     
@@ -418,14 +471,47 @@ MatrixRowMajor formC1DSWMatrix(SwitchCaseData &data)
 
 
     uint32_t diod_ind = 0;
-    for(auto r = 0; r < 3*DIODE_SIZE; r+= 3){
+    // for(auto r = 0; r < 3*DIODE_SIZE; r+= 3){
         
-        C1_DSWMatrix.block(r,    0,  1, STATE_SIZE+U_SIZE) = data.C1_DSW.row( diod_ind   );
-        C1_DSWMatrix.block(r+1,    0,  1, STATE_SIZE+U_SIZE) = data.C1_DSW.row( diod_ind + DIODE_SIZE   );
-        C1_DSWMatrix.block(r+2,    0,  1, STATE_SIZE+U_SIZE) = data.C1_DSW.row( diod_ind + DIODE_SIZE*2   );
+    //     C1_DSWMatrix.block(r,    0,  1, STATE_SIZE+U_SIZE) = data.C1_DSW.row( diod_ind   );
+    //     C1_DSWMatrix.block(r+1,    0,  1, STATE_SIZE+U_SIZE) = data.C1_DSW.row( diod_ind + DIODE_SIZE   );
+    //     C1_DSWMatrix.block(r+2,    0,  1, STATE_SIZE+U_SIZE) = data.C1_DSW.row( diod_ind + DIODE_SIZE*2   );
 
-        diod_ind ++;
-    } 
+    //     diod_ind ++;
+    // } 
+
+    //since 16/3 = 5 with remainder 1
+    //Thus, for each 16 rows, it contains the Impulse, natural, diode_next of 5 diode with data arranged as
+
+    // first 5 rows (Impulse of 5 diode)
+    // second 5 rows (natural of 5 diode)
+    // third 5 rows (diode_next of 5 diode)
+
+
+    // in order to be consistent with diode order in tue externalSwitchDiodeState representation MSB -> LSB is Switch -> DIODE: EX s1, s2 D1, D2
+    // row0, 5, 15 is diode 2 in thie case
+    //row 1, 6, 16, is diode 1 in this case. In other words, transform it in reverse order 
+
+    static_assert(  C1_DSW_ROW_SIZE/3 >= DIODE_SIZE);
+
+    for(auto row = 0; row < C1_DSW_ROW_SIZE; row+=16){
+        for(auto diode_count = 0; diode_count < 5; diode_count ++){
+            if(diod_ind ==DIODE_SIZE){
+                break; // no more diode available
+            }    
+            else{
+                uint32_t row_offset = (  (DIODE_SIZE-diod_ind-1) /5)*16 + ((DIODE_SIZE-diod_ind-1) %5); // -1 because diod_ind start from 0
+                C1_DSWMatrix.block(row_offset, 0, 1, STATE_SIZE+U_SIZE) = data.C1_DSW.row( diod_ind );
+                C1_DSWMatrix.block(row_offset+5, 0, 1, STATE_SIZE+U_SIZE) = data.C1_DSW.row( diod_ind + DIODE_SIZE);
+                C1_DSWMatrix.block(row_offset+10, 0, 1, STATE_SIZE+U_SIZE) = data.C1_DSW.row( diod_ind + DIODE_SIZE*2);                
+                diod_ind ++;
+
+            }
+
+        }
+
+    }
+
 
     return C1_DSWMatrix;
 }

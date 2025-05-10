@@ -148,19 +148,36 @@ void mult_with_C1_DSW(float *C1_DSW_mat, aie::vector<float, 16> *x_u_cur, uint32
             C1_DSW_mat, x_u_cur, C1_DSW_temp
         );
 
-        aie::mask<16> lt_res = aie::lt< aie::vector<float, 16> , float>(  C1_DSW_temp ,0);
-        aie::mask<16> gt_res = aie::gt< aie::vector<float, 16> , float>(  C1_DSW_temp ,0);
+        aie::mask<16> lt_res_mask = aie::lt< aie::vector<float, 16> , float>(  C1_DSW_temp ,0);
+        aie::mask<16> gt_res_mask = aie::gt< aie::vector<float, 16> , float>(  C1_DSW_temp ,0);
 
-        if(row %2 == 0){
-            c1_res_mask[c1_res_offset]=  gt_res.to_uint32() & 0x0000FFFF;
-            c1_res_mask[c1_res_offset+3]=  lt_res.to_uint32() & 0x0000FFFF;
+        // if(row %2 == 0){
+        //     c1_res_mask[c1_res_offset]=  gt_res.to_uint32() & 0x0000FFFF;
+        //     c1_res_mask[c1_res_offset+3]=  lt_res.to_uint32() & 0x0000FFFF;
 
 
-        }else{
-            c1_res_mask[c1_res_offset]=  gt_res.to_uint32()  <<16;
-            c1_res_mask[c1_res_offset+3]=  lt_res.to_uint32() <<16;
-            c1_res_offset ++;
-        }
+        // }else{
+        //     c1_res_mask[c1_res_offset]=  gt_res.to_uint32()  <<16;
+        //     c1_res_mask[c1_res_offset+3]=  lt_res.to_uint32() <<16;
+        //     c1_res_offset ++;
+        // }
+
+        uint32_t impulse_mask = 0b11111;
+        uint32_t natural_mask = impulse_mask<<5;
+        uint32_t diode_next_mask  = natural_mask<< 5;
+        
+        uint32_t gt_res = gt_res_mask.to_uint32() & 0x0000FFFF;
+        uint32_t lt_res = lt_res_mask.to_uint32() & 0x0000FFFF;
+        uint32_t iteration_bit_shift = 5*row;
+
+        c1_res_mask[0] |=  (gt_res&impulse_mask)<< iteration_bit_shift;
+        c1_res_mask[1] |=  (lt_res&impulse_mask)<< iteration_bit_shift;
+
+        c1_res_mask[2] |=  (((gt_res&natural_mask) >> 5) &0x1F)  << iteration_bit_shift;
+        c1_res_mask[3] |=  (((lt_res&natural_mask) >> 5) &0x1F)<< iteration_bit_shift;
+
+        c1_res_mask[4] |= (((gt_res&diode_next_mask) >> 10) &0x1F) << iteration_bit_shift;
+        c1_res_mask[5] |= (((lt_res&diode_next_mask) >>10) & 0x1F) << iteration_bit_shift;
     }
 
 }
@@ -504,10 +521,15 @@ void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur,
         );
         event0();
 
-        bool diode_change = diode_toggle_update<MAX_SW_DIODE_SIZE, 6> (externalSwitchDiodeState,
-            C1_Mask_Res, external_switch_toggled
+        // bool diode_change = diode_toggle_update<MAX_SW_DIODE_SIZE, 6> (externalSwitchDiodeState,
+        //     C1_Mask_Res, external_switch_toggled
+        // );
+        bool diode_change = diode_toggle_update2(
+            external_switch_toggled, externalSwitchDiodeState, 
+            C1_Mask_Res[0], C1_Mask_Res[1],
+            C1_Mask_Res[2], C1_Mask_Res[3],
+            C1_Mask_Res[4], C1_Mask_Res[5]
         );
-
         event0();
         float *ABCD_ptr = retrieveMatrixOFfsetBaseOnState(externalSwitchDiodeState,A_B_C_D_MATRIX_SIZE  ,ABCD_buffer);
         // for performance reason, use the version below for now?  TODO: error if run out of registers?
