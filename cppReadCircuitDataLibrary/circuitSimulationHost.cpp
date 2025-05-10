@@ -98,9 +98,24 @@ void iteration(   float* C1_DSW_buffer, float*ABCD_buffer, float*input_buffers, 
 ){
 
 
-    float x_and_u_cur[BUFFER_SIZE_OF_CUR_X_U] = {0};
-    float C1_DSW_mat_res[BUFFER_SIZE_OF_C1_DSW_MAT_RES] = {0};
-    float ABCD_mat_res[BUFFER_SIZE_OF_A_B_C_D_MAT_RES] = {0};
+    // float x_and_u_cur[BUFFER_SIZE_OF_CUR_X_U] = {0};
+    // float C1_DSW_mat_res[BUFFER_SIZE_OF_C1_DSW_MAT_RES] = {0};
+    // float ABCD_mat_res[BUFFER_SIZE_OF_A_B_C_D_MAT_RES] = {0};
+    // Zero-initialized heap allocations
+    float* x_and_u_cur = (float*) calloc(BUFFER_SIZE_OF_CUR_X_U, sizeof(float));
+    float* C1_DSW_mat_res = (float*) calloc(BUFFER_SIZE_OF_C1_DSW_MAT_RES, sizeof(float));
+    float* ABCD_mat_res = (float*) calloc(BUFFER_SIZE_OF_A_B_C_D_MAT_RES, sizeof(float));
+
+    // Check allocation success
+    if (!x_and_u_cur || !C1_DSW_mat_res || !ABCD_mat_res) {
+        fprintf(stderr, "Memory allocation failed\n");
+        exit(EXIT_FAILURE);
+    }else{
+        std::cout << "begint of iteration" << std::endl;
+    }
+
+
+
     uint32_t switch_diode_state = 0x0;
     for(uint32_t i = 0; i < ITERATION_STEP_NUMBER; i++ ){
 
@@ -365,12 +380,13 @@ void prepareDataForIteration(const char*fileName,   CircuitData &dataFromFile,  
     uint32_t input_buffers_init_offset = 0;
     uint32_t C1_DSW_buffer_init_offset = 0;
     for (uint32_t i = 0; i < TOTAL_SWITCH_DIODE_STATE; i++)
-    {
-
+    {   
+        // std::cout <<"iteration i: " << i <<std::endl;
         auto mat = formC1DSWMatrix(dataFromFile.switch_cases[i]);
         std::memcpy(C1_DSW_Buffer + C1_DSW_buffer_init_offset, mat.data(), mat.size() * sizeof(float));
         C1_DSW_buffer_init_offset += mat.size();
         assert(mat.size() == C1_DSW_MATRIX_SIZE);
+        // std::cout <<"iteration i: finished" << i <<std::endl;
     }
     for (uint32_t i = 0; i < TOTAL_SWITCH_DIODE_STATE; i++)
     {   
@@ -469,7 +485,10 @@ MatrixRowMajor formC1DSWMatrix(SwitchCaseData &data)
 
     // C1_DSWMatrix.block( 0,0,  3*DIODE_SIZE,  (STATE_SIZE + U_SIZE)  ) = data.C1_DSW;
 
+    uint32_t C1_DSW_row_size = data.C1_DSW.rows();
+    uint32_t C1_DSW_col_size = data.C1_DSW.cols();
 
+    // std::cout << "C1_DSW_dimensionts cols: " << C1_DSW_col_size << " rows: " << C1_DSW_row_size<< std::endl;
     uint32_t diod_ind = 0;
     // for(auto r = 0; r < 3*DIODE_SIZE; r+= 3){
         

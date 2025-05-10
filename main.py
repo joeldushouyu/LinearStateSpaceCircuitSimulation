@@ -270,7 +270,7 @@ netList = [
 
 
 
-def simulation_main(netList:list[str], end_sim_t:float,  data_output_filename:str,   switch_frequency:float,  iteration_frequency=None ):
+def simulation_main(netList:list[str], end_sim_t:float,  data_output_filename:str,   switch_frequency:float,  iteration_frequency=None, cache_file=None):
 
     network_matrix = system_realization(netList,supress)
 
@@ -339,7 +339,7 @@ def simulation_main(netList:list[str], end_sim_t:float,  data_output_filename:st
 
 
     system_clock_module.update_list_of_node_module(   [state_space_module, oversample_module]  + voltage_current_modules + external_switch_modules)
-
+    state_space_module.cache_file = cache_file
     step_size = system_clock_module.start_simuation(end_sim_t)
 
     state_space_module.plot_output_graph(outputfile_name= data_output_filename )
@@ -659,8 +659,134 @@ def full_bridge_llc():
                         y_label= lab
                         )
 
+
+
+def boost_pfc_half_bridge_llc():
+    switch_frequency = 50e3
+    duty_cycle = 0.5
+    end_sim_t = 0.3
+    netList = [
+        "VAC, Nsource, 0, 156, 50",
+        "Rvac, Nsource, Nrs_lf, 100",
+        "Lf, Nrs_lf, Nlf_cf, 330e-6",
+        "Cf, Nlf_cf, 0, 3e-6",
+        "VMCF, Nlf_cf, 0",
+        # diode A
+        "AMDpa, Nlf_cf, NDpa_a",
+        "VMDpa, NDpa_a, ND_lp",
+        # "CDpa, NDpa_a, ND_lp, 9e-12",
+        "Dpa, NDpa_a, ND_lp, OFF, VMDpa, AMDpa",
+        
+        #diode B
+        "AMDpb, NDd_b, NDpb_a",
+        "VMDpb, NDpb_a, 0",
+        # "CDpb, NDpb_a, 0, 9e-12",        
+        "Dpb, NDpb_a, 0, OFF, VMDpb, AMDpb",
+        
+        #Diode C
+        "AMDpc, 0, NDpc_a",
+        "VMDpc, NDpc_a, ND_lp",
+        # "CDpc, NDpc_a, ND_lp, 9e-12",          
+        "Dpc, NDpc_a, ND_lp, OFF, VMDpc, AMDpc",
+        
+        #Diode D
+        "AMDpd, NDd_b, NDpd_a",
+        "VMDpd, NDpd_a, Nlf_cf",
+        # "CDpd, NDpd_a, Nlf_cf, 9e-12",        
+        "Dpd, NDpd_a, Nlf_cf, OFF, VMDpd, AMDpd",
+        
+        "Lp1, ND_lp, NDP1_a, 90e-6",
+        "Lp2, ND_lp, NDP2_a, 90e-6",
+        
+        # S1 and S2
+        f"S1, NDP1_a, NDd_b, ON, {switch_frequency}, {duty_cycle}, 0.0",
+        # "CS1, NDP1_a, NDd_b, 1e-6",
+        f"S2, NDP2_a, NDd_b, OFF, {switch_frequency}, {duty_cycle}, 0.0",
+        # "CS2, NDP2_a, NDd_b, 1e-6",
+        #Dp1
+        "AMDP1, NDP1_a, NDP1_n",
+        "VMDP1, NDP1_n, NCP1",
+        "DP1, NDP1_n, NCP1, OFF, VMDP1, AMDP1",
+        # "CDP1, NDP1_n, NCP1, 9e-12",  #TODO: do it for all>
+        #Dp2
+        "AMDP2, NDP2_a, NDP2_n",
+        "VMDP2, NDP2_n, NCP1",
+        "DP2, NDP2_n, NCP1, OFF, VMDP2, AMDP2",
+        # "CDP2, NDP2_n, NCP1, 9e-12",
+        
+        "CP1, NCP1, NDd_b, 880e-6",
+        # "RCp1, NCP1, NDd_b, 100",
+        "VMCP1, NCP1, NDd_b",
+
+        f"S3, NCP1, NS3_S4,  ON, {switch_frequency}, {duty_cycle}, 0.0",
+        # "CS3, NCP1, NS3_S4, 1e-6",
+        f"S4, NS3_S4, NDd_b, OFF, {switch_frequency}, {duty_cycle}, 0.0",
+        # "CS4, NS3_S4, NDd_b, 1e-6",
+        "Lr, NS3_S4, Nlr_cr, 74e-6",
+        "Cr, Nlr_cr, Nlmr1, 169e-9",
+        "Lmr1, Nlmr1, NDd_b, 400e-6, [Lmr2, Lmr3], [0.99, 0.99]",
+
+        "Lmr2, NLmr2, 0, 200e-6, [Lmr1, Lmr3], [0.99, 0.99]",
+        "AMDsa, NLmr2, NDSA_N",
+        "VMDsa, NDSA_N, NDSA_SB",
+        "DSa, NDSA_N, NDSA_SB, OFF, VMDsa, AMDsa",
+        "CDSA, NDSA_N, NDSA_SB, 12e-9",  # Add for numerical stability of final result
+        
+        "Lmr3, 0, NLmr3, 200e-6, [Lmr1, Lmr2], [0.99, 0.99]",
+        "AMDsb, NLmr3, NDSB_N",
+        "VMDsb, NDSB_N, NDSA_SB",
+        "DSb, NDSB_N, NDSA_SB, OFF, VMDsb, AMDsb",
+        "CDSV, NDSB_N, NDSA_SB, 12e-9",  # Add for numerical stability of final result
+        
+        "Routput, NDSA_SB, NCs1, 1",
+        "Cs1, NCs1, 0, 40e-6",
+        "Rcs1, NCs1, 0, 10",
+        "VMout, NCs1, 0",
+        
+
+        # f"S3, NCP1, NSW, ON, {switch_frequency}, {duty_cycle}, 0.0",
+        # f"S4, NSW, NDd_b, OFF, {switch_frequency}, {duty_cycle}, 0.0",
+
+        # "AML1, NSW, NR",
+        
+        # "Lr, NR, NLR, 74e-6",
+        # "Cr, NLR, NC, 169e-9",
+        
+        # "LS0, NC, NDd_b, 400e-6, [LS1, LS2], [0.99, 0.99]",
+        # "VMp, NC, NDd_b",
+        
+        # "LS1, N3, 0, 200e-6, [LS0, LS2], [0.99, 0.99]",
+        # "AMDsa, N3, N3AM",
+        # "VMDsa, N3AM, N5",
+        # "DSa, N3AM, N5, OFF, VMDsa, AMDsa",
+        # "CD1, N3AM, N5, 9e-9",
+        # "VMS1, N3, 0",
+
+        
+        # "LS2, 0, N4, 200e-6, [LS0, LS1], [0.99, 0.99]",
+        # "AMDsb, N4, N4AM",
+        # "VMDsb, N4AM, N5",
+        # "DSb, N4AM, N5, OFF, VMDsb, AMDsb",
+        # "CD2, N4AM, N5, 9e-9",
+        # "VMS2, N4, 0",
+
+
+        # "Routput, N5, N6, 1",
+        # "C2, N6, 0, 40e-6",
+        # "Rout, N6, 0, 10",
+        # "VMout, N6, 0",
+        
+            
+    ]    
     
+    sim_20 = "csv_data/Boost_Half_Bridge_LLC.csv"
+    # cache_file = "./LinearStateSpaceCircuitSimulation/Metadata.h5_cache"
+    # cache_file = "Metadata.h5"
+    cache_file = None
+    simulation_main(netList, end_sim_t, sim_20, switch_frequency, switch_frequency*20, cache_file )
+    
+boost_pfc_half_bridge_llc()
 # buck()    
 # boost()
-half_brodge_llc()
+#half_brodge_llc()
 # full_bridge_llc()

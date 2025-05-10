@@ -17,7 +17,8 @@ dependencies = [
     "numba (>=0.61.0,<0.62.0)",
     "h5py (>=3.9.0,<4.0.0)",
     "pyqt6 (>=6.9.0,<7.0.0)",
-    "pyeda (>=0.29.0,<0.30.0)"
+    "pyeda (>=0.29.0,<0.30.0)",
+    "progress (>=1.6,<2.0)"
 ]
 [tool.poetry]
 package-mode = false

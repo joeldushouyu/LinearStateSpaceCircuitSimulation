@@ -36,6 +36,7 @@ from plotly.subplots import make_subplots
 import csv
 import warnings
 import h5py
+from progress.bar import Bar
 @total_ordering
 class SimulationModule:
     def __init__(self):
@@ -87,19 +88,21 @@ class SystemClockSimulationModule:
         )
 
         
-        # now, regular clock
-        for step in range( stop_step_size):
-            
-
-            
-            self.system_clock_message.set_time(step * (1 / self.system_clock_frequency))
-            for level in self.module_level_depend_map.keys():
-                self.system_clock_message.message_manager.publish_message(level)
-                #TODO: invoke module calculation
+        with Bar('Processing', max=stop_step_size) as bar:
+            # now, regular clock
+            for step in range( stop_step_size):
                 
-                for mod in self.module_level_depend_map[level]:
-                    mod.publish()
-        return stop_step_size
+
+                
+                self.system_clock_message.set_time(step * (1 / self.system_clock_frequency))
+                for level in self.module_level_depend_map.keys():
+                    self.system_clock_message.message_manager.publish_message(level)
+                    #TODO: invoke module calculation
+                    
+                    for mod in self.module_level_depend_map[level]:
+                        mod.publish()
+                bar.next()
+            return stop_step_size
 
 
 class VoltageCurrentSimulationModule(SimulationModule):
@@ -366,6 +369,8 @@ class StateSpaceSimulationModule(SimulationModule):
         self.u_record :  dict[str:list[float]] = {}
         self.switch_record :dict[str:list[bool]] = {}
         self.switch_diode_status_record:dict[str:list[int]] = {}
+        
+        self.cache_file:str|None = None
         self.initialize_data()
     
     def generate_M_cache_key(self,key_list:list[bool|int], value_type="" )->str:
@@ -436,18 +441,46 @@ class StateSpaceSimulationModule(SimulationModule):
         current_switch_states = self.switch_state.copy()
         total_switch_case = 2**(self.network_matrix.s_labels_size)
         
-        
-        for case in range(total_switch_case):
-            bool_states, _ = int_to_binary_list(case, self.network_matrix.s_labels_size)
-            # now, go ahead and    
-            self.swap_difference(bool_states)
-            
-        # now, swap back to initial states 
+        if self.cache_file is None:
+            for case in range(total_switch_case):
+                bool_states, _ = int_to_binary_list(case, self.network_matrix.s_labels_size)
+                # now, go ahead and    
+                self.swap_difference(bool_states)
+                
+                if(case % 500 == 0):
+                    print(case)
+            # now, swap back to initial states 
+        else:
+            self._load_M_cache_from_file(self.cache_file)
         self.swap_difference(current_switch_states)
         
         assert [ x== y for x,y in zip(current_switch_states, self.switch_state)]
     
-    
+    def _load_M_cache_from_file(self, file_path: str):
+        """
+        Load precomputed switch-case matrices from an HDF5 cache file into self.M_cache,
+        converting binary-string keys into T/F streams (e.g., '10101' -> 'TFTFT').
+
+        Parameters:
+        - file_path (str): Path to an HDF5 file created by save_iterative_matrix_to_file().
+        """
+        import h5py
+        import numpy as np
+        with h5py.File(file_path, 'r') as f:
+            for raw_key in f.keys():
+                # Skip metadata and other non-case groups
+                if raw_key in ('metadata', 'json_data', 'input_data', 'state', 'switches'):
+                    continue
+                grp = f[raw_key]
+                # Convert binary-string key to T/F stream
+                tf_key = ''.join('T' if bit == '1' else 'F' for bit in raw_key)
+                # Read the two saved matrices and cast to float32
+                c1 = np.array(grp['C1_DSW'][()], dtype=np.float32)
+                ab = np.array(grp['A_B_C_D_nonimp_C_D_imp'][()], dtype=np.float32)
+                # Store in cache under the T/F-key
+                self.M_cache[tf_key] = [c1, ab]
+
+                
     def save_iterative_matrix_to_file(self, file_path, end_simulation_time:float, iteration_step_number:int):
         
         
@@ -649,7 +682,7 @@ class StateSpaceSimulationModule(SimulationModule):
                 redundant_offset=self.network_matrix.redundant_size
             )
             
-            self.forced_switch_mapping = self.force_triggered_events()
+            # self.forced_switch_mapping = self.force_triggered_events()
             
             
             # filter out inconsistent labels from y _labels
@@ -735,8 +768,8 @@ class StateSpaceSimulationModule(SimulationModule):
             self.C = sp.matrix2numpy(self.C.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             self.D = sp.matrix2numpy(self.D.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             self.C1 = sp.matrix2numpy(self.C1.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
-            self.solver_zero_input_res, self.solver_zero_state_res = get_pade_03_integeration(self.A, self.B, 1/self.iteration_frequency)
-            #self.solver_zero_input_res, self.solver_zero_state_res = get_pade_0_2_matrix(self.A, self.B, 1/self.iteration_frequency)
+            #self.solver_zero_input_res, self.solver_zero_state_res = get_pade_03_integeration(self.A, self.B, 1/self.iteration_frequency)
+            self.solver_zero_input_res, self.solver_zero_state_res = get_pade_0_2_matrix(self.A, self.B, 1/self.iteration_frequency)
             #self.solver_zero_input_res, self.solver_zero_state_res = get_trapezoid_integration(self.A, self.B, 1/self.iteration_frequency)   
             # self.solver_zero_input_res, self.solver_zero_state_res = get_tustin_integration(self.A, self.B, 1/self.iteration_frequency)    
             # self.solver_zero_input_res, self.solver_zero_state_res = get_radau_integration(self.A, self.B, 1/self.iteration_frequency)         
@@ -795,45 +828,50 @@ class StateSpaceSimulationModule(SimulationModule):
             
         else:
             cache_Data = self.M_cache[key]
-            self.network_matrix.M = cache_Data[0].copy()
-            self.C1 = cache_Data[1].copy()
-            self.C = cache_Data[2].copy()
-            self.D = cache_Data[3].copy()
-            self.M0 = cache_Data[4].copy()
-            self.A = cache_Data[5].copy()
-            self.B = cache_Data[6].copy()
+            
+            if self.cache_file is None:
+                self.network_matrix.M = cache_Data[0].copy()
+                self.C1 = cache_Data[1].copy()
+                self.C = cache_Data[2].copy()
+                self.D = cache_Data[3].copy()
+                self.M0 = cache_Data[4].copy()
+                self.A = cache_Data[5].copy()
+                self.B = cache_Data[6].copy()
 
-            self.y_dep_labels = cache_Data[7].copy()
-            self.A_dependent = cache_Data[8].copy()
-            self.B_dependent = cache_Data[9].copy()
+                self.y_dep_labels = cache_Data[7].copy()
+                self.A_dependent = cache_Data[8].copy()
+                self.B_dependent = cache_Data[9].copy()
 
-            self.forced_switch_mapping = cache_Data[10].copy()
-            self.C_impulse = cache_Data[11].copy()
-            self.C_non_impulse = cache_Data[12].copy()
-            self.D_impulse = cache_Data[13].copy()
-            self.D_non_impulse = cache_Data[14].copy()
+                self.forced_switch_mapping = cache_Data[10].copy()
+                self.C_impulse = cache_Data[11].copy()
+                self.C_non_impulse = cache_Data[12].copy()
+                self.D_impulse = cache_Data[13].copy()
+                self.D_non_impulse = cache_Data[14].copy()
 
 
-            self.Q = cache_Data[15].copy()
-            self.independent_state_labels = cache_Data[16].copy()
-            self.dependent_state_labels = cache_Data[17].copy()
-            self.solver_zero_input_res = cache_Data[18].copy()
-            self.solver_zero_state_res = cache_Data[19].copy()
-            self.diode_index_y_index_mapping = cache_Data[20].copy()
-            self.C1_diode_sw = cache_Data[21].copy()
-            self.C_diode_sw = cache_Data[22].copy()
-            self.D_diode_sw = cache_Data[23].copy()
-            self.C_mult_A = cache_Data[24].copy()
-            self.C_mult_B = cache_Data[25].copy()
-            self.C_diode_impulse_sw = cache_Data[26].copy()
-            self.C_diode_natural_sw = cache_Data[27].copy()
-            self.D_diode_natural_sw = cache_Data[28].copy()
-            self.C_diode_explicit_der_mult_delta_t_sw = cache_Data[29].copy()
-            self.D_diode_explicit_der_mult_delta_t_sw = cache_Data[30].copy()
-            self.x_next_with_dep_A = cache_Data[31].copy()
-            self.X_next_with_dep_B = cache_Data[32].copy()
-            self.C1_DSW = cache_Data[33].copy()
-            self.A_B_C_D_nonimp_C_D_imp = cache_Data[34].copy()
+                self.Q = cache_Data[15].copy()
+                self.independent_state_labels = cache_Data[16].copy()
+                self.dependent_state_labels = cache_Data[17].copy()
+                self.solver_zero_input_res = cache_Data[18].copy()
+                self.solver_zero_state_res = cache_Data[19].copy()
+                self.diode_index_y_index_mapping = cache_Data[20].copy()
+                self.C1_diode_sw = cache_Data[21].copy()
+                self.C_diode_sw = cache_Data[22].copy()
+                self.D_diode_sw = cache_Data[23].copy()
+                self.C_mult_A = cache_Data[24].copy()
+                self.C_mult_B = cache_Data[25].copy()
+                self.C_diode_impulse_sw = cache_Data[26].copy()
+                self.C_diode_natural_sw = cache_Data[27].copy()
+                self.D_diode_natural_sw = cache_Data[28].copy()
+                self.C_diode_explicit_der_mult_delta_t_sw = cache_Data[29].copy()
+                self.D_diode_explicit_der_mult_delta_t_sw = cache_Data[30].copy()
+                self.x_next_with_dep_A = cache_Data[31].copy()
+                self.X_next_with_dep_B = cache_Data[32].copy()
+                self.C1_DSW = cache_Data[33].copy()
+                self.A_B_C_D_nonimp_C_D_imp = cache_Data[34].copy()
+            else:
+                self.C1_DSW = cache_Data[0].copy()
+                self.A_B_C_D_nonimp_C_D_imp = cache_Data[1].copy()
 
     def initialize_data(self):
         

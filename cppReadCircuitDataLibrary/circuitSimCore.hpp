@@ -125,7 +125,7 @@ inline bool diode_toggle_update2(bool externalSwitchToggled, uint32_t &switch_di
 
 
 template<uint32_t max_diode_switch_size, uint32_t C1_RES_MASK_SIZE>
-bool diode_toggle_update( uint32_t &switch_diode_state, uint32_t *C1_res_mask, bool externalSwitchToggled ){
+bool diode_toggle_update( uint32_t &switch_diode_state, uint32_t *C1_res_mask, const  bool externalSwitchToggled ){
     static_assert(max_diode_switch_size == 32) ;// for now,assume now more than 32 switch and diode
     static_assert(C1_RES_MASK_SIZE == 6); 
     // given it only support max of 32 switch/diode
