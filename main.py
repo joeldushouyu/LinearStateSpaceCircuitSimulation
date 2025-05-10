@@ -781,8 +781,8 @@ def boost_pfc_half_bridge_llc():
     
     sim_20 = "csv_data/Boost_Half_Bridge_LLC.csv"
     # cache_file = "./LinearStateSpaceCircuitSimulation/Metadata.h5_cache"
-    # cache_file = "Metadata.h5"
-    cache_file = None
+    cache_file = "Metadata_boost_pfc_with_diode_02.h5"
+    # cache_file = None
     simulation_main(netList, end_sim_t, sim_20, switch_frequency, switch_frequency*20, cache_file )
     
 boost_pfc_half_bridge_llc()
