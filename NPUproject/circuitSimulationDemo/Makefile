@@ -88,6 +88,7 @@ LIBS += -lhdf5_cpp -lhdf5
 
 include $(TemplateRepoDir)/makefiles/host.mk
 
+CIRCUT_H5PY ?= Metadata_half_bridge_llc.h5
 
 CXX_HOST_TEST = g++
 CXXFLAGS_HOST_TEST = -std=c++17 -Wall -O2
@@ -122,7 +123,7 @@ clean:clean_test
 	-@rm -rf route*.txt
 	-@rm -f $(TARGET_HOST_TEST)
 	-@rm -f ./iron/final_config.json
-	-@rm -f  ./Metadata.h5
+	-@rm -f  ./Metadata.h5 	 
 	-@rm -f ./host/circuitConfig.hpp
 	-@rm -f ./kernel/circuitConfig.hpp
 	-@rm -f ${COPIED_HEADERS_IN_HOST}
@@ -133,7 +134,7 @@ clean:clean_test
 config_stage:
 	${clean}
 	cp -f ${CPP_REFERENCE_DIR}/final_config.json ./iron/final_config.json
-	cp -f ${PYTHO_DIR}/Metadata.h5 	     ./Metadata.h5
+	cp -f ${PYTHO_DIR}/$(CIRCUT_H5PY) 	     ./Metadata.h5 	  
 	cp -f ${CPP_REFERENCE_DIR}/circuitConfig.hpp  ./host/circuitConfig.hpp
 	cp -f ${CPP_REFERENCE_DIR}/circuitConfig.hpp  ./kernel/circuitConfig.hpp
 	cp -f ${CPP_FILES_TO_COPY} ./host/
