@@ -69,7 +69,7 @@ int main(int argc, const char *argv[]) {
 
     buffer<int32_t> seq_0 = accel_desc_0.instr_seq.to_bo().cast_to<int32_t>();
     buffer<dtype_in> matrix_in = npu_instance.create_bo_buffer<dtype_in>(in_size, 3, app_id_0);
-    buffer<dtype_out> matrix_out_col_major = npu_instance.create_bo_buffer<dtype_out>(in_size, 4, app_id_0);
+    buffer<dtype_out> debug_buffer = npu_instance.create_bo_buffer<dtype_out>(in_size, 4, app_id_0);
     buffer<dtype_in> in_0 = npu_instance.create_bo_buffer<dtype_in>( input_iteration_size, 5, app_id_0);
     buffer<dtype_out> out_0 = npu_instance.create_bo_buffer<dtype_out>(output_iteration_size, 6, app_id_0);
 
@@ -170,7 +170,7 @@ int main(int argc, const char *argv[]) {
 
 
 
-    auto run_0 = npu_instance.create_run(app_id_0, matrix_in.bo(), matrix_out_col_major.bo(), in_0.bo(), out_0.bo(), trace_res.bo() );
+    auto run_0 = npu_instance.create_run(app_id_0, matrix_in.bo(),  debug_buffer.bo(), in_0.bo(), out_0.bo(),   trace_res.bo() );
 
 	
     header_print("info", "Running runtime test.");
@@ -190,7 +190,6 @@ int main(int argc, const char *argv[]) {
     MSG_BOX_LINE(40, "NPU time with bare call: " << npu_time.first << " us");
     MSG_BONDLINE(40);
 
-    matrix_out_col_major.sync_from_device();    
     out_0.sync_from_device();
     if(TRACE_SIZE > 0){
         trace_res.sync_from_device();
@@ -204,7 +203,7 @@ int main(int argc, const char *argv[]) {
 
 
 
-    bool pass = are_results_close(matrix_out_col_major, matrix_out_ref_col, 1e-4f, 1e-3f);
+    bool pass =false; //are_results_close(matrix_out_col_major, matrix_out_ref_col, 1e-4f, 1e-3f);
 
     // // debug_inspect_all(
     // //     matrix_in, matrix_out_col_major, 

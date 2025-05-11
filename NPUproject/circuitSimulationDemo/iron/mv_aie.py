@@ -145,7 +145,6 @@ def single_mat_vect_mult():
         # ComputeTile_0_2 = tile(0,2)        
         # ComputeTile_0_2 = tile(0,2, allocation_scheme="bank-aware")        
         ComputeTile_0_2 = tile(0,2, allocation_scheme="basic-sequential")
-        ComputeTile_1_2 = tile(1,2, allocation_scheme="basic-sequential")
 
         in_data_ty = np.ndarray[ (buffer_size_of_in_ping_pong*2, ), dtype_in]
         out_data_ty = np.ndarray[ (buffer_size_of_out_ping_pong*2, ), dtype_out]
@@ -220,19 +219,6 @@ def single_mat_vect_mult():
 
         assert offset+buffer_size_of_out_ping_pong*2*4 <= (64*1024)  # total of less than 64kB
 
-        # Debug Buffer
-        switch_diode_buffer_debug_out = [
-          buffer_raw(tile=ComputeTile_1_2, buffer=try_convert_np_type_to_mlir_type(switch_diode_matrix_ty), sym_name=f"switch_diode_buffer_debug", address=1024) 
-        ]
-        switch_diode_debug_prod_lock = lock(ComputeTile_1_2, lock_id= 0,init=1, sym_name="switch_diode_debug_prod_lock" )
-        switch_diode_debug_con_lock = lock(ComputeTile_1_2, lock_id=1, init=0, sym_name="switch_diode_debug_con_lock")
-
-        A_B_C_D_debug_buffer = [
-            buffer_raw(tile=ComputeTile_1_2, buffer=try_convert_np_type_to_mlir_type(A_B_C_D_ty), sym_name="A_B_C_D_debug_buffer", address = 1024+ C1_DSW_buffer_size*4 )
-        ]
-        A_B_C_D_debug_prod_lock = lock(ComputeTile_1_2, lock_id=2, init=1)
-        A_B_C_D_debug_con_lock = lock(ComputeTile_1_2, lock_id=3, init=0)        
-        
 
         # strategy to balance out the S2MM workload on two port of CT_0_2
 
@@ -270,25 +256,6 @@ def single_mat_vect_mult():
 
             handle_dma_sequences(block, chain0=chain0, chain1=chain1, chain2=chain2, chain0_start_end=chain0_s_e, chain1_start_end=chain1_s_e, chain2_start_end=chain2_s_e) 
                 
-        @mem(ComputeTile_1_2)
-        def m(block):
-        #   start_block=1
-        #   end_block = total_switch_size+start_block
-            s0 = dma_start(DMAChannelDir.MM2S, 0, dest=block[1], chain=block[3])  
-
-            with block[1]:
-                use_lock(switch_diode_debug_con_lock, LockAction.AcquireGreaterEqual, value=1)
-                dma_bd(switch_diode_buffer_debug_out[0], offset=0, len=C1_DSW_buffer_size, packet=generate_packet_attribute(packet_id=7, packet_type=0))
-                use_lock(switch_diode_debug_prod_lock, LockAction.Release, value=1)
-                next_bd(block[2])
-                
-            with block[2]:
-                use_lock(A_B_C_D_debug_con_lock, LockAction.AcquireGreaterEqual, value=1)
-                dma_bd(A_B_C_D_debug_buffer[0], offset=0, len=A_B_C_D_buffer_size,  packet=generate_packet_attribute(packet_id=7, packet_type=0))
-                use_lock(A_B_C_D_debug_prod_lock, LockAction.Release, value=1)
-                next_bd(block[1])
-            with block[3]:
-                EndOp()
                 
                 
         CT_0_2_main_func = external_func("CT_main", inputs=[
@@ -327,25 +294,7 @@ def single_mat_vect_mult():
         #     )
 
 
-        @core(ComputeTile_1_2, "passThrough.o")
-        def core_body():
-          for _ in range_(sys.maxsize):
 
-            use_lock(switch_diode_debug_prod_lock, LockAction.AcquireGreaterEqual, value=1)
-            use_lock(switch_diode_con_lock, LockAction.AcquireGreaterEqual, value=1)
-            pass_through_float_diode_matrix( switch_diode_buffer[0], switch_diode_buffer_debug_out[0], constant(C1_DSW_buffer_size)    )
-            use_lock(switch_diode_debug_con_lock, LockAction.Release, value=1)
-            use_lock(switch_diode_prod_lock, LockAction.Release, value=1)
-            
-            
-        
-        
-            use_lock(A_B_C_D_debug_prod_lock, LockAction.AcquireGreaterEqual, value=1)
-            use_lock(A_B_C_D_con_lock, LockAction.AcquireGreaterEqual, value=2)  # decrement the lock by 2 after acquire
-            pass_through_float_A_B_C_D_matrix(  A_B_C_D_buffer[0], A_B_C_D_debug_buffer[0], constant(A_B_C_D_buffer_size)  )
-            use_lock(A_B_C_D_prod_lock, LockAction.Release, value=2) # increment the lock by 2 after acquire            
-            use_lock(A_B_C_D_debug_con_lock, LockAction.Release, value=1)
-            
             
         matrix_size =C1_DSW_buffer_size+A_B_C_D_buffer_size
         data_flow_out_size = buffer_size_of_out_ping_pong *ping_pong_buffer_iteration   # lest do 4 multple o f ping-pong size
@@ -362,9 +311,6 @@ def single_mat_vect_mult():
         packetflow( 6, source=ShimTile_0, source_port=WireBundle.DMA, source_channel=0, 
                    dest = ComputeTile_0_2, dest_port=WireBundle.DMA, dest_channel=0
                    )
-        packetflow(7, source=ComputeTile_1_2, source_port=WireBundle.DMA, source_channel=0,
-                   dest = ShimTile_0, dest_port=WireBundle.DMA, dest_channel=0
-                   )
         packetflow(8, source=ShimTile_0, source_port=WireBundle.DMA, source_channel=1,
                    dest=ComputeTile_0_2, dest_port=WireBundle.DMA, dest_channel=1
                    )
@@ -374,10 +320,10 @@ def single_mat_vect_mult():
         
         memref.global_("in_SHM_CT_0_2_0", T.memref( in_0_size, T.f32() ), sym_visibility="public")            
         memref.global_("in_SHM_CT_0_2_1", T.memref(in_1_size, T.f32()), sym_visibility="public")
-        memref.global_("B_CT_1_2_SHM", T.memref( matrix_size, T.f32() ), sym_visibility="public") #DEBUG out
+
         memref.global_("out_CT_0_2_SHM", T.memref( data_flow_out_size, T.f32()), sym_visibility="public" ) # result out
 
-        shim_dma_allocation("B_CT_1_2_SHM", DMAChannelDir.S2MM, 0, 0)
+     
         shim_dma_allocation("in_SHM_CT_0_2_0", DMAChannelDir.MM2S, 0, 0)        
         shim_dma_allocation("out_CT_0_2_SHM", DMAChannelDir.S2MM, 1,0)
         shim_dma_allocation("in_SHM_CT_0_2_1", DMAChannelDir.MM2S, 1, 0 )
@@ -385,7 +331,7 @@ def single_mat_vect_mult():
         @runtime_sequence(np.ndarray[(matrix_size, ), dtype_in], np.ndarray[(matrix_size, ), dtype_out], np.ndarray[(data_flow_in_size,), dtype_in], np.ndarray[(data_flow_out_size,), dtype_out]  )
         def sequence(A,B, in_buf, out_buf):
             # work balance module
-            custom_npu_dma_memcpy_nd(metadata="B_CT_1_2_SHM", bd_id=0, mem=B, offsets=[0,0,0,0],sizes= [1,1,1,matrix_size],strides=[0,0,0,1], issue_token=True)
+
             # transfer the switch_diode_matrix in column major order
             
             custom_npu_dma_memcpy_nd(
@@ -444,7 +390,7 @@ def single_mat_vect_mult():
                         CoreEvent.LOCK_STALL,
                     ],
                 )
-            npu_dma_wait("B_CT_1_2_SHM")
+    
             npu_dma_wait("out_CT_0_2_SHM")
 
 with mlir_mod_ctx() as ctx:
