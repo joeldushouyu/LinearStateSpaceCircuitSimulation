@@ -431,6 +431,7 @@ void mult_with_C_D_aligned_nonimpulse_and_impulse(float *C_D_mat, aie::vector<fl
     AIE_PREPARE_FOR_PIPELINE
     #pragma clang  loop max_iteration_count( num_of_iteration/2)
     for(uint32_t row = 0; row < num_of_iteration/2; row++){
+        event0();
         aie::accum<accfloat, 16> C_D_temp = aie::zeros<accfloat, 16>();
        
         // for(uint32_t col = 0; col <U_SIZE+STATE_SIZE; col++){
@@ -446,6 +447,7 @@ void mult_with_C_D_aligned_nonimpulse_and_impulse(float *C_D_mat, aie::vector<fl
         C_D_mat = mv_16_row_with_STATE_U_SIZE_col_parallel(C_D_mat, x_u_cur, C_D_temp);
 
         C_D_nonimp_res[row] = C_D_temp.template to_vector<float>();
+        event0();        
     }
 
     // another loop that calculdate C_D_impulse result
@@ -453,6 +455,7 @@ void mult_with_C_D_aligned_nonimpulse_and_impulse(float *C_D_mat, aie::vector<fl
     AIE_PREPARE_FOR_PIPELINE
     #pragma clang  loop max_iteration_count( num_of_iteration/2)
     for(uint32_t row = 0; row < num_of_iteration/2; row++){
+        event0();        
         aie::accum<accfloat, 16> C_D_temp = aie::zeros<accfloat, 16>();
 
         // for(uint32_t col = 0; col <U_SIZE+STATE_SIZE; col++){
@@ -474,7 +477,7 @@ void mult_with_C_D_aligned_nonimpulse_and_impulse(float *C_D_mat, aie::vector<fl
         aie::vector<float, 16> res = aie::add(C_D_temp,  C_D_nonimp_res[row] );
         res.store(out);
         out+=16;
-        
+        event0();
     }
 }
 
