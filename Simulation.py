@@ -371,6 +371,7 @@ class StateSpaceSimulationModule(SimulationModule):
         self.switch_diode_status_record:dict[str:list[int]] = {}
         
         self.cache_file:str|None = None
+        self.numberical_integrate_method:int = 0
         self.initialize_data()
     
     def generate_M_cache_key(self,key_list:list[bool|int], value_type="" )->str:
@@ -768,8 +769,12 @@ class StateSpaceSimulationModule(SimulationModule):
             self.C = sp.matrix2numpy(self.C.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             self.D = sp.matrix2numpy(self.D.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             self.C1 = sp.matrix2numpy(self.C1.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
-            #self.solver_zero_input_res, self.solver_zero_state_res = get_pade_03_integeration(self.A, self.B, 1/self.iteration_frequency)
-            self.solver_zero_input_res, self.solver_zero_state_res = get_pade_0_2_matrix(self.A, self.B, 1/self.iteration_frequency)
+            if self.numberical_integrate_method == 0:
+                self.solver_zero_input_res, self.solver_zero_state_res = get_pade_03_integeration(self.A, self.B, 1/self.iteration_frequency)
+            elif self.numberical_integrate_method == 1:
+                self.solver_zero_input_res, self.solver_zero_state_res = get_pade_0_2_matrix(self.A, self.B, 1/self.iteration_frequency)
+            else:
+                raise ValueError("unknown integration method")
             #self.solver_zero_input_res, self.solver_zero_state_res = get_trapezoid_integration(self.A, self.B, 1/self.iteration_frequency)   
             # self.solver_zero_input_res, self.solver_zero_state_res = get_tustin_integration(self.A, self.B, 1/self.iteration_frequency)    
             # self.solver_zero_input_res, self.solver_zero_state_res = get_radau_integration(self.A, self.B, 1/self.iteration_frequency)         

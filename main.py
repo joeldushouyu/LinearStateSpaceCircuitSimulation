@@ -270,7 +270,7 @@ netList = [
 
 
 
-def simulation_main(netList:list[str], end_sim_t:float,  data_output_filename:str,   switch_frequency:float,  iteration_frequency=None, cache_file=None):
+def simulation_main(netList:list[str], end_sim_t:float,  data_output_filename:str,   switch_frequency:float,  iteration_frequency=None, cache_file=None, h5_output_file:str=""):
 
     network_matrix = system_realization(netList,supress)
 
@@ -343,7 +343,7 @@ def simulation_main(netList:list[str], end_sim_t:float,  data_output_filename:st
     step_size = system_clock_module.start_simuation(end_sim_t)
 
     state_space_module.plot_output_graph(outputfile_name= data_output_filename )
-    state_space_module.save_iterative_matrix_to_file("Metadata.h5", end_simulation_time=end_sim_t, iteration_step_number=step_size)
+    state_space_module.save_iterative_matrix_to_file(h5_output_file, end_simulation_time=end_sim_t, iteration_step_number=step_size)
 
 
 
@@ -456,7 +456,7 @@ def half_brodge_llc():
     
     plec_hil_x20 = "csv_data/half-bridge-llc-plec-hilx20.csv"
     plec_hil_x30 = "csv_data/half-bridge-llc-plec-hilx30.csv"
-    simulation_main(netList, end_sim_t, sim_20, switch_frequency, switch_frequency*20 )
+    simulation_main(netList, end_sim_t, sim_20, switch_frequency, switch_frequency*20, h5_output_file="Metadata_half_bridge_llc.h5" )
 
     
     # define the mappings for it
@@ -785,8 +785,8 @@ def boost_pfc_half_bridge_llc():
     # cache_file = None
     simulation_main(netList, end_sim_t, sim_20, switch_frequency, switch_frequency*20, cache_file )
     
-boost_pfc_half_bridge_llc()
+# boost_pfc_half_bridge_llc()
 # buck()    
 # boost()
-#half_brodge_llc()
+half_brodge_llc()
 # full_bridge_llc()
