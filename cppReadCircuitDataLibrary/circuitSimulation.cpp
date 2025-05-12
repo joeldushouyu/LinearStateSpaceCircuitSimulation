@@ -47,12 +47,10 @@ int main(int argc, char *argv[])
     float* C1_DSW_buffer = (float*) malloc(C1_DSW_BUFFER_SIZE * sizeof(float));
     float* ABCD_buffer = (float*) malloc(A_B_C_D_BUFFER_SIZE * sizeof(float));
     float* input_buffers = (float*) malloc(ITERATION_STEP_NUMBER * INPUT_SIZE_PER_ITERATION * sizeof(float));
-    uint32_t* C1_RES_MASK_BUFFER = (uint32_t*) malloc(ITERATION_STEP_NUMBER * 6 * sizeof(uint32_t));
     uint32_t* switch_diode_status_buffer_after_iteration = (uint32_t*) malloc(ITERATION_STEP_NUMBER * sizeof(uint32_t));
 
     // Always check if the allocation succeeded
-    if (!C1_DSW_buffer || !ABCD_buffer || !input_buffers || 
-        !C1_RES_MASK_BUFFER || !switch_diode_status_buffer_after_iteration) {
+    if (!C1_DSW_buffer || !ABCD_buffer || !input_buffers ||  !switch_diode_status_buffer_after_iteration) {
         // Handle allocation failure
         fprintf(stderr, "Memory allocation failed\n");
         exit(EXIT_FAILURE);
@@ -73,7 +71,7 @@ int main(int argc, char *argv[])
     
 
 
-    iteration(C1_DSW_buffer, ABCD_buffer, input_buffers, output_buffer,  dataFromFile.switch_diode_status_record, C1_RES_MASK_BUFFER,switch_diode_status_buffer_after_iteration, false );
+    iteration(C1_DSW_buffer, ABCD_buffer, input_buffers, output_buffer,  dataFromFile.switch_diode_status_record,switch_diode_status_buffer_after_iteration, false );
     
     
     writeDataToCsvFile("hostSim.csv", dataFromFile, output_buffer);

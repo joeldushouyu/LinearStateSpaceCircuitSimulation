@@ -59,65 +59,65 @@ bool are_results_close(
 //         }
 //     }
 // }
-void convertMatrix(
-    const buffer<float> &in,
-    buffer<float> &out,
-    std::size_t in_offset,
-    std::size_t &out_offset,
-    std::int32_t rows,
-    std::int32_t cols
-) {
-    // Iterate over each block of 16 rows
-    for (std::int32_t r_block_start = 0; r_block_start < rows; r_block_start += 16) {
-        // For each column in the matrix
-        for (std::int32_t c = 0; c < cols; ++c) {
-            // Process each row within the current 16-row block
-            for (std::int32_t r_in_block = 0; r_in_block < 16; ++r_in_block) {
-                // Calculate the actual row index in the input matrix
-                std::int32_t r = r_block_start + r_in_block;
-                // Access the input element (row-major) and write to output (column-major with stride 16)
-                out[out_offset++] = in[in_offset + r * cols + c];
-            }
-        }
-    }
-}
-// This function returns a new buffer where each individual matrix
-// has been converted into column-major order.
-buffer<float> transform_to_column_major_order(
-    const buffer<float> &in,
-    std::int32_t switch_size
-) {
-    const std::int32_t m1_rows =  C1_DSW_ROW_SIZE;
-    const std::int32_t m1_cols = C1_DSW_COL_SIZE;
-    const std::int32_t m2_rows = A_B_C_D_ROW_SIZE;
-    const std::int32_t m2_cols = A_B_C_D_COL_SIZE;
+// void convertMatrix(
+//     const buffer<float> &in,
+//     buffer<float> &out,
+//     std::size_t in_offset,
+//     std::size_t &out_offset,
+//     std::int32_t rows,
+//     std::int32_t cols
+// ) {
+//     // Iterate over each block of 16 rows
+//     for (std::int32_t r_block_start = 0; r_block_start < rows; r_block_start += 16) {
+//         // For each column in the matrix
+//         for (std::int32_t c = 0; c < cols; ++c) {
+//             // Process each row within the current 16-row block
+//             for (std::int32_t r_in_block = 0; r_in_block < 16; ++r_in_block) {
+//                 // Calculate the actual row index in the input matrix
+//                 std::int32_t r = r_block_start + r_in_block;
+//                 // Access the input element (row-major) and write to output (column-major with stride 16)
+//                 out[out_offset++] = in[in_offset + r * cols + c];
+//             }
+//         }
+//     }
+// }
+// // This function returns a new buffer where each individual matrix
+// // has been converted into column-major order.
+// buffer<float> transform_to_column_major_order(
+//     const buffer<float> &in,
+//     std::int32_t switch_size
+// ) {
+//     const std::int32_t m1_rows =  C1_DSW_ROW_SIZE;
+//     const std::int32_t m1_cols = C1_DSW_COL_SIZE;
+//     const std::int32_t m2_rows = A_B_C_D_ROW_SIZE;
+//     const std::int32_t m2_cols = A_B_C_D_COL_SIZE;
 
-    const std::size_t mat1_elems = static_cast<std::size_t>(m1_rows) * m1_cols;
-    const std::size_t mat2_elems = static_cast<std::size_t>(m2_rows) * m2_cols;
-    const std::size_t expected_size = static_cast<std::size_t>(switch_size) * (mat1_elems + mat2_elems);
+//     const std::size_t mat1_elems = static_cast<std::size_t>(m1_rows) * m1_cols;
+//     const std::size_t mat2_elems = static_cast<std::size_t>(m2_rows) * m2_cols;
+//     const std::size_t expected_size = static_cast<std::size_t>(switch_size) * (mat1_elems + mat2_elems);
 
-    if (in.size() != expected_size) {
-        throw std::invalid_argument("Input buffer size does not match expected dimensions");
-    }
+//     if (in.size() != expected_size) {
+//         throw std::invalid_argument("Input buffer size does not match expected dimensions");
+//     }
 
-    buffer<float> out(expected_size);
-    std::size_t in_offset = 0;
-    std::size_t out_offset = 0;
+//     buffer<float> out(expected_size);
+//     std::size_t in_offset = 0;
+//     std::size_t out_offset = 0;
 
-    // Process first block matrices
-    for (std::int32_t s = 0; s < switch_size; ++s) {
-        convertMatrix(in, out, in_offset, out_offset, m1_rows, m1_cols);
-        in_offset += mat1_elems;
-    }
+//     // Process first block matrices
+//     for (std::int32_t s = 0; s < switch_size; ++s) {
+//         convertMatrix(in, out, in_offset, out_offset, m1_rows, m1_cols);
+//         in_offset += mat1_elems;
+//     }
 
-    // Process second block matrices
-    for (std::int32_t s = 0; s < switch_size; ++s) {
-        convertMatrix(in, out, in_offset, out_offset, m2_rows, m2_cols);
-        in_offset += mat2_elems;
-    }
+//     // Process second block matrices
+//     for (std::int32_t s = 0; s < switch_size; ++s) {
+//         convertMatrix(in, out, in_offset, out_offset, m2_rows, m2_cols);
+//         in_offset += mat2_elems;
+//     }
 
-    return out;
-}
+//     return out;
+// }
 
 
 
