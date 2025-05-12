@@ -91,13 +91,51 @@ int main(int argc, const char *argv[]) {
          switch_diode_status_buffer_after_iteration,false);
     
     
-    // copy of matrix
-    for(uint32_t i = 0; i <C1_DSW_BUFFER_SIZE; i++ ){
-        matrix_in[i] = C1_DSW_buffer[i];
+    // // copy of matrix
+    // for(uint32_t i = 0; i <C1_DSW_BUFFER_SIZE; i++ ){
+    //     matrix_in[i] = C1_DSW_buffer[i];
+    // }
+    // for(uint32_t  i = 0; i < A_B_C_D_BUFFER_SIZE; i++){
+    //     matrix_in[i+C1_DSW_BUFFER_SIZE ] = ABCD_buffer[i];
+    // }
+    // do data rearrangement at the host, so Shimtile does not have to do the reordering?
+    uint32_t kernel_mat_v_size = 16;
+    uint32_t matrix_in_ind = 0;
+    for(uint32_t i = 0; i < TOTAL_SWITCH_DIODE_STATE;  i++){
+        for(uint32_t j = 0; j <  C1_DSW_ROW_SIZE/kernel_mat_v_size;  j++ ){
+            for(uint32_t k = 0; k <C1_DSW_COL_SIZE; k++  ){
+                for(uint32_t l = 0; l < kernel_mat_v_size;  l++){
+
+                    matrix_in[matrix_in_ind++] = C1_DSW_buffer[
+                        C1_DSW_ROW_SIZE*C1_DSW_COL_SIZE* i +
+                        j* kernel_mat_v_size*C1_DSW_COL_SIZE+ 
+                        1*k + 
+                        C1_DSW_COL_SIZE*l
+                    ];
+                }
+            }
+        }
     }
-    for(uint32_t  i = 0; i < A_B_C_D_BUFFER_SIZE; i++){
-        matrix_in[i+C1_DSW_BUFFER_SIZE ] = ABCD_buffer[i];
+    assert(matrix_in_ind == C1_DSW_BUFFER_SIZE);
+
+    for(uint32_t i = 0; i < TOTAL_SWITCH_DIODE_STATE; i++ ){
+        for(uint32_t j = 0; j <  A_B_C_D_ROW_SIZE/kernel_mat_v_size; j++){
+            for(uint32_t k = 0; k < A_B_C_D_COL_SIZE; k++){
+                for(uint32_t l = 0; l <kernel_mat_v_size; l++ ){
+
+                    matrix_in[matrix_in_ind++] = ABCD_buffer[
+                        A_B_C_D_COL_SIZE*A_B_C_D_ROW_SIZE*i +
+                        j*kernel_mat_v_size*A_B_C_D_COL_SIZE+
+                        1*k+
+                        A_B_C_D_COL_SIZE*l
+
+                    ];
+                }
+            }
+        }
+
     }
+
 
 
 

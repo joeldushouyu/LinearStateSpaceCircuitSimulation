@@ -331,48 +331,6 @@ def single_mat_vect_mult():
         @runtime_sequence(np.ndarray[(matrix_size, ), dtype_in], np.ndarray[(matrix_size, ), dtype_out], np.ndarray[(data_flow_in_size,), dtype_in], np.ndarray[(data_flow_out_size,), dtype_out]  )
         def sequence(A,B, in_buf, out_buf):
             # work balance module
-
-            # transfer the switch_diode_matrix in column major order
-            
-            custom_npu_dma_memcpy_nd(
-                metadata="in_SHM_CT_0_2_0",
-                bd_id=1,
-                mem=A, offsets=[0,0,0,0], 
-                # sizes= [1, total_switch_diode_state  , C1_DSW_col_size, C1_DSW_row_size ],
-                # strides=[0,  C1_DSW_matrix_size ,1,C1_DSW_col_size],  
-                sizes = [  total_switch_diode_state,        C1_DSW_row_size//kernel_mat_v_size, C1_DSW_col_size, kernel_mat_v_size],
-                strides= [ C1_DSW_row_size*C1_DSW_col_size, kernel_mat_v_size*C1_DSW_col_size,  1,              C1_DSW_col_size],
-                packet_id=6,
-                packet_type=0                  
-            )
-            assert C1_DSW_buffer_size % A_B_C_D_col_size == 0
-            custom_npu_dma_memcpy_nd(
-                metadata="in_SHM_CT_0_2_0",
-                bd_id=2,
-                mem=A, offsets=[0,0,0, C1_DSW_buffer_size //A_B_C_D_col_size ],   # The offset will multiple with the sizes
-                # sizes= [1, A_B_C_D_num_for_balance_cutoff , A_B_C_D_col_size, A_B_C_D_row_size],
-                # strides=[0,   A_B_C_D_matrix_size   ,1, A_B_C_D_col_size],
-                
-                sizes = [ A_B_C_D_num_for_balance_cutoff,      A_B_C_D_row_size//kernel_mat_v_size,  A_B_C_D_col_size,  kernel_mat_v_size    ] ,
-                strides=[ A_B_C_D_col_size*A_B_C_D_row_size,   kernel_mat_v_size*A_B_C_D_col_size,   1,                 A_B_C_D_col_size     ],
-                
-                packet_id=6,
-                packet_type=0                                               
-            )
-            assert in_0_size % A_B_C_D_col_size == 0
-            if (in_1_size-data_flow_in_size > 0):
-                custom_npu_dma_memcpy_nd(metadata="in_SHM_CT_0_2_1", bd_id=3, mem=A, offsets=[0, 0,  0,  in_0_size //A_B_C_D_col_size  ], #TODO: assert is okay for it
-
-                                        
-                    sizes = [ total_switch_diode_state- A_B_C_D_num_for_balance_cutoff, A_B_C_D_row_size//kernel_mat_v_size,  A_B_C_D_col_size,  kernel_mat_v_size    ] ,
-                    strides=[ A_B_C_D_col_size*A_B_C_D_row_size,                        kernel_mat_v_size*A_B_C_D_col_size,   1,                 A_B_C_D_col_size     ],                                        
-                                            
-                                        packet_id=8, packet_type=0)
-
-            custom_npu_dma_memcpy_nd(metadata="out_CT_0_2_SHM", bd_id=4, mem=out_buf, offsets=[0,0,0,0], sizes=[1,1,1, data_flow_out_size], 
-                                     strides=[0,0,0,1], issue_token=True)
-            custom_npu_dma_memcpy_nd(metadata="in_SHM_CT_0_2_1", bd_id=5, mem=in_buf, offsets=[0,0,0,0], 
-                                     sizes=[1,1,1, data_flow_in_size ], strides=[0,0,0,1], packet_id=8, packet_type=0)
             if(trace_size > 0):
                 trace_utils.configure_packet_tracing_aie2(
                     tiles_to_trace=tiles_to_trace,
@@ -385,12 +343,76 @@ def single_mat_vect_mult():
                         CoreEvent.INSTR_VECTOR,
                         PortEvent(CoreEvent.PORT_RUNNING_0, 1, True),  # master(1)
                         PortEvent(CoreEvent.PORT_RUNNING_1, 1, False),  # slave(1)
+                        PortEvent(CoreEvent.PORT_RUNNING_2, 7, False),  # slave(1)                        
                         CoreEvent.INSTR_LOAD,
                         CoreEvent.INSTR_STORE,
-                        CoreEvent.LOCK_STALL,
+                        # CoreEvent.LOCK_STALL,
                     ],
                 )
     
+            # # transfer the switch_diode_matrix in column major order
+            
+            # custom_npu_dma_memcpy_nd(
+            #     metadata="in_SHM_CT_0_2_0",
+            #     bd_id=1,
+            #     mem=A, offsets=[0,0,0,0], 
+            #     # sizes= [1, total_switch_diode_state  , C1_DSW_col_size, C1_DSW_row_size ],
+            #     # strides=[0,  C1_DSW_matrix_size ,1,C1_DSW_col_size],  
+            #     sizes = [  total_switch_diode_state,        C1_DSW_row_size//kernel_mat_v_size, C1_DSW_col_size, kernel_mat_v_size],
+            #     strides= [ C1_DSW_row_size*C1_DSW_col_size, kernel_mat_v_size*C1_DSW_col_size,  1,              C1_DSW_col_size],
+            #     packet_id=6,
+            #     packet_type=0                  
+            # )
+            # assert C1_DSW_buffer_size % A_B_C_D_col_size == 0
+            # custom_npu_dma_memcpy_nd(
+            #     metadata="in_SHM_CT_0_2_0",
+            #     bd_id=2,
+            #     mem=A, offsets=[0,0,0, C1_DSW_buffer_size //A_B_C_D_col_size ],   # The offset will multiple with the sizes
+            #     # sizes= [1, A_B_C_D_num_for_balance_cutoff , A_B_C_D_col_size, A_B_C_D_row_size],
+            #     # strides=[0,   A_B_C_D_matrix_size   ,1, A_B_C_D_col_size],
+                
+            #     sizes = [ A_B_C_D_num_for_balance_cutoff,      A_B_C_D_row_size//kernel_mat_v_size,  A_B_C_D_col_size,  kernel_mat_v_size    ] ,
+            #     strides=[ A_B_C_D_col_size*A_B_C_D_row_size,   kernel_mat_v_size*A_B_C_D_col_size,   1,                 A_B_C_D_col_size     ],
+                
+            #     packet_id=6,
+            #     packet_type=0                                               
+            # )
+            # assert in_0_size % A_B_C_D_col_size == 0
+            # if (in_1_size-data_flow_in_size > 0):
+            #     custom_npu_dma_memcpy_nd(metadata="in_SHM_CT_0_2_1", bd_id=3, mem=A, offsets=[0, 0,  0,  in_0_size //A_B_C_D_col_size  ], #TODO: assert is okay for it
+
+                                        
+            #         sizes = [ total_switch_diode_state- A_B_C_D_num_for_balance_cutoff, A_B_C_D_row_size//kernel_mat_v_size,  A_B_C_D_col_size,  kernel_mat_v_size    ] ,
+            #         strides=[ A_B_C_D_col_size*A_B_C_D_row_size,                        kernel_mat_v_size*A_B_C_D_col_size,   1,                 A_B_C_D_col_size     ],                                        
+                                            
+            #                             packet_id=8, packet_type=0)
+
+            # version of DMA transmit data without doing data reordering(should be done by host already)
+            custom_npu_dma_memcpy_nd(
+                metadata="in_SHM_CT_0_2_0",
+                bd_id=1,
+                mem=A, offsets=[0,0,0,0], 
+                # sizes= [1, total_switch_diode_state  , C1_DSW_col_size, C1_DSW_row_size ],
+                # strides=[0,  C1_DSW_matrix_size ,1,C1_DSW_col_size],  
+                sizes = [  1,1,1, in_0_size],
+                strides= [ 0,0,0,1 ],
+                packet_id=6,
+                packet_type=0                  
+            )
+
+            assert in_0_size % A_B_C_D_col_size == 0
+            if (in_1_size-data_flow_in_size > 0):
+                custom_npu_dma_memcpy_nd(metadata="in_SHM_CT_0_2_1", bd_id=3, mem=A, 
+                    offsets=[0, 0,  0,  in_0_size   ], #TODO: assert is okay for it
+                    sizes = [1,1,1,    in_1_size-data_flow_in_size  ] ,
+                    strides=[0,0,0,1],                                                                    
+                    packet_id=8, packet_type=0)
+
+            custom_npu_dma_memcpy_nd(metadata="out_CT_0_2_SHM", bd_id=4, mem=out_buf, offsets=[0,0,0,0], sizes=[1,1,1, data_flow_out_size], 
+                                     strides=[0,0,0,1], issue_token=True)
+            custom_npu_dma_memcpy_nd(metadata="in_SHM_CT_0_2_1", bd_id=5, mem=in_buf, offsets=[0,0,0,0], 
+                                     sizes=[1,1,1, data_flow_in_size ], strides=[0,0,0,1], packet_id=8, packet_type=0)
+
             npu_dma_wait("out_CT_0_2_SHM")
 
 with mlir_mod_ctx() as ctx:
