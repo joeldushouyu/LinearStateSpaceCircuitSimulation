@@ -167,16 +167,6 @@ void accum_float_value(float *in, float *out,
 
 
 
-void test_func(){
-  volatile uint32_t dummy = 0;
-  event0();
-  
-  for(uint32_t i = 0; i < 50000; i++){
-    dummy++;
-  }
-  event1();
-}
-
 
 
 // float* retrieveMatrixOFfsetBaseOnState(const uint32_t state, const int32_t matrix_size, float* matrix_ptr) {

@@ -253,7 +253,7 @@ def single_mat_vect_mult():
             with block[4]:
                 use_lock(A_B_C_D_prod_lock, LockAction.AcquireGreaterEqual, value=1)
                 dma_bd(A_B_C_D_buffer[0], offset=mid_offset, len= A_B_C_D_buffer_size-mid_offset)
-                use_lock(A_B_C_D_con_lock, LockAction.Release, value=1)
+                use_lock(A_B_C_D_prod_lock, LockAction.Release, value=1)
                 next_bd(block[4])
             with block[5]:
                 EndOp()
@@ -302,14 +302,10 @@ def single_mat_vect_mult():
                 switch_diode_buffer[0], A_B_C_D_buffer[0]
                 
             )
-            
-        CT_0_3_func = external_func( "test_func", inputs=[]  )
-        @core(ComputeTile_0_3, "passThrough.o", stack_size=1024)
+        @core(ComputeTile_0_3,  stack_size=1024)
         def core_body():
             for _ in range_(sys.maxsize):
-                use_lock(A_B_C_D_con_lock, LockAction.AcquireGreaterEqual, value=2)
-                CT_0_3_func()
-
+                pass
         # CT_0_2_main_func = external_func("CT_main", inputs=[
         #     in_data_ty, out_data_ty,
         #     np.int32, np.int32, np.int32,
@@ -340,7 +336,7 @@ def single_mat_vect_mult():
         in_1_size = (A_B_C_D_buffer_size-mid_offset)  + data_flow_in_size
         
         if(trace_size > 0):
-            tiles_to_trace = [ComputeTile_0_2] #TODO: also shimtile?
+            tiles_to_trace = [ComputeTile_0_2,ComputeTile_0_3] #TODO: also shimtile?
             trace_utils.configure_packet_tracing_flow(tiles_to_trace, ShimTile_1)
 
         # leave first 6(0-5) packet id for tracing
@@ -374,29 +370,6 @@ def single_mat_vect_mult():
         @runtime_sequence(np.ndarray[(matrix_size, ), dtype_in], np.ndarray[(matrix_size, ), dtype_out], np.ndarray[(data_flow_in_size,), dtype_in], np.ndarray[(data_flow_out_size,), dtype_out]  )
         def sequence(A,B, in_buf, out_buf):
             # work balance module
-
-            if(trace_size > 0):
-                trace_utils.configure_packet_tracing_aie2(
-                    tiles_to_trace=tiles_to_trace,
-                    ddr_id=4,   # last in/out parameter(not just need to pass in host, did not define in sequence)
-                    shim =ShimTile_1,
-                    trace_size=trace_size, # beacuse have 2 tile to,
-                        coretile_events=[
-                        PortEvent(CoreEvent.PORT_RUNNING_0, 1, True),  # master(1)
-                        PortEvent(CoreEvent.PORT_RUNNING_1, 1, False),  # slave(1)                        
-                        PortEvent(CoreEvent.PORT_RUNNING_2, 2, False),  # slave(1)
-                        PortEvent(CoreEvent.PORT_RUNNING_3, 7, False),  # slave(1)                        
-                        # PortEvent(CoreEvent.PORT_RUNNING_4, 7, False),  # slave(1)                        
-                        # PortEvent(CoreEvent.PORT_RUNNING_2, 3, False),  # slave(1),                            
-                        CoreEvent.INSTR_EVENT_0,
-                        CoreEvent.INSTR_EVENT_1,
-                        CoreEvent.INSTR_VECTOR,
-                        CoreEvent.INSTR_LOAD,
-                        # CoreEvent.INSTR_STORE,
-                        # CoreEvent.LOCK_STALL,
-                    ],
-                )
-
 
             # transfer the switch_diode_matrix in column major order
             
@@ -439,7 +412,23 @@ def single_mat_vect_mult():
                                      strides=[0,0,0,1], issue_token=True)
             custom_npu_dma_memcpy_nd(metadata="in_SHM_CT_0_2_1", bd_id=5, mem=in_buf, offsets=[0,0,0,0], 
                                      sizes=[1,1,1, data_flow_in_size ], strides=[0,0,0,1], packet_id=10, packet_type=0)
-
+            if(trace_size > 0):
+                trace_utils.configure_packet_tracing_aie2(
+                    tiles_to_trace=tiles_to_trace,
+                    ddr_id=4,   # last in/out parameter(not just need to pass in host, did not define in sequence)
+                    shim =ShimTile_1,
+                    trace_size=trace_size, # beacuse have 2 tile to,
+                        coretile_events=[
+                        CoreEvent.INSTR_EVENT_0,
+                        CoreEvent.INSTR_EVENT_1,
+                        CoreEvent.INSTR_VECTOR,
+                        PortEvent(CoreEvent.PORT_RUNNING_0, 1, True),  # master(1)
+                        PortEvent(CoreEvent.PORT_RUNNING_1, 1, False),  # slave(1)
+                        CoreEvent.INSTR_LOAD,
+                        CoreEvent.INSTR_STORE,
+                        CoreEvent.LOCK_STALL,
+                    ],
+                )
     
             npu_dma_wait("out_CT_0_2_SHM")
 
