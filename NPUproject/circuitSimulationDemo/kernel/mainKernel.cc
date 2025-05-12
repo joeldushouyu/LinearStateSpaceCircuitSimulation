@@ -151,17 +151,6 @@ void mult_with_C1_DSW(float *C1_DSW_mat, aie::vector<float, 16> *x_u_cur, uint32
         aie::mask<16> lt_res_mask = aie::lt< aie::vector<float, 16> , float>(  C1_DSW_temp ,0);
         aie::mask<16> gt_res_mask = aie::gt< aie::vector<float, 16> , float>(  C1_DSW_temp ,0);
 
-        // if(row %2 == 0){
-        //     c1_res_mask[c1_res_offset]=  gt_res.to_uint32() & 0x0000FFFF;
-        //     c1_res_mask[c1_res_offset+3]=  lt_res.to_uint32() & 0x0000FFFF;
-
-
-        // }else{
-        //     c1_res_mask[c1_res_offset]=  gt_res.to_uint32()  <<16;
-        //     c1_res_mask[c1_res_offset+3]=  lt_res.to_uint32() <<16;
-        //     c1_res_offset ++;
-        // }
-
         uint32_t impulse_mask = 0b11111;
         uint32_t natural_mask = impulse_mask<<5;
         uint32_t diode_next_mask  = natural_mask<< 5;
