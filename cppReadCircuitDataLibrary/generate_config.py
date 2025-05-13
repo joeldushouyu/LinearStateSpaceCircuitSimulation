@@ -42,7 +42,7 @@ def custom_ceil(x, multiplier):
 
 
 
-def main(json_config_file:str, output_json_file:str, output_header_file:str , override_memory_limit:bool):
+def main_single_CT(json_config_file:str, output_json_file:str, output_header_file:str , override_memory_limit:bool):
     try:
         with open(json_config_file, "r") as f:
             config_data = json.load(f)
@@ -186,12 +186,15 @@ if __name__ == "__main__":
     parser.add_argument("--final_json", default="final_config.json", help="Path to output processed JSON file.")
     parser.add_argument("--header", default="circuitConfig.h", help="Path to output C header file.")
     parser.add_argument("--override", default="FALSE", help="Option to consider the memory size limit on single CT")
+    parser.add_argument("--CTNumber", default="1", help="number_of_CT_used")
     args = parser.parse_args()
 
     if args.override == "FALSE":
         override_opt = False
     else:
         override_opt = True
-    main(args.input_json, args.final_json, args.header,override_opt)
-    
+    if args.CTNumber == "1":
+        main_single_CT(args.input_json, args.final_json, args.header,override_opt)
+    else:
+        raise ValueError("Unknown CT numbers")
         
