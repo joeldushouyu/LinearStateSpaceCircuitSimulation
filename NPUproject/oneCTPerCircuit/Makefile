@@ -131,6 +131,7 @@ clean:clean_test
 	-@rm -f ./kernel/circuitSimCore.hpp
 	-@rm -f ./kernel/common_macro.hpp
 	-@rm -f ./npuSim.csv
+
 config_stage:
 	${clean}
 	cp -f ${CPP_REFERENCE_DIR}/final_config.json ./iron/final_config.json
@@ -141,6 +142,7 @@ config_stage:
 	cp -f ${CPP_REFERENCE_DIR}/*.hpp ./host/
 	cp -f ./host/circuitSimCore.hpp ./kernel/circuitSimCore.hpp
 	cp -f ${CPP_REFERENCE_DIR}/common_macro.hpp ./kernel/common_macro.hpp
+
 
 
 kernel: ${KERNEL_OBJS} 
