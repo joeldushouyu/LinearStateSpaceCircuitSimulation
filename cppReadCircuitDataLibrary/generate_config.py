@@ -236,7 +236,7 @@ def main_single_CT(json_config_file:str, output_json_file:str, output_header_fil
 
 
         
-def main_single_CT_memory_overside(json_config_file:str, output_json_file:str, output_header_file:str, num_iteration_mat_on_CT:int=1 ):
+def main_single_CT_memory_override(json_config_file:str, output_json_file:str, output_header_file:str, num_iteration_mat_on_CT:int=1 ):
     
     common_conf: MatrixConfig =common_matrix_config(json_config_file)
     
@@ -281,7 +281,8 @@ def main_single_CT_memory_overside(json_config_file:str, output_json_file:str, o
         "buffer_size_of_cur_X_U": buffer_size_of_cur_X_U,
         "buffer_size_of_C1_DSW_mat_res":buffer_size_of_C1_DSW_mat_res,
         "buffer_size_of_A_B_C_D_mat_res": buffer_size_of_A_B_C_D_mat_res,
-        "stack_size": stack_size
+        "stack_size": stack_size,
+        "matrixAllCached": 0
         
     }  | MatrixConfig_to_dict(common_conf)     
     with open(output_json_file,"w") as outfile:
@@ -308,7 +309,7 @@ if __name__ == "__main__":
     if args.CTNumber == "1" and args.MatrixNumToCache == "-1":
         main_single_CT(args.input_json, args.final_json, args.header,override_opt)
     elif args.CTNumber == "1":
-        main_single_CT_memory_overside(args.input_json, args.final_json, args.header, int(args.MatrixNumToCache))
+        main_single_CT_memory_override(args.input_json, args.final_json, args.header, int(args.MatrixNumToCache))
     else:
         raise ValueError("Unknown CT numbers")
         
