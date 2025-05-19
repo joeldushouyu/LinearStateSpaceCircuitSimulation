@@ -2,6 +2,11 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+import json
+import argparse
+import os
+from typing import NamedTuple, Tuple
+import math
 
 from visualize_data import plot_csv_ncolumns
 
@@ -79,6 +84,16 @@ def boost_pfc_half_llc_visualize():
                         y_label= lab
                         )    
         
-# boost_pfc_half_llc_visualize()
+        
+# if __name__ == "__main__":
+#     parser = argparse.ArgumentParser(description="Process circuit simulation configuration.")
+#     parser.add_argument("mode", help="which circuit to plot ")
+#     args = parser.parse_args()
+#     if args.mode == "0":
+#         boost_pfc_half_llc_visualize()
+#     else:
+#         half_brdige_llc_visualize()
 
-half_brdige_llc_visualize()
+#TODO: cleanup in future
+
+boost_pfc_half_llc_visualize()
