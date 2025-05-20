@@ -245,19 +245,21 @@ def main_single_CT_memory_override(json_config_file:str, output_json_file:str, o
     buffer_size_of_C1_DSW_mat_res = common_conf.C1_DSW_row  
     buffer_size_of_A_B_C_D_mat_res =common_conf.ABCD_rows  
     
+    buffer_of_control_command_out = 3*4# control packet_out
+    buffer_of_contro_command_result = 1*4 # control packet_in
 
     stack_size = 1024 # default value
     stack_size += (buffer_size_of_cur_X_U +buffer_size_of_C1_DSW_mat_res  + buffer_size_of_A_B_C_D_mat_res )*4 # 4 byte for float
 
-    
     iter_matrixes_byte_len = num_iteration_mat_on_CT*((common_conf.ABCD_mat_size + common_conf.C1_DSW_mat_size)*4   )
-    mem_space_remain = (64*1024) - stack_size-iter_matrixes_byte_len
-    if(mem_space_remain - 2*common_conf.input_length_per_iter <=0  ): # case when matrix for single iteration can't fit into matrix?
+    mem_space_remain_in_float = (64*1024)//4 - (stack_size+iter_matrixes_byte_len+ 64)//4#64 for space of control_command, let it be aligned 
+    
+    if(mem_space_remain_in_float - 2*common_conf.input_length_per_iter <=0  ): # case when matrix for single iteration can't fit into matrix?
         raise ValueError("Circuit size is too large? or bug?")
     
     # for now, don't even consider Memtile yet
     
-    _max_iteration_step = int(custom_floor( mem_space_remain//(common_conf.input_length_per_iter + common_conf.output_length_per_iter),2)) #TODO: round down instead?
+    _max_iteration_step = int(custom_floor( mem_space_remain_in_float//(common_conf.input_length_per_iter + common_conf.output_length_per_iter),2)) #TODO: round down instead?
     
     if(_max_iteration_step < 2):
         raise ValueError("Fata: no mmemory left")
@@ -282,7 +284,8 @@ def main_single_CT_memory_override(json_config_file:str, output_json_file:str, o
         "buffer_size_of_C1_DSW_mat_res":buffer_size_of_C1_DSW_mat_res,
         "buffer_size_of_A_B_C_D_mat_res": buffer_size_of_A_B_C_D_mat_res,
         "stack_size": stack_size,
-        "matrixAllCached": 0
+        "matrixAllCached": 0,
+        "cachMatrixNum": num_iteration_mat_on_CT
         
     }  | MatrixConfig_to_dict(common_conf)     
     with open(output_json_file,"w") as outfile:
