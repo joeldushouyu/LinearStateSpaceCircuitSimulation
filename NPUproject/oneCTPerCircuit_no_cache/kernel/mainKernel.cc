@@ -105,6 +105,62 @@ void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur,
 
 
 extern "C" {
+
+
+    void CT_test(float* in, float* out,
+    const int32_t  s2mm_prod_lock, const int32_t s2mm_con_lock,
+    const int32_t buffer_out_prod_lock_id, const int32_t buffer_out_con_lock_id,
+    float* C1_DSW_Buffer, float *ABCD_buffer,
+    int32_t * control_packet_command_out_buffer, int32_t * control_packet_command_res_buffer
+
+    ){
+        // First step: pass through of the 1st input buffer?
+
+
+        for(uint64_t l = 0; l < PING_PONG_BUFFER_ITERATION;  l++){
+            if( l == 0){
+                acquire_greater_equal(s2mm_con_lock+48, 2); // decrement the ticket by 2 after acquired
+                acquire_greater_equal(buffer_out_prod_lock_id+48, 1);
+
+    
+                    for(int32_t i = 0; i < BUFFER_SIZE_OF_IN_PING_POING; i++){
+                        *(out+i) = *(in+i);
+
+                    }
+                release(s2mm_prod_lock+48, 2);
+                release(buffer_out_con_lock_id+48, 1);
+            }else{
+                // don't event attempt to acquire input lock
+                acquire_greater_equal(buffer_out_prod_lock_id+48, 1);
+
+    
+                    for(int32_t i = 0; i < BUFFER_SIZE_OF_IN_PING_POING; i++){
+                        *(out+i) = l+1;
+
+                    }
+
+                release(buffer_out_con_lock_id+48, 1);
+            }
+            
+
+
+
+                acquire_greater_equal(buffer_out_prod_lock_id+48, 1);
+
+    
+                    for(int32_t i = 0; i < BUFFER_SIZE_OF_IN_PING_POING; i++){
+                        *(out+i+BUFFER_SIZE_OF_OUT_PING_PONG) = l+51;
+
+                    }
+
+                release(buffer_out_con_lock_id+48, 1);
+
+        }
+
+    }
+
+
+
     void CT_main(float* in, float* out,
         const int32_t buffer_in_prod_lock_id, const int32_t buffer_in_con_loc_id,
         const int32_t buffer_out_prod_lock_id, const int32_t buffer_out_con_lock_id,

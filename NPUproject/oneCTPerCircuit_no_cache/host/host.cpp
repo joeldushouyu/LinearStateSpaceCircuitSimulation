@@ -211,8 +211,11 @@ int main(int argc, const char *argv[]) {
     for (int i = 0; i < Iterations; i++) {
         time_utils::time_point start = time_utils::now();
         run_0.start();
-        run_0.wait();
-
+        ert_cmd_state r = run_0.wait();
+        if (r != ERT_CMD_STATE_COMPLETED) {
+            std::cout << "Kernel did not complete. Returned status: " << r << "\n";
+            return 1;
+        }
 	    time_utils::time_point stop = time_utils::now();
 	    npu_time.first += time_utils::duration_us(start, stop).first;
     }
@@ -234,17 +237,40 @@ int main(int argc, const char *argv[]) {
 
 
 
-    // bool pass =false;
+    bool pass = are_results_close( in_0, out_0,1e-4f, 1e-3f,  BUFFER_SIZE_OF_IN_PING_POING);
     // // // debug_inspect_all(
     // // //     matrix_in, matrix_out_col_major, 
     // // //     std::pow(2, SWITCH_SIZE + DIODE_SIZE)
     // // // );
 
-    // if (pass ==false){
-    //     std::cout <<"Fail stage 1" << std::endl;
-    // }else{
-    //     printf("passed first stage input\n");
-    // }
+    if (pass ==false){
+        std::cout <<"Fail stage 1" << std::endl;
+
+        // for (size_t i = 0; i < BUFFER_SIZE_OF_OUT_PING_PONG* 2; i++) {
+        //     std::cout << std::scientific      // Use exponential notation
+        //             << std::setprecision(6) // Show 2 digits after decimal
+        //             << "out_0[" << i << "] = " << out_0[i]
+        //             << " ?= out_ref_0[" << i << "] = " << in_0[i]
+        //             << std::endl;
+        // }
+
+        for(size_t k = 0; k < 3; k++){
+            for(size_t i = 0; i < BUFFER_SIZE_OF_OUT_PING_PONG; i++){
+                if(i >= BUFFER_SIZE_OF_IN_PING_POING){break;}
+                
+                auto index = i + k*BUFFER_SIZE_OF_OUT_PING_PONG;
+                std::cout << std::scientific      // Use exponential notation
+                    << std::setprecision(6) // Show 2 digits after decimal
+                    << "out_0[" << index << "] = " << out_0[index  ]
+                    << " ?= out_ref_0[" << index << "] = " << in_0[index]
+                    << std::endl;
+            }
+
+        }
+
+    }else{
+        printf("passed first stage input\n");
+    }
     // pass &= are_results_close( out_0, out_ref_0,1e-4f, 1e-3f,  TOTAL_SWITCH_DIODE_STATE*(C1_DSW_ROW_SIZE + A_B_C_D_ROW_SIZE)  );
     // if(pass==false){
     //     std::cout << "FAil stage2" <<std::endl;
