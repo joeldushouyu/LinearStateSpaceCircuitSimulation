@@ -82,8 +82,8 @@ void passThroughTest(uint32_t *in, uint32_t *out,
         // First, let us fix the issue in CT_0_2 through control packet
     
         acquire_greater_equal(control_packet_write_prod_lock, 1);
-        *control_write_buffer =   control_packet_gen(12, 0, 0,   0x001D040 );
-        *(control_write_buffer+1) = 0x2400400; // //0x40480000;
+        *control_write_buffer =   control_packet_gen(12, 0, 0,   0x001D044 );
+        *(control_write_buffer+1) = (1<<30) | (9<<19); //0x40480000; //(1<<31) | (9<<19);
         release(control_packet_write_con_lock, 1);
         // NOTE: Write did go through, but somehow did not apply to qeue?
 
@@ -110,7 +110,7 @@ void passThroughTest(uint32_t *in, uint32_t *out,
         
         // event0();
         // acquire_greater_equal(control_packet_read_prod_lock, 1);
-        // *control_read_buffer =   control_packet_gen(11, 1, 0,   0x001D040 );
+        // *control_read_buffer =   control_packet_gen(11, 1, 0,   0x001D044 );
         // release(control_packet_read_con_lock, 1);
         // event1();
         // // see the value of it
