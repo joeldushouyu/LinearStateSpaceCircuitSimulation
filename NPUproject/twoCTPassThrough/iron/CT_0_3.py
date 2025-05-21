@@ -89,7 +89,15 @@ def setup_CT_0_3(control_package_data_ty):
         lock_id=3, init=0, sym_name="From_CT_0_2_controller_read_resbuffer_con_lock"
     )
     
-    
+    To_CT_0_2_control_write_buffer = [
+        buffer(tile=ComputeTile_0_3, datatype=control_package_data_ty, name="To_CT_0_2_control_write_buffer")
+    ]
+    To_CT_0_2_control_write_buffer_prod_lock = lock(ComputeTile_0_3,
+        lock_id=4, init=1, sym_name="To_CT_0_2_control_write_buffer_prod_lock"                                                
+    )
+    To_CT_0_2_control_write_buffer_con_lock = lock(ComputeTile_0_3,
+        lock_id=5, init=0, sym_name="To_CT_0_2_control_write_buffer_con_lock"
+    )
     
     @mem(ComputeTile_0_3)
     def m(block):
@@ -108,9 +116,16 @@ def setup_CT_0_3(control_package_data_ty):
             use_lock(From_CT_0_2_controller_read_resbuffer_con_lock, LockAction.Release, value=1)
             next_bd(block[3])
         with block[4]:
+            s3 = dma_start(DMAChannelDir.MM2S, 1, dest=block[5], chain=block[6])
+        with block[5]:
+            use_lock(To_CT_0_2_control_write_buffer_con_lock, LockAction.AcquireGreaterEqual, value=1)
+            dma_bd(To_CT_0_2_control_write_buffer[0], offset=0, len = 2,packet= (0,12))
+            use_lock(To_CT_0_2_control_write_buffer_prod_lock, LockAction.Release, value=1)
+            next_bd(block[5])
+        with block[6]:
             EndOp()
     
-    return ComputeTile_0_3, To_CT_0_2_control_read_buffer, From_CT_0_2_control_read_res_buffer
+    return ComputeTile_0_3, To_CT_0_2_control_read_buffer, From_CT_0_2_control_read_res_buffer, To_CT_0_2_control_write_buffer
     
     
     

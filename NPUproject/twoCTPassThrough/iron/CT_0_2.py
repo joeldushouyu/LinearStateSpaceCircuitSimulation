@@ -109,7 +109,7 @@ def setup_CT_0_2(in_data_ty, out_data_ty,
             s1 = dma_start(DMAChannelDir.MM2S, 0, dest=block[4], chain=block[6])
         with block[4]:
             use_lock(out_buffer_con_lock, LockAction.AcquireGreaterEqual, value=1)
-            dma_bd(out_buffer[0], offset=0, len=buffer_size, packet=(0,9))
+            dma_bd(out_buffer[0], offset=1, len=buffer_size, packet=(0,9)) # error to be fixed
             # purposefully leave the error, fix by control packet in kernel
             use_lock(out_buffer_prod_lock, LockAction.Release, value=1)
             next_bd(block[5])

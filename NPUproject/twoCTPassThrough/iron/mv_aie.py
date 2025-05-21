@@ -87,7 +87,7 @@ def single_mat_vect_mult():
         out_data_ty = np.ndarray[ (buffer_size*2, ), dtype_out]
         control_packet_ty = np.ndarray[ (2,), np.dtype[np.int32]]
 
-        ComputeTile_0_3, To_CT_0_2_control_buffer, From_CT_0_2_control_buffer = setup_CT_0_3(control_packet_ty) 
+        ComputeTile_0_3, To_CT_0_2_control_read_buffer, From_CT_0_2_control_read_res_buffer, To_CT_0_2_control_write_buffer = setup_CT_0_3(control_packet_ty) 
         ComputeTile_0_2,in_buffer, out_buffer = setup_CT_0_2(
             in_data_ty, out_data_ty, 
             buffer_size, total_size
@@ -100,6 +100,8 @@ def single_mat_vect_mult():
             np.int32, np.int32,
             control_packet_ty,
             control_packet_ty,
+            control_packet_ty,
+            np.int32, np.int32,
             np.int32, np.int32,
             np.int32, np.int32
         ])
@@ -111,10 +113,12 @@ def single_mat_vect_mult():
                 constant(buffer_size), constant(total_size),
                 constant(8+48), constant(9+48),
                 constant(10+48), constant(11+48),
-                To_CT_0_2_control_buffer[0],
-                From_CT_0_2_control_buffer[0],
+                To_CT_0_2_control_read_buffer[0],
+                From_CT_0_2_control_read_res_buffer[0],
+                To_CT_0_2_control_write_buffer[0],
                 constant(0+32), constant(1+32),  #TODO
-                constant(2+32), constant(3+32)
+                constant(2+32), constant(3+32),
+                constant(4+32), constant(5+32)
             )
             
             
@@ -137,7 +141,12 @@ def single_mat_vect_mult():
         
         packetflow(11, ComputeTile_0_2, source_port=WireBundle.TileControl, source_channel=0,
                    dest = ComputeTile_0_3, dest_port=WireBundle.DMA, dest_channel=0,
-                   )        
+                   )    
+        
+        packetflow(12, ComputeTile_0_3, source_port=WireBundle.DMA, source_channel=1,
+                    dest = ComputeTile_0_2, dest_port=WireBundle.TileControl, dest_channel=0,
+                    )
+                    
         memref.global_("in_SHM_CT_0_2_0", T.memref( total_size, T.f32() ), sym_visibility="public")            
         memref.global_("out_CT_0_2_SHM", T.memref( total_size, T.f32()), sym_visibility="public" ) # result out
 
