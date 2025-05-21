@@ -63,7 +63,7 @@ int main(int argc, const char *argv[]) {
 
     // compare the two sequences
     int total_size = 4096;
-    int TRACE_SIZE = 1024;
+    int TRACE_SIZE = 8192;
 
 
     buffer<int32_t> seq_0 = accel_desc_0.instr_seq.to_bo().cast_to<int32_t>();
@@ -78,7 +78,7 @@ int main(int argc, const char *argv[]) {
 
 
     for(uint32_t i = 0; i < total_size; i++){
-        in_0[i] = i;
+        in_0[i] = i+1;
     }
 
 
@@ -126,10 +126,19 @@ int main(int argc, const char *argv[]) {
 
 
 
-    bool pass =false;
+    bool pass =true;
+    // pass = are_results_close( out_0, in_0,1e-4f, 1e-3f,  total_size  );
+    for(auto k = 0; k < total_size; k++){
 
-    pass = are_results_close( out_0, in_0,1e-4f, 1e-3f,  total_size  );
+        if (out_0[k] != in_0[k]){
+            pass = false;
+            std::cout << "&&&&&&&&&&&&&&" << std::endl;
+            std::cout << " " << std::hex <<k << "  index for  " <<std::hex << out_0[k] << std::endl;
+        }else{
+
+        }
     
+    }
     // // // debug_inspect_all(
     // // //     matrix_in, matrix_out_col_major, 
     // // //     std::pow(2, SWITCH_SIZE + DIODE_SIZE)

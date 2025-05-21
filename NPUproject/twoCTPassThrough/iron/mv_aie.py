@@ -55,18 +55,18 @@ import json
 from aie._mlir_libs._mlir.ir import Attribute
 from aie.dialects._aiex_ops_gen import _Dialect
 from CT_0_2 import setup_CT_0_2
-
+from CT_0_3 import setup_CT_0_3
 from helper_func import generate_packet_attribute, custom_ceil
 def single_mat_vect_mult():
     dev = AIEDevice.npu2
     
-    trace_size = 1024
+    trace_size = 8192
     buffer_size = 1024
     
     total_size = 4096
 
-    dtype_in = np.dtype[np.float32]
-    dtype_out = np.dtype[np.float32]
+    dtype_in = np.dtype[np.uint32]
+    dtype_out = np.dtype[np.uint32]
     
     
     @device(AIEDevice.npu2)
@@ -82,20 +82,44 @@ def single_mat_vect_mult():
         # ComputeTile_0_2 = tile(0,2, allocation_scheme="bank-aware")        
         # ComputeTile_0_2 = tile(0,2, allocation_scheme="basic-sequential")
         # ComputeTile_0_2.attributes["controlled_id"] = generate_packet_attribute(0, 26)
-        
-        ComputeTile_0_3 = tile(0, 3)
-        ComputeTile_0_3.attributes["controlled_id"] = generate_packet_attribute(0, 25)
 
         in_data_ty = np.ndarray[ (buffer_size*2, ), dtype_in]
         out_data_ty = np.ndarray[ (buffer_size*2, ), dtype_out]
+        control_packet_ty = np.ndarray[ (2,), np.dtype[np.int32]]
 
-
-
-        ComputeTile_0_2 = setup_CT_0_2(
-            in_data_ty, out_data_ty, buffer_size, total_size
+        ComputeTile_0_3, To_CT_0_2_control_buffer, From_CT_0_2_control_buffer = setup_CT_0_3(control_packet_ty) 
+        ComputeTile_0_2,in_buffer, out_buffer = setup_CT_0_2(
+            in_data_ty, out_data_ty, 
+            buffer_size, total_size
         )
+        
+        passThroughTest_func = external_func("passThroughTest", inputs=[
+            in_data_ty, out_data_ty, 
+            np.int32, np.int32,
+            np.int32, np.int32,
+            np.int32, np.int32,
+            control_packet_ty,
+            control_packet_ty,
+            np.int32, np.int32,
+            np.int32, np.int32
+        ])
+
+        @core(ComputeTile_0_2, "passThrough.o", stack_size=1024)
+        def core_body():
+            passThroughTest_func(
+                in_buffer[0], out_buffer[0],
+                constant(buffer_size), constant(total_size),
+                constant(8+48), constant(9+48),
+                constant(10+48), constant(11+48),
+                To_CT_0_2_control_buffer[0],
+                From_CT_0_2_control_buffer[0],
+                constant(0+32), constant(1+32),  #TODO
+                constant(2+32), constant(3+32)
+            )
+            
+            
         if(trace_size > 0):
-            tiles_to_trace = [ComputeTile_0_2] #TODO: also shimtile?
+            tiles_to_trace = [ComputeTile_0_2, ComputeTile_0_3] #TODO: also shimtile?
             trace_utils.configure_packet_tracing_flow(tiles_to_trace, ShimTile_1)
 
         # leave first 6(0-5) packet id for tracing
@@ -106,7 +130,14 @@ def single_mat_vect_mult():
         packetflow(9, source=ComputeTile_0_2, source_port=WireBundle.DMA, source_channel=0,
                     dest = ShimTile_0, dest_port= WireBundle.DMA, dest_channel=1
                    ) 
+        # path for control packet 
+        packetflow(10, ComputeTile_0_3, source_port=WireBundle.DMA, source_channel=0,
+                   dest = ComputeTile_0_2, dest_port=WireBundle.TileControl, dest_channel=0,
+                   )
         
+        packetflow(11, ComputeTile_0_2, source_port=WireBundle.TileControl, source_channel=0,
+                   dest = ComputeTile_0_3, dest_port=WireBundle.DMA, dest_channel=0,
+                   )        
         memref.global_("in_SHM_CT_0_2_0", T.memref( total_size, T.f32() ), sym_visibility="public")            
         memref.global_("out_CT_0_2_SHM", T.memref( total_size, T.f32()), sym_visibility="public" ) # result out
 
@@ -127,11 +158,9 @@ def single_mat_vect_mult():
                         coretile_events=[
                         CoreEvent.INSTR_EVENT_0,
                         CoreEvent.INSTR_EVENT_1,
-                        CoreEvent.INSTR_VECTOR,
                         PortEvent(CoreEvent.PORT_RUNNING_0, 1, True),  # master(1)
                         PortEvent(CoreEvent.PORT_RUNNING_1, 1, False),  # slave(1)
                         PortEvent(CoreEvent.PORT_RUNNING_2, 7, False),  # slave(1)                        
-                        CoreEvent.INSTR_LOAD,
                         CoreEvent.INSTR_STORE,
                         # CoreEvent.LOCK_STALL,
                     ],

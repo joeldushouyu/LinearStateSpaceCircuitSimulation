@@ -58,7 +58,8 @@ from sympy import im
 
 from helper_func import generate_packet_attribute, custom_ceil
 
-def setup_CT_0_2(in_data_ty, out_data_ty, buffer_size:int, total_size:int):
+def setup_CT_0_2(in_data_ty, out_data_ty,
+                 buffer_size:int, total_size:int):
 
     ComputeTile_0_2 = tile(0,2, allocation_scheme="basic-sequential")
     ComputeTile_0_2.attributes["controlled_id"] = generate_packet_attribute(0, 26)    
@@ -109,6 +110,7 @@ def setup_CT_0_2(in_data_ty, out_data_ty, buffer_size:int, total_size:int):
         with block[4]:
             use_lock(out_buffer_con_lock, LockAction.AcquireGreaterEqual, value=1)
             dma_bd(out_buffer[0], offset=0, len=buffer_size, packet=(0,9))
+            # purposefully leave the error, fix by control packet in kernel
             use_lock(out_buffer_prod_lock, LockAction.Release, value=1)
             next_bd(block[5])
         with block[5]:
@@ -119,21 +121,7 @@ def setup_CT_0_2(in_data_ty, out_data_ty, buffer_size:int, total_size:int):
         with block[6]:
             EndOp()
                             
-    passThroughTest_func = external_func("passThroughTest", inputs=[
-        in_data_ty, out_data_ty, 
-        np.int32, np.int32,
-        np.int32, np.int32,
-        np.int32, np.int32
-    ])
 
-    @core(ComputeTile_0_2, "passThrough.o", stack_size=1024)
-    def core_body():
-        passThroughTest_func(
-            in_buffer[0], out_buffer[0],
-            constant(buffer_size), constant(total_size),
-            constant(8+48), constant(9+48),
-            constant(10+48), constant(11+48)
-        )
         
-    return ComputeTile_0_2
+    return ComputeTile_0_2, in_buffer, out_buffer
     
