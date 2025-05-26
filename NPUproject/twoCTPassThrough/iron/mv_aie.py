@@ -88,8 +88,8 @@ def single_mat_vect_mult():
         control_packet_ty = np.ndarray[ (2,), np.dtype[np.int32]]
 
         ComputeTile_0_3, To_CT_0_2_control_read_buffer, From_CT_0_2_control_read_res_buffer, To_CT_0_2_control_write_buffer = setup_CT_0_3(control_packet_ty) 
-        ComputeTile_0_2,in_buffer, out_buffer = setup_CT_0_2(
-            in_data_ty, out_data_ty, 
+        ComputeTile_0_2, in_buffer, out_buffer, CT2_control_out_buffer, CT2_control_in_buffer = setup_CT_0_2(
+            in_data_ty, out_data_ty, control_packet_ty,
             buffer_size, total_size
         )
         
@@ -103,7 +103,11 @@ def single_mat_vect_mult():
             control_packet_ty,
             np.int32, np.int32,
             np.int32, np.int32,
-            np.int32, np.int32
+            np.int32, np.int32,
+            control_packet_ty,      
+            control_packet_ty,
+            np.int32, np.int32,        
+            np.int32, np.int32               
         ])
 
         @core(ComputeTile_0_2, "passThrough.o", stack_size=1024)
@@ -118,7 +122,11 @@ def single_mat_vect_mult():
                 To_CT_0_2_control_write_buffer[0],
                 constant(0+32), constant(1+32),  #TODO
                 constant(2+32), constant(3+32),
-                constant(4+32), constant(5+32)
+                constant(4+32), constant(5+32),
+                CT2_control_out_buffer[0], CT2_control_in_buffer[0],
+                constant(0+48), constant(1+48),
+                constant(2+48), constant(3+48)
+                
             )
             
             
@@ -146,7 +154,14 @@ def single_mat_vect_mult():
         packetflow(12, ComputeTile_0_3, source_port=WireBundle.DMA, source_channel=1,
                     dest = ComputeTile_0_2, dest_port=WireBundle.TileControl, dest_channel=0,
                     )
-                    
+          
+        # packetflow(13, ComputeTile_0_2, source_port=WireBundle.DMA , source_channel=1,
+        #            dest=ComputeTile_0_2, dest_port=WireBundle.TileControl, dest_channel=0
+        #            )
+        # packetflow(14, ComputeTile_0_2, source_port=WireBundle.TileControl, source_channel=0,
+        #            dest=ComputeTile_0_2, dest_port=WireBundle.DMA, dest_channel=1
+        #            )
+        
         memref.global_("in_SHM_CT_0_2_0", T.memref( total_size, T.f32() ), sym_visibility="public")            
         memref.global_("out_CT_0_2_SHM", T.memref( total_size, T.f32()), sym_visibility="public" ) # result out
 
@@ -166,11 +181,12 @@ def single_mat_vect_mult():
                     trace_size=trace_size, # beacuse have 2 tile to,
                         coretile_events=[
                         CoreEvent.INSTR_EVENT_0,
-                        CoreEvent.INSTR_EVENT_1,
+                        CoreEvent.DM_ADDRESS_OUT_OF_RANGE,
                         PortEvent(CoreEvent.PORT_RUNNING_0, 1, True),  # master(1)
                         PortEvent(CoreEvent.PORT_RUNNING_1, 1, False),  # slave(1)
                         PortEvent(CoreEvent.PORT_RUNNING_2, 7, False),  # slave(1)                        
-                        CoreEvent.INSTR_STORE,
+                        CoreEvent.CONTROL_PKT_ERROR,
+                        CoreEvent.DM_ACCESS_TO_UNAVAILABLE
                         # CoreEvent.LOCK_STALL,
                     ],
                 )

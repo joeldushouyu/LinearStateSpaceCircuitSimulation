@@ -1,3 +1,4 @@
+from re import L
 from struct import pack
 import numpy as np
 import sys
@@ -58,7 +59,7 @@ from sympy import im
 
 from helper_func import generate_packet_attribute, custom_ceil
 
-def setup_CT_0_2(in_data_ty, out_data_ty,
+def setup_CT_0_2(in_data_ty, out_data_ty, control_package_ty,
                  buffer_size:int, total_size:int):
 
     ComputeTile_0_2 = tile(0,2, allocation_scheme="basic-sequential")
@@ -86,7 +87,21 @@ def setup_CT_0_2(in_data_ty, out_data_ty,
     out_buffer_con_lock = lock(ComputeTile_0_2, lock_id=11, init=0)
 
     assert offset+buffer_size*2*4 <= (64*1024)  # total of less than 64kB
-
+    offset += buffer_size*2*4
+    
+    CT2_control_out_prod_lock = lock(ComputeTile_0_2, lock_id=0, init=1, sym_name="CT2_control_out_prod_lock")
+    CT2_control_out_con_lock = lock(ComputeTile_0_2, lock_id=1, init=0, sym_name="CT2_control_out_con_lock")
+    CT2_control_out_buffer = [
+        buffer_raw(tile=ComputeTile_0_2, buffer=try_convert_np_type_to_mlir_type(control_package_ty), sym_name="CT2_control_out_buffer", address=offset)
+    ]
+    
+    offset += 16*4
+    CT2_control_in_buffer = [
+        buffer_raw(tile=ComputeTile_0_2, buffer=try_convert_np_type_to_mlir_type(control_package_ty), sym_name="CT2_control_in_buffer", address=offset)
+    ]
+    CT2_control_in_prod_lock = lock(ComputeTile_0_2, lock_id=2, init=1, sym_name="CT2_control_in_prod_lock")
+    CT2_control_in_con_lock = lock(ComputeTile_0_2, lock_id=3, init=0, sym_name="CT2_control_in_con_lock")
+    
 
     
     @mem(ComputeTile_0_2)
@@ -119,9 +134,23 @@ def setup_CT_0_2(in_data_ty, out_data_ty,
             use_lock(out_buffer_prod_lock, LockAction.Release, value=1)
             next_bd(block[4])
         with block[6]:
+            s2 = dma_start(DMAChannelDir.MM2S, 1, dest=block[7], chain=block[8])
+        with block[7]:
+            use_lock(CT2_control_out_con_lock, LockAction.AcquireGreaterEqual, value=1)
+            dma_bd(CT2_control_out_buffer[0], offset=0, len=2, packet=(0,13)) # for now as write?
+            use_lock(CT2_control_out_prod_lock, LockAction.Release, value=1)
+            next_bd(block[7])
+        with block[8]:
+            s3 = dma_start(DMAChannelDir.S2MM, 1, dest=block[9], chain=block[10] )
+        with block[9]:
+            use_lock(CT2_control_in_prod_lock, LockAction.AcquireGreaterEqual, value=1)
+            dma_bd(CT2_control_in_buffer[0], offset=0, len=1)
+            use_lock(CT2_control_in_con_lock, LockAction.Release, value=1)
+            next_bd(block[9])
+        with block[10]:
             EndOp()
                             
 
         
-    return ComputeTile_0_2, in_buffer, out_buffer
+    return ComputeTile_0_2, in_buffer, out_buffer, CT2_control_out_buffer, CT2_control_in_buffer
     

@@ -134,7 +134,6 @@ int main(int argc, const char *argv[]) {
             pass = false;
             std::cout << "&&&&&&&&&&&&&&" << std::endl;
             std::cout << " " << std::hex <<k << "  index for  " <<std::hex << out_0[k] << std::endl;
-            break;
         }else{
 
         }

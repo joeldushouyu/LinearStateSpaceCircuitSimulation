@@ -71,7 +71,11 @@ void passThroughTest(uint32_t *in, uint32_t *out,
                   int32_t* control_write_buffer,
                   int32_t control_packet_read_prod_lock, int32_t control_packet_read_con_lock,
                   int32_t control_packet_read_res_prod_lock, int32_t control_packet_read_res_con_lock,
-                  int32_t control_packet_write_prod_lock, int32_t control_packet_write_con_lock
+                  int32_t control_packet_write_prod_lock, int32_t control_packet_write_con_lock,
+
+                  int32_t* CT2_control_out_buffer, int32_t* CT2_control_res_buffer,
+                  int32_t CT2_control_out_prod_lock, int32_t CT2_control_out_con_lock,
+                  int32_t CT2_control_in_prod_lock, int32_t CT2_control_in_con_lock
                   
 ){
   // assume divisible and multiple of two
@@ -79,6 +83,15 @@ void passThroughTest(uint32_t *in, uint32_t *out,
 
     acquire_greater_equal(in_buffer_con_lock, 1);
     if(i == 0){
+        // // how about if I do it in CT_0_2?
+        // #define COMPUTE_0_2_BASE 0x208000
+        // #define DMA_BD_2_1_OFFSET 0x1D048
+        // volatile int32_t* BD_2_1 = (volatile int32_t*)(0x200000 + 0x001D044);
+        // int32_t val = *BD_2_1;
+
+        // int32_t* MM2S_0_CTR = (int32_t*)  0x1DE10;
+        // int32_t* MM2S_0_START = (int32_t*)(0x1DE14|0x200000);
+        // int32_t val = *BD_2_1;
         // First, let us fix the issue in CT_0_2 through control packet
     
         acquire_greater_equal(control_packet_write_prod_lock, 1);
@@ -87,9 +100,14 @@ void passThroughTest(uint32_t *in, uint32_t *out,
         release(control_packet_write_con_lock, 1);
         // NOTE: Write did go through, but somehow did not apply to qeue?
 
+        //Try CT fix it myself instead?
+        // acquire_greater_equal(CT2_control_out_prod_lock, 1);
+        // *CT2_control_out_buffer = control_packet_gen(13, 0, 0,   0x001D044 );
+        // *(CT2_control_out_buffer+1)  = (1<<30) | (9<<19);
+        // release(CT2_control_out_con_lock, 1);
 
-
-      
+        // auto k = get_coreid();
+        
         acquire_greater_equal(control_packet_write_prod_lock, 1);
         *control_write_buffer =   control_packet_gen(12, 0, 0,   0x1DE10 );
         *(control_write_buffer+1) =  (1<<1);
@@ -105,30 +123,84 @@ void passThroughTest(uint32_t *in, uint32_t *out,
         *(control_write_buffer+1) =  (1<<16) | (2);
         release(control_packet_write_con_lock, 1); 
 
+
+        // wrtei core contro?
+
+  
+        acquire_greater_equal(control_packet_write_prod_lock, 1);
+        *control_write_buffer =   control_packet_gen(12, 0, 0,   0x0000032000 );
+        *(control_write_buffer+1)   = 1;
+        release(control_packet_write_con_lock, 1); 
+
+  
+        acquire_greater_equal(control_packet_write_prod_lock, 1);
+        *control_write_buffer =   control_packet_gen(12, 0, 0,   0x0000032038 );
+        *(control_write_buffer+1)   = 1;
+        release(control_packet_write_con_lock, 1); 
+
+        // *BD_2_1 = (1<<30) | (9<<19); //0x40480000; //(1<<31) | (9<<19);
+        // *MM2S_0_CTR  = 1<<1;
+        // *MM2S_0_CTR  = 0<<1;
+        // *MM2S_0_START = (1<<16) | (2);
         // ERRORO read value: 2404400
         // CORRECT read value: 2400400
         
-        // event0();
-        // acquire_greater_equal(control_packet_read_prod_lock, 1);
-        // *control_read_buffer =   control_packet_gen(11, 1, 0,   0x001D044 );
-        // release(control_packet_read_con_lock, 1);
-        // event1();
-        // // see the value of it
 
-        // event0();
-        // acquire_greater_equal(control_packet_read_res_con_lock, 1);
-        // *(in) = *control_read_buffer_res;
-        // release(control_packet_read_res_prod_lock, 1);
-        // event1();
+        event0();
+        acquire_greater_equal(control_packet_read_prod_lock, 1);
+        *control_read_buffer =   control_packet_gen(11, 1, 0,   0x001D044  );
+        release(control_packet_read_con_lock, 1);
+        event1();
+        // see the value of it
+
+
+
+        event0();
+        acquire_greater_equal(control_packet_read_res_con_lock, 1);
+        *(in) = *control_read_buffer_res;
+        release(control_packet_read_res_prod_lock, 1);
+        event1();
+
+        // try to read
+        
+        // acquire_greater_equal(CT2_control_out_prod_lock, 1);
+        // *CT2_control_out_buffer = control_packet_gen(14, 1,0,0x001D044);
+        // release(CT2_control_out_con_lock, 1);
+
+        // acquire_greater_equal(CT2_control_in_con_lock, 1);
+        //  *(in) = *CT2_control_res_buffer;
+        // release(CT2_control_in_prod_lock, 1);
+    }else{
+       volatile int32_t* BD_2_1 = (volatile int32_t*)(  (1<<25) | (1<<20) |0x1D044);
+       int32_t val = *BD_2_1;
+      *(in+1) = val;
+    //     // event0();
+    //     // acquire_greater_equal(control_packet_read_prod_lock, 1);
+    //     // *control_read_buffer =   control_packet_gen(11, 1, 0,   0x001D044  );
+    //     // release(control_packet_read_con_lock, 1);
+    //     // event1();
+    //     // // see the value of it
+
+
+
+    //     // event0();
+    //     // acquire_greater_equal(control_packet_read_res_con_lock, 1);
+    //     // *(in) = *control_read_buffer_res;
+    //     // release(control_packet_read_res_prod_lock, 1);
+    //     // event1();
+    //  auto k =  get_coreid();
+    // //   volatile int32_t* cord_id_pt = (volatile int32_t*)(    (10<<3) | 0b111);
+    // //   int32_t val = *cord_id_pt;
+    //   *(in+2) = k;        
     }
-  
+
     // *in = 0x10001;
     acquire_greater_equal(out_buffer_prod_lock, 1);
     passThrough_simple<uint32_t>(in, out, buffer_size);
     release(in_buffer_prod_lock, 1);
     release(out_buffer_con_lock, 1);
 
-  
+    
 
 
 
