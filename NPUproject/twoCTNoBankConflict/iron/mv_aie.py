@@ -144,7 +144,7 @@ def single_mat_vect_mult():
         ShimTile_1 = tile(1, 0)
         # ComputeTile_0_2 = tile(0,2)        
         # ComputeTile_0_2 = tile(0,2, allocation_scheme="bank-aware")        
-        ComputeTile_0_2 = tile(0,2, allocation_scheme="basic-sequential")
+        ComputeTile_0_3 = tile(0,3, allocation_scheme="basic-sequential")
 
         in_data_ty = np.ndarray[ (buffer_size_of_in_ping_pong*2, ), dtype_in]
         out_data_ty = np.ndarray[ (buffer_size_of_out_ping_pong*2, ), dtype_out]
@@ -154,40 +154,24 @@ def single_mat_vect_mult():
         offset = stack_size_in_byte
         assert stack_size_in_byte %64 == 0
         in_buffer = [
-          buffer_raw(tile=ComputeTile_0_2, buffer=try_convert_np_type_to_mlir_type(in_data_ty), sym_name=f"in_buffer_{0}", address=offset),
+          buffer_raw(tile=ComputeTile_0_3, buffer=try_convert_np_type_to_mlir_type(in_data_ty), sym_name=f"in_buffer_{0}", address=offset),
 
         ]
-        in_buffer_prod_lock = lock(ComputeTile_0_2, lock_id=8, init=2, sym_name="in_buffer_p_lock")
-        in_buffer_con_lock = lock(ComputeTile_0_2, lock_id=9, init=0, sym_name="in_buffer_c_lock")
+        in_buffer_prod_lock = lock(ComputeTile_0_3, lock_id=8, init=2, sym_name="in_buffer_p_lock")
+        in_buffer_con_lock = lock(ComputeTile_0_3, lock_id=9, init=0, sym_name="in_buffer_c_lock")
         offset+= buffer_size_of_in_ping_pong*2*4
         
         offset = custom_ceil(offset, 64)
         assert offset %64 == 0
         
-        # cur_x_u_ty = np.ndarray[ (buffer_size_of_cur_X_U,), dtype_in ]
-        # cur_x_u_buffer = [
-        #     buffer_raw(tile=ComputeTile_0_2, buffer=try_convert_np_type_to_mlir_type(cur_x_u_ty ), sym_name="cur_x_u_buffer", address=offset)
-        # ]
-        # offset+= buffer_size_of_cur_X_U*4
-        
-        # C1_DSW_mat_res_ty = np.ndarray[ (buffer_size_of_C1_DSW_mat_res,), dtype_in]
-        # C1_DSW_mat_buffer = [
-        #     buffer_raw(tile=ComputeTile_0_2, buffer=try_convert_np_type_to_mlir_type(C1_DSW_mat_res_ty), sym_name="C1_DSW_mat_buffer", address=offset)
-        # ]
-        # offset+= buffer_size_of_C1_DSW_mat_res*4
-        
-        # A_B_C_D_mat_res_ty = np.ndarray[ (buffer_size_of_A_B_C_D_mat_res, ), dtype_in]
-        # A_B_C_D_mat_res_buffer = [
-        #     buffer_raw(tile=ComputeTile_0_2, buffer=try_convert_np_type_to_mlir_type(A_B_C_D_mat_res_ty), sym_name="A_B_C_D_mat_res_buffer", address=offset)
-        # ]
-        # offset+= buffer_size_of_A_B_C_D_mat_res*4
+
         
         switch_diode_matrix_ty = np.ndarray[ (C1_DSW_buffer_size, ), dtype_in]
         switch_diode_buffer = [
-            buffer_raw(tile=ComputeTile_0_2, buffer=try_convert_np_type_to_mlir_type(switch_diode_matrix_ty), sym_name=f"switch_diode_buffer", address=offset) 
+            buffer_raw(tile=ComputeTile_0_3, buffer=try_convert_np_type_to_mlir_type(switch_diode_matrix_ty), sym_name=f"switch_diode_buffer", address=offset) 
         ]
-        switch_diode_prod_lock =  lock(ComputeTile_0_2, lock_id=0, init=1, sym_name="switch_diode_prod_lock")
-        switch_diode_con_lock = lock(ComputeTile_0_2, lock_id=1, init=0, sym_name="switch_diode_con_lock")
+        switch_diode_prod_lock =  lock(ComputeTile_0_3, lock_id=0, init=1, sym_name="switch_diode_prod_lock")
+        switch_diode_con_lock = lock(ComputeTile_0_3, lock_id=1, init=0, sym_name="switch_diode_con_lock")
         offset+= C1_DSW_buffer_size*4
         assert offset %64 == 0
         
@@ -198,10 +182,10 @@ def single_mat_vect_mult():
 
         A_B_C_D_ty = np.ndarray[(A_B_C_D_buffer_size,  ), dtype_in]
         A_B_C_D_buffer = [
-            buffer_raw(tile=ComputeTile_0_2, buffer=try_convert_np_type_to_mlir_type(A_B_C_D_ty), sym_name="A_B_C_D_buffer", address=offset)
+            buffer_raw(tile=ComputeTile_0_3, buffer=try_convert_np_type_to_mlir_type(A_B_C_D_ty), sym_name="A_B_C_D_buffer", address=offset)
         ]
-        A_B_C_D_prod_lock = lock(ComputeTile_0_2, lock_id=2, init=2, sym_name="A_B_C_D_prod_lock")
-        A_B_C_D_con_lock = lock(ComputeTile_0_2, lock_id=3, init=0, sym_name="A_B_C_D_con_lock")
+        A_B_C_D_prod_lock = lock(ComputeTile_0_3, lock_id=2, init=2, sym_name="A_B_C_D_prod_lock")
+        A_B_C_D_con_lock = lock(ComputeTile_0_3, lock_id=3, init=0, sym_name="A_B_C_D_con_lock")
         offset += A_B_C_D_buffer_size*4
         assert offset %64 == 0
         
@@ -212,10 +196,10 @@ def single_mat_vect_mult():
         
         # out_buffer_address = (64*1024) - (buffer_size_of_out_ping_pong*2*4) # 4 byte per float
         out_buffer = [
-            buffer_raw(tile=ComputeTile_0_2, buffer=try_convert_np_type_to_mlir_type(out_data_ty), sym_name=f"out_buffer_{0}", address=offset ), # 
+            buffer_raw(tile=ComputeTile_0_3, buffer=try_convert_np_type_to_mlir_type(out_data_ty), sym_name=f"out_buffer_{0}", address=offset ), # 
         ]        
-        out_buffer_prod_lock = lock(ComputeTile_0_2, lock_id=10, init=2)
-        out_buffer_con_lock = lock(ComputeTile_0_2, lock_id=11, init=0)
+        out_buffer_prod_lock = lock(ComputeTile_0_3, lock_id=10, init=2)
+        out_buffer_con_lock = lock(ComputeTile_0_3, lock_id=11, init=0)
 
         assert offset+buffer_size_of_out_ping_pong*2*4 <= (64*1024)  # total of less than 64kB
 
@@ -231,7 +215,7 @@ def single_mat_vect_mult():
         # print(A_B_C_D_num_for_balance_cutoff)
         mid_offset = A_B_C_D_num_for_balance_cutoff *(A_B_C_D_row_size)*(A_B_C_D_col_size )
         
-        @mem(ComputeTile_0_2)
+        @mem(ComputeTile_0_3)
         def m(block):
 
             #block_idx, acqire_locks, buffer, buffer_offset, buffer_len, release_locks, next_idx, [packet_id, packet_type]    
@@ -258,41 +242,21 @@ def single_mat_vect_mult():
                 
                 
                 
-        CT_0_2_main_func = external_func("CT_main", inputs=[
+        CT_0_3_main_func = external_func("CT_main", inputs=[
             in_data_ty, out_data_ty,
             np.int32, np.int32, np.int32, np.int32,
             switch_diode_matrix_ty, A_B_C_D_ty
         ])
 
-        @core(ComputeTile_0_2, "mainKernel.o", stack_size=stack_size_in_byte)
+        @core(ComputeTile_0_3, "mainKernel.o", stack_size=stack_size_in_byte)
         def core_body():
             # for _ in range_(sys.maxsize):
-            CT_0_2_main_func(
+            CT_0_3_main_func(
                 in_buffer[0], out_buffer[0],
                 constant(8),constant(9),constant(10),constant(11),
                 switch_diode_buffer[0], A_B_C_D_buffer[0]
                 
             )
-
-        # CT_0_2_main_func = external_func("CT_main", inputs=[
-        #     in_data_ty, out_data_ty,
-        #     np.int32, np.int32, np.int32,
-        #     np.int32, np.int32, np.int32, np.int32,
-        #     switch_diode_matrix_ty, np.int32, np.int32
-            
-        # ])
-        
-        # @core(ComputeTile_0_2, "mainKernel.o")
-        # def core_body():
-
-        #     CT_0_2_main_func(
-        #         in_buffer[0], out_buffer[0],
-        #         constant(buffer_size_of_in_ping_pong), constant(buffer_size_of_out_ping_pong), constant(iteration_step_per_ping_pong_buffer),
-        #         8,9,10,11,
-        #         switch_diode_buffer[0], constant(C1_DSW_row_size), constant(C1_DSW_col_size)
-                
-        #     )
-
 
 
             
@@ -304,29 +268,29 @@ def single_mat_vect_mult():
         in_1_size = (A_B_C_D_buffer_size-mid_offset)  + data_flow_in_size
         
         if(trace_size > 0):
-            tiles_to_trace = [ComputeTile_0_2, ComputeTile_0_2] #TODO: also shimtile?
+            tiles_to_trace = [ComputeTile_0_3, ComputeTile_0_3] #TODO: also shimtile?
             trace_utils.configure_packet_tracing_flow(tiles_to_trace, ShimTile_1)
 
         # leave first 6(0-5) packet id for tracing
         packetflow( 6, source=ShimTile_0, source_port=WireBundle.DMA, source_channel=0, 
-                   dest = ComputeTile_0_2, dest_port=WireBundle.DMA, dest_channel=0
+                   dest = ComputeTile_0_3, dest_port=WireBundle.DMA, dest_channel=0
                    )
         packetflow(8, source=ShimTile_0, source_port=WireBundle.DMA, source_channel=1,
-                   dest=ComputeTile_0_2, dest_port=WireBundle.DMA, dest_channel=1
+                   dest=ComputeTile_0_3, dest_port=WireBundle.DMA, dest_channel=1
                    )
-        packetflow(9, source=ComputeTile_0_2, source_port=WireBundle.DMA, source_channel=0,
+        packetflow(9, source=ComputeTile_0_3, source_port=WireBundle.DMA, source_channel=0,
                     dest = ShimTile_0, dest_port= WireBundle.DMA, dest_channel=1
                    ) 
         
-        memref.global_("in_SHM_CT_0_2_0", T.memref( in_0_size, T.f32() ), sym_visibility="public")            
-        memref.global_("in_SHM_CT_0_2_1", T.memref(in_1_size, T.f32()), sym_visibility="public")
+        memref.global_("in_SHM_CT_0_3_0", T.memref( in_0_size, T.f32() ), sym_visibility="public")            
+        memref.global_("in_SHM_CT_0_3_1", T.memref(in_1_size, T.f32()), sym_visibility="public")
 
-        memref.global_("out_CT_0_2_SHM", T.memref( data_flow_out_size, T.f32()), sym_visibility="public" ) # result out
+        memref.global_("out_CT_0_3_SHM", T.memref( data_flow_out_size, T.f32()), sym_visibility="public" ) # result out
 
      
-        shim_dma_allocation("in_SHM_CT_0_2_0", DMAChannelDir.MM2S, 0, 0)        
-        shim_dma_allocation("out_CT_0_2_SHM", DMAChannelDir.S2MM, 1,0)
-        shim_dma_allocation("in_SHM_CT_0_2_1", DMAChannelDir.MM2S, 1, 0 )
+        shim_dma_allocation("in_SHM_CT_0_3_0", DMAChannelDir.MM2S, 0, 0)        
+        shim_dma_allocation("out_CT_0_3_SHM", DMAChannelDir.S2MM, 1,0)
+        shim_dma_allocation("in_SHM_CT_0_3_1", DMAChannelDir.MM2S, 1, 0 )
 
         @runtime_sequence(np.ndarray[(matrix_size, ), dtype_in], np.ndarray[(matrix_size, ), dtype_out], np.ndarray[(data_flow_in_size,), dtype_in], np.ndarray[(data_flow_out_size,), dtype_out]  )
         def sequence(A,B, in_buf, out_buf):
@@ -360,46 +324,10 @@ def single_mat_vect_mult():
                     ],                        
                 )
     
-            # # transfer the switch_diode_matrix in column major order
-            
-            # custom_npu_dma_memcpy_nd(
-            #     metadata="in_SHM_CT_0_2_0",
-            #     bd_id=1,
-            #     mem=A, offsets=[0,0,0,0], 
-            #     # sizes= [1, total_switch_diode_state  , C1_DSW_col_size, C1_DSW_row_size ],
-            #     # strides=[0,  C1_DSW_matrix_size ,1,C1_DSW_col_size],  
-            #     sizes = [  total_switch_diode_state,        C1_DSW_row_size//kernel_mat_v_size, C1_DSW_col_size, kernel_mat_v_size],
-            #     strides= [ C1_DSW_row_size*C1_DSW_col_size, kernel_mat_v_size*C1_DSW_col_size,  1,              C1_DSW_col_size],
-            #     packet_id=6,
-            #     packet_type=0                  
-            # )
-            # assert C1_DSW_buffer_size % A_B_C_D_col_size == 0
-            # custom_npu_dma_memcpy_nd(
-            #     metadata="in_SHM_CT_0_2_0",
-            #     bd_id=2,
-            #     mem=A, offsets=[0,0,0, C1_DSW_buffer_size //A_B_C_D_col_size ],   # The offset will multiple with the sizes
-            #     # sizes= [1, A_B_C_D_num_for_balance_cutoff , A_B_C_D_col_size, A_B_C_D_row_size],
-            #     # strides=[0,   A_B_C_D_matrix_size   ,1, A_B_C_D_col_size],
-                
-            #     sizes = [ A_B_C_D_num_for_balance_cutoff,      A_B_C_D_row_size//kernel_mat_v_size,  A_B_C_D_col_size,  kernel_mat_v_size    ] ,
-            #     strides=[ A_B_C_D_col_size*A_B_C_D_row_size,   kernel_mat_v_size*A_B_C_D_col_size,   1,                 A_B_C_D_col_size     ],
-                
-            #     packet_id=6,
-            #     packet_type=0                                               
-            # )
-            # assert in_0_size % A_B_C_D_col_size == 0
-            # if (in_1_size-data_flow_in_size > 0):
-            #     custom_npu_dma_memcpy_nd(metadata="in_SHM_CT_0_2_1", bd_id=3, mem=A, offsets=[0, 0,  0,  in_0_size //A_B_C_D_col_size  ], #TODO: assert is okay for it
-
-                                        
-            #         sizes = [ total_switch_diode_state- A_B_C_D_num_for_balance_cutoff, A_B_C_D_row_size//kernel_mat_v_size,  A_B_C_D_col_size,  kernel_mat_v_size    ] ,
-            #         strides=[ A_B_C_D_col_size*A_B_C_D_row_size,                        kernel_mat_v_size*A_B_C_D_col_size,   1,                 A_B_C_D_col_size     ],                                        
-                                            
-            #                             packet_id=8, packet_type=0)
 
             # version of DMA transmit data without doing data reordering(should be done by host already)
             custom_npu_dma_memcpy_nd(
-                metadata="in_SHM_CT_0_2_0",
+                metadata="in_SHM_CT_0_3_0",
                 bd_id=1,
                 mem=A, offsets=[0,0,0,0], 
                 # sizes= [1, total_switch_diode_state  , C1_DSW_col_size, C1_DSW_row_size ],
@@ -412,18 +340,18 @@ def single_mat_vect_mult():
 
             assert in_0_size % A_B_C_D_col_size == 0
             if (in_1_size-data_flow_in_size > 0):
-                custom_npu_dma_memcpy_nd(metadata="in_SHM_CT_0_2_1", bd_id=3, mem=A, 
+                custom_npu_dma_memcpy_nd(metadata="in_SHM_CT_0_3_1", bd_id=3, mem=A, 
                     offsets=[0, 0,  0,  in_0_size   ], #TODO: assert is okay for it
                     sizes = [1,1,1,    in_1_size-data_flow_in_size  ] ,
                     strides=[0,0,0,1],                                                                    
                     packet_id=8, packet_type=0)
 
-            custom_npu_dma_memcpy_nd(metadata="out_CT_0_2_SHM", bd_id=4, mem=out_buf, offsets=[0,0,0,0], sizes=[1,1,1, data_flow_out_size], 
+            custom_npu_dma_memcpy_nd(metadata="out_CT_0_3_SHM", bd_id=4, mem=out_buf, offsets=[0,0,0,0], sizes=[1,1,1, data_flow_out_size], 
                                      strides=[0,0,0,1], issue_token=True)
-            custom_npu_dma_memcpy_nd(metadata="in_SHM_CT_0_2_1", bd_id=5, mem=in_buf, offsets=[0,0,0,0], 
+            custom_npu_dma_memcpy_nd(metadata="in_SHM_CT_0_3_1", bd_id=5, mem=in_buf, offsets=[0,0,0,0], 
                                      sizes=[1,1,1, data_flow_in_size ], strides=[0,0,0,1], packet_id=8, packet_type=0)
 
-            npu_dma_wait("out_CT_0_2_SHM")
+            npu_dma_wait("out_CT_0_3_SHM")
 
 with mlir_mod_ctx() as ctx:
     single_mat_vect_mult()
