@@ -174,8 +174,8 @@ extern "C" {
         // // x_u_cur[0] = aie::add(x_u_cur[0], v);
 
         for (uint64_t l = 0; l < PING_PONG_BUFFER_ITERATION; l++) {
-            acquire_greater_equal(buffer_in_con_loc_id + 48, 1);
-            acquire_greater_equal(buffer_out_prod_lock_id + 48, 1);
+            acquire_greater_equal(buffer_in_con_loc_id , 1);
+            acquire_greater_equal(buffer_out_prod_lock_id , 1);
 
 
             // float *test_out = out;
@@ -207,11 +207,11 @@ extern "C" {
                 in,out, x_u_cur, C1_DSW_Buffer, ABCD_buffer, externalSwitchDiodeStates
             );
             
-            release(buffer_in_prod_lock_id + 48, 1);
-            release(buffer_out_con_lock_id + 48, 1);
+            release(buffer_in_prod_lock_id , 1);
+            release(buffer_out_con_lock_id , 1);
 
-            acquire_greater_equal(buffer_in_con_loc_id + 48, 1);
-            acquire_greater_equal(buffer_out_prod_lock_id + 48, 1);
+            acquire_greater_equal(buffer_in_con_loc_id , 1);
+            acquire_greater_equal(buffer_out_prod_lock_id , 1);
             // // use buffer 0 of ping in and out
             // accum_float_value(in, out, 
             //   BUFFER_SIZE_OF_IN_PING_POING, BUFFER_SIZE_OF_OUT_PING_PONG
@@ -221,8 +221,8 @@ extern "C" {
                 in+BUFFER_SIZE_OF_IN_PING_POING,out +BUFFER_SIZE_OF_OUT_PING_PONG , x_u_cur, C1_DSW_Buffer, ABCD_buffer, externalSwitchDiodeStates
             );
 
-            release(buffer_in_prod_lock_id + 48, 1);
-            release(buffer_out_con_lock_id + 48, 1);
+            release(buffer_in_prod_lock_id , 1);
+            release(buffer_out_con_lock_id , 1);
 
  
 

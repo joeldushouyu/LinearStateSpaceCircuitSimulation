@@ -145,7 +145,7 @@ def single_mat_vect_mult():
         # ComputeTile_0_2 = tile(0,2)        
         # ComputeTile_0_2 = tile(0,2, allocation_scheme="bank-aware")        
         ComputeTile_0_3 = tile(0,3, allocation_scheme="basic-sequential")
-
+        ComputeTile_0_2 = tile(0, 2) # round robin allocation bank allocation
         in_data_ty = np.ndarray[ (buffer_size_of_in_ping_pong*2, ), dtype_in]
         out_data_ty = np.ndarray[ (buffer_size_of_out_ping_pong*2, ), dtype_out]
 
@@ -253,7 +253,7 @@ def single_mat_vect_mult():
             # for _ in range_(sys.maxsize):
             CT_0_3_main_func(
                 in_buffer[0], out_buffer[0],
-                constant(8),constant(9),constant(10),constant(11),
+                constant(8+48),constant(9+48),constant(10+48),constant(11+48),
                 switch_diode_buffer[0], A_B_C_D_buffer[0]
                 
             )
