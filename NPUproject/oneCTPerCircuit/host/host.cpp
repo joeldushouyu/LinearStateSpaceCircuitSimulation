@@ -208,15 +208,19 @@ int main(int argc, const char *argv[]) {
     header_print("info", "Running kernel with bare call.");
     time_utils::time_with_unit npu_time = {0.0, "us"};
 	
-    for (int i = 0; i < Iterations; i++) {
-        time_utils::time_point start = time_utils::now();
-        run_0.start();
-        run_0.wait();
+   
+    time_utils::time_point start = time_utils::now();
+    auto start_timer = std::chrono::high_resolution_clock::now();
+    run_0.start();
+    run_0.wait();
+    auto stop_timer = std::chrono::high_resolution_clock::now();
+    time_utils::time_point stop = time_utils::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop_timer - start_timer).count();
 
-	    time_utils::time_point stop = time_utils::now();
-	    npu_time.first += time_utils::duration_us(start, stop).first;
-    }
-    npu_time.first /= Iterations * 2.0;
+    std::cout << std::dec << "Elapsed time: " << duration << " us" << std::endl;
+
+
+    npu_time.first += time_utils::duration_us(start, stop).first;
     MSG_BONDLINE(40);
     MSG_BOX_LINE(40, "NPU time with bare call: " << npu_time.first << " us");
     MSG_BONDLINE(40);
