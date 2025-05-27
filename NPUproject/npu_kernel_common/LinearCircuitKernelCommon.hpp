@@ -25,10 +25,11 @@ inline float* retrieveMatrixOFfsetBaseOnState(const uint32_t state, const int32_
 
 float * mv_16_row_with_STATE_U_SIZE_col_parallel(float * matrix,
     aie::vector<float, 16> *x_u_cur, aie::accum<accfloat, 16> &accum_temp){
-
-    AIE_PREPARE_FOR_PIPELINE
-    #pragma clang loop max_iteration_count(  (U_SIZE+ STATE_SIZE +1)/2)
-    for(uint32_t col = 0; col+1 <U_SIZE+STATE_SIZE; col+=2 ){
+    
+    constexpr uint32_t loop_iter = U_SIZE+STATE_SIZE;
+    AIE_PREPARE_FOR_PIPELINING
+    AIE_LOOP_RANGE( loop_iter / 2, loop_iter / 2)
+    for(uint32_t col = 0; col+1 <loop_iter; col+=2 ){
         const uint32_t col_div_16 = col/16;
         const uint32_t col_mod_16 = col%16 ;         
 
@@ -72,8 +73,8 @@ void mult_with_C1_DSW(float *C1_DSW_mat, aie::vector<float, 16> *x_u_cur, uint32
     uint32_t c1_res_offset = 0;
 
 
-    AIE_PREPARE_FOR_PIPELINE
-    #pragma clang  loop max_iteration_count( C1_DSW_ROW_SIZE_DIV_16)
+    AIE_PREPARE_FOR_PIPELINING
+    AIE_LOOP_RANGE(C1_DSW_ROW_SIZE_DIV_16,C1_DSW_ROW_SIZE_DIV_16)    
     for(uint32_t row = 0; row < C1_DSW_ROW_SIZE_DIV_16; row++){
 
         aie::accum<accfloat, 16> C1_DSW_temp = aie::zeros<accfloat, 16>();
@@ -144,9 +145,9 @@ template<uint32_t X_NEXT_BUFFER_SIZE>
 void mult_with_A_B_To_Vector_Array(float *A_B_C_D_mat, aie::vector<float, 16> *x_u_cur,  aie::vector<float, 16> *x_next_res){
     static_assert(X_NEXT_BUFFER_SIZE == STATE_SIZE_CEIL_TO_16);
     constexpr uint32_t loop_iteration = STATE_SIZE_CEIL_TO_16/16;
-    AIE_PREPARE_FOR_PIPELINE
-    #pragma clang loop max_iteration_count(loop_iteration)
-    for(uint32_t row = 0; row < STATE_SIZE_CEIL_TO_16/16; row++){
+    AIE_PREPARE_FOR_PIPELINING
+    AIE_LOOP_RANGE(loop_iteration, loop_iteration)
+    for(uint32_t row = 0; row < loop_iteration; row++){
         aie::accum<accfloat, 16> ABtemp = aie::zeros<accfloat, 16>();
         // // #pragma clang loop_unroll(full)
         // for(uint32_t col = 0; col < U_SIZE+STATE_SIZE; col++){
@@ -174,8 +175,8 @@ template<uint32_t X_NEXT_BUFFER_SIZE>
 void mult_with_A_B_To_Array(float *A_B_C_D_mat, aie::vector<float, 16> *x_u_cur, float *x_next_res){
     static_assert(X_NEXT_BUFFER_SIZE == STATE_SIZE_CEIL_TO_16);
     constexpr uint32_t loop_iteration = STATE_SIZE_CEIL_TO_16/16;
-    AIE_PREPARE_FOR_PIPELINE
-    #pragma clang loop max_iteration_count(loop_iteration)
+    AIE_PREPARE_FOR_PIPELINING
+    AIE_LOOP_RANGE(loop_iteration, loop_iteration)
     for(uint32_t row = 0; row < loop_iteration; row++){
         aie::accum<accfloat, 16> ABtemp = aie::zeros<accfloat, 16>();
         // AIE_PREPARE_FOR_PIPELINE
@@ -206,7 +207,7 @@ void update_x_u_cur_From_Array( aie::vector<float, 16> *x_u_cur, float *x_u_cur_
 
     static_assert(STATE_SIZE_CEIL_TO_16/16 == X_U_cur_vector_size);
     //now rewrite the x_u_cur wit new value from iteration
-    // #pragma clang loop_unroll(full)
+    AIE_LOOP_UNROLL(X_U_cur_vector_size) 
     for(uint32_t i = 0; i< X_U_cur_vector_size; i++){
         (x_u_cur+i)->load(x_u_cur_res + 16* i);
     }
@@ -219,7 +220,7 @@ void update_x_u_cur_From_Vector_Array( aie::vector<float, 16> *x_u_cur, aie::vec
 
     static_assert(STATE_SIZE_CEIL_TO_16/16 == X_U_cur_vector_size);
     //now rewrite the x_u_cur wit new value from iteration
-    // #pragma clang loop_unroll(full)
+    AIE_LOOP_UNROLL(X_U_cur_vector_size) 
     for(uint32_t i = 0; i< X_U_cur_vector_size; i++){
         *(x_u_cur+i) = *(x_u_cur_res+i);
     }
@@ -232,8 +233,8 @@ void mult_with_C_D_aligned_nonimpulse_only(float *C_D_mat, aie::vector<float, 16
     static_assert(Y_SIZE_CEIL_TO_16%16 == 0);
     constexpr uint32_t num_of_iteration = Y_SIZE_CEIL_TO_16/16;
 
-    AIE_PREPARE_FOR_PIPELINE
-    #pragma clang  loop max_iteration_count( num_of_iteration)
+    AIE_PREPARE_FOR_PIPELINING
+    AIE_LOOP_RANGE( num_of_iteration, num_of_iteration)
     for(uint32_t row = 0; row < num_of_iteration; row++){
         aie::accum<accfloat, 16> C_D_temp = aie::zeros<accfloat, 16>();
            
@@ -273,8 +274,8 @@ void mult_with_C_D_aligned_nonimpulse_and_impulse(float *C_D_mat, aie::vector<fl
     aie::vector<float, 16> C_D_nonimp_res [Y_SIZE_CEIL_TO_16_DIV_16];
     
     // loop one, write the c_D_nonimpulse result to C_D_nonimp_res
-    AIE_PREPARE_FOR_PIPELINE
-    #pragma clang  loop max_iteration_count( num_of_iteration/2)
+    AIE_PREPARE_FOR_PIPELINING
+    AIE_LOOP_RANGE( num_of_iteration/2, num_of_iteration/2)
     for(uint32_t row = 0; row < num_of_iteration/2; row++){
         event0();
         aie::accum<accfloat, 16> C_D_temp = aie::zeros<accfloat, 16>();
@@ -297,8 +298,8 @@ void mult_with_C_D_aligned_nonimpulse_and_impulse(float *C_D_mat, aie::vector<fl
 
     // another loop that calculdate C_D_impulse result
     // loop one, write the c_D_nonimpulse result to C_D_nonimp_res
-    AIE_PREPARE_FOR_PIPELINE
-    #pragma clang  loop max_iteration_count( num_of_iteration/2)
+    AIE_PREPARE_FOR_PIPELINING
+    AIE_LOOP_RANGE( num_of_iteration/2, num_of_iteration/2)
     for(uint32_t row = 0; row < num_of_iteration/2; row++){
         event0();        
         aie::accum<accfloat, 16> C_D_temp = aie::zeros<accfloat, 16>();
@@ -330,7 +331,7 @@ void mult_with_C_D_aligned_nonimpulse_and_impulse(float *C_D_mat, aie::vector<fl
 
 // Return true if externalSwitch toggled
 bool update_x_u_cur_with_input(aie::vector<float, 16> *x_u_cur, float*in, uint32_t &externalSwitchDiodeStates){
-    #pragma clang loop unroll_count(U_SIZE)
+    AIE_LOOP_UNROLL(U_SIZE)
     for(auto i = STATE_SIZE; i < U_SIZE+STATE_SIZE ; i++ ){
         
 
