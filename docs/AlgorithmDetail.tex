@@ -7,9 +7,10 @@
 \usepackage[bookmarks=true]{hyperref}
 \usepackage{amsmath}
 \usepackage{upgreek}
-
+\usepackage{blkarray}
+\usepackage{amsmath}
 \pdfinfo{
-   /Author (Homer Simpson)
+   /Author (Shouyu Du)
    /Title  (Robots: Our new overlords)
    /CreationDate (D:20101201120000)
    /Subject (Robots)
@@ -84,19 +85,224 @@ Although the paper published by PLECS \cite{Allmeling794588} points out how to r
 but the authors did not give any detail on a systematic method for obtaining those state-space matrix. 
 In Dspace's paper\cite{Kiffe9570187}, the authors point to a highly influential paper\cite{Kuh1445921} on how to retrieve state-space matrix based on circuit network Topology.
 In Massarini and Reggiani's paper, the authors points to the book co-author by L.O.Chua and P.M.Lin\cite{LOChua} for methods on retriving state-space matrix base on circuit network Topology.
-
 After a detail comparison, the author found many of the ideas by Kuh and Rohrer \cite{Kuh1445921} exist in the book \cite{LOChua}. Thus, the author decide
-to further develop the algorithm base on the work by Massarini and Reggiani\cite{Massarini551005}, \cite{Massarini921362}.
+to further develop the algorithm base on the work by Massarini and Reggiani\cite{Massarini551005}, \cite{Massarini921362}
 
 
-The paper by Massarini and Reggiani\cite{Massarini921362} start develop based on the \eqref{eq:1} which obtained in \cite{LOChua}.
-For a detail overview of the equation, please refer to chapter 4 and chapter 6 of \cite{LOChua}. 
+
+
+
+\subsection{Network Toplogy}
+In Chapter 3 of \cite{LOChua}, it introduced the idea of "Incidence Matrix", which described circuit toplogy as a directed graph.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.25\textwidth]{./pictures/simpleTopology.png}
+    \caption{Network Toplogy}
+    \label{fig:simpleTopology}
+\end{figure}
+
+For example, given the network toplogy in \ref{fig:simpleTopology}, we have the following incidence matrix in eqaution \ref{eq:IncidenceMatrix}.
+
+\begin{equation}
+  \begin{array}{c@{}c@{}c@{}c@{}c}  % [matrix] [times] [vector] [equals] [result]
+  % First matrix (6 columns + label)
+  \begin{blockarray}{ccccccc}
+  a & b & c & d & e & f \\
+  \begin{block}{(cccccc)c}
+    1 & 0 & 1 & 0 & 0 & -1 & 1 \\
+    -1 & 1 & 0 & 0 & 1 & 0 & 2 \\
+    0 & 0 & -1 & 1 & -1 & 0 & 3 \\
+    0 & -1 & 0 & -1 & 0 & 1 & 4 \\
+  \end{block}
+  \end{blockarray}
+  &
+  \times
+  &
+  \begin{blockarray}{cc}
+  \begin{block}{(c)c}
+    ia & \\
+    ib & \\
+    ic & \\ 
+    id & \\
+    ie & \\ 
+    if & \\
+  \end{block}
+  \end{blockarray}
+  & 
+  =
+  &
+  \begin{blockarray}{c}
+  \begin{block}{c}
+    0\\
+    0\\
+    0\\
+    0\\
+  \end{block}
+  \end{blockarray}
+  \end{array}
+  \label{eq:IncidenceMatrix}
+\end{equation}
+
+The Node 1,2,3,4 in  fig \ref{fig:simpleTopology} could be viewed as different nodes in the circuit with edge a,b,c,d,e,f 
+represents different electrical components, with the direction represents conventional current flow(from positive to negative).
+In other sense, the directed graph reflects the KCL of the circuit.
+
+Then, the reduced Incidence matrix \(A\) is obtained from Incidence Matrix by 
+"deleting any one row"(typically removing the Ground(GND) Node) to form a reduced incidence matrix, as shown in \ref{eq:reducedIncidentMatrix}.
+
+
+\begin{equation}
+  \begin{array}{c@{}c@{}c@{}c@{}c}  % [matrix] [times] [vector] [equals] [result]
+  % First matrix (6 columns + label)
+  \begin{blockarray}{ccccccc}
+  a & b & c & d & e & f \\
+  \begin{block}{(cccccc)c}
+    1 & 0 & 1 & 0 & 0 & -1 & 1 \\
+    -1 & 1 & 0 & 0 & 1 & 0 & 2 \\
+    0 & 0 & -1 & 1 & -1 & 0 & 3 \\
+  \end{block}
+  \end{blockarray}
+  &
+  \times
+  &
+  \begin{blockarray}{cc}
+  \begin{block}{(c)c}
+    ia & \\
+    ib & \\
+    ic & \\ 
+    id & \\
+    ie & \\ 
+    if & \\
+  \end{block}
+  \end{blockarray}
+  & 
+  =
+  &
+  \begin{blockarray}{c}
+  \begin{block}{(c)}
+    0\\
+    0\\
+    0\\
+  \end{block}
+  \end{blockarray}
+  \end{array}
+  \label{eq:reducedIncidentMatrix}
+\end{equation}
+
+
+
+Given A contains the complete information of KCL equations, we can further paritioned the matrix into
+A  = [ A\textsubscript{T}  A\textsubscript{L} ] where coumns of A\textsubscript{T}(Tree) correspond to the tree
+branches of a chosen T, and columns of A\textsubscript{L}(CoTree) correspond to the links A\textsubscript{T} is an invertable matrix.
+To correclty reorder A into A\textsubscript{T} and A\textsubscript{L}, one can simpliy find the pivot columns of A
+and form a pivot columns of A as A\textsubscript{T} and other non-pivot columns as A\textsubscript{L} matrix.
+
+For example, \ref{eq:reducedIncidentMatrix} is reorder into \ref{eq:reducedIncidentMatrix_Tree_Cotree}, where columner d, e, f are the pivots of \ref{eq:reducedIncidentMatrix}
+\begin{equation}
+  \begin{array}{c@{}c@{}c@{}c@{}c}  % [matrix] [times] [vector] [equals] [result]
+  % First matrix (6 columns + label)
+  \begin{blockarray}{cccccccc}
+  d & e & f & | & a & b & c \\
+  \begin{block}{(ccccccc)c}
+    0 & 0 & -1 & | &  1 & 0 & 1 &  1 \\
+    0 & 1 & 0 &  | & -1 & 1 & 0 & 2 \\
+    1 & -1 & 0 & | & 0 & 0 & -1 & 3 \\
+  \end{block}
+  \end{blockarray}
+  &
+  \times
+  &
+  \begin{blockarray}{cc}
+  \begin{block}{(c)c}
+    id & \\
+    ie & \\
+    if & \\ 
+    ia & \\
+    ib & \\ 
+    ic & \\
+  \end{block}
+  \end{blockarray}
+  & 
+  =
+  &
+  \begin{blockarray}{c}
+  \begin{block}{(c)}
+    0\\
+    0\\
+    0\\
+  \end{block}
+  \end{blockarray}
+  \end{array}
+  \label{eq:reducedIncidentMatrix_Tree_Cotree}
+\end{equation}
+
+
+Although matrix A\textsubscript{a} described the KCL law which claims that the sum of currents enter a node equals to sum of current goes
+out of a loop, the autho of \cite{LOChua} pointed out a more general form of the KCL states that the algebraic sum of all currents through a
+cutsets, from one part to the other, is zero at all times. In Chapter 3.4, the author gives detail examples of how to find the D (cutset matrix).
+But for the purpose of this document, all we need is equation \ref{eq:LoChua_3_30} from page 151 of \cite{LOChua}.
+\begin{equation}
+  D = (A_T)^{-1} A 
+  \label{eq:LoChua_3_30}
+\end{equation}
+
+
+In Chapter 6.5.2 of \cite{LOChua}, the author further expand on the idea of 
+cutset equations(KCL) as shown in \ref{eq:FundamentalCutsetEquations}, 
+where a is the number of port in Tree, z is number of non-port element in Tree,
+y is number of port in Cotree and b is number of nonport element in Cotree.
+
+The detail of port vs nonport element can be found in Chapter 6.2 of \cite{LOChua}, but for our purpose,
+we just need to remember that Capacitors, Inductors, Voltage/Current source are being classified as port element,
+and Resistors and all dependent source are classified as non-port element.
+
+For example, a=2, z=1, y=1, b=2 could happen on a D cutset matrix where the
+first two column are voltage, source and a capacitor, then follow by a resistor, then follow by a inducotr with 2 dependents voltage columns.
+
+
+\begin{equation}
+  \begin{array}{c@{}c@{}c@{}c@{}c}  % [matrix] [times] [vector] [equals] [result]
+  % First matrix (6 columns + label)
+  \begin{blockarray}{cccc}
+  a & b & c & d \\
+  \begin{block}{(cccc)}
+    I_{aa} & 0_{az} & D_{ay} & D_{ab} \\
+    0_{za} & I_{zz} & D_{zy} & D_{zb} \\
+  \end{block}
+  \end{blockarray}
+  &
+  \times
+  &
+  \begin{blockarray}{c}
+  \begin{block}{(c)}
+    i_a \\
+    i_z \\
+    i_y \\
+    i_b \\
+  \end{block}
+  \end{blockarray}
+  & 
+  =
+  &
+  \begin{blockarray}{c}
+  \begin{block}{(c)}
+    0\\
+    0\\
+  \end{block}
+  \end{blockarray}
+  \end{array}
+  \label{eq:FundamentalCutsetEquations}
+\end{equation}
+
+At this point, this is where the paper by Massarini and Reggiani\cite{Massarini921362} start develop based on the \eqref{eq:1} which obtained from (6-66) and 
+(6-67) of \cite{LOChua}, where the las row gives the nonport elements charafcteristics.
 \begin{equation}
   \resizebox{0.5\textwidth}{!}{%
   $
   \begin{bmatrix}
     Day_{11} & 0 & 1 & 0 & D_{ab} & 0\\
-    0 & -(D_{zb})^T & 0 & 1 & 0 & -(D_{ab})T\\ 
+    0 & -(D_{zb})^T & 0 & 1 & 0 & -(D_{ab})^T\\ 
     \hat{F_{iy} }& \hat{F_{vz}}&\hat{F_{ia}}&\hat{F_{vb}}&\hat{F_{ib}}&\hat{F_{va}}
   \end{bmatrix}
   \times
@@ -117,22 +323,29 @@ For a detail overview of the equation, please refer to chapter 4 and chapter 6 o
 
 \section{Extension of the Work}
 
-At the end of section 2in \cite{Massarini921362}, the author mentioned both M and Q is not full rank when there 
+At the end of section 2in \cite{Massarini921362}, the author mentioned both M\textsuperscript{0} and Q is not full rank when there 
 exist dependency between state variables. However, the author did not give any specific details in handling those situation while maintaining the number of state variables
 consistent through out the simulation. 
 
 
-Assume given matrix E, M, A, B of a LTI(linear time-invariant) state-space system with the form 
+In equation 1 and 6 of \cite{Massarini921362}, the author gives the Linear Time Invariant \(LTI\) equations to be \ref{eq:stateSpaceIterationOrigin}
 \begin{equation}
-  M\times E \times \hat{x} = A \times x + B \times u
-  \label{eq:2}
-\end{equation} 
-where E is the Capacitance/Inductance of the coreesponding element. If M is full rank, it implies the result of \[  ME = M_{f}\] is invertible,
-which simplifies the state-space equation in \eqref{eq:2} to 
+\begin{aligned}
+  M_{f}  \hat{x} &= A x + B u \\
+  y &= C_1 \hat{x} + C x + D u \\
+\end{aligned}
+\label{eq:stateSpaceIterationOrigin}
+\end{equation}
+
+ 
 \begin{equation}
-  \hat{x} = M_{f}^{-1} (A\times x + B \times u), M_{f} = ME
+  \hat{x} = M_{f}^{-1} (A\times x + B \times u), M_{f} = I E
   \label{eq:state-space-simplified}
 \end{equation}
+
+where E is the Capacitance/Inductance of the correspond element and I is the identity matrix of size equals to number of inductor and capacitor.
+If M is full rank, it implies the result of \[ I E = M_{f}\] is invertible,
+which simplifies the state-space equation in \eqref{eq:state-space-simplified} to 
 
 Consider the following state-space form for an hypothetically RLC circuit. Clearly, M\textsubscript{f} is always invertible regardless the value of L and C.
 
@@ -263,11 +476,16 @@ which simplify to
 \begin{equation}
   Qy = C_{1}E^{-1}[Ax+Bu]+Cx+Du
 \end{equation}
-base on \eqref{eq:2} given M became back to identity matrix  
-where Q is an identity matrix when there does not exist CE-loop/I-J cutset.
-But when there is dependent in output variables causing Q not being a full rank matrix, we can still simplify the equation to standard form
+From \cite{Massarini921362}, dependency in output will cause Q not being a full rank matrix. However, we can still simplify the equation to standard form
 by finding the minimum norm of the Q matrix
 
+
+
+\section{State Space Iteration}
+
+As mentioned in \cite{Kiffe9570187}, we can discretized the continous state-space representation using Pade approximation into an discreted state-space representation.
+By doing pade approximation, we remove the need to calculate expnonent of matrix and turn
+the iteration process into Matrix Vector operations only.
 
 
 
