@@ -79,27 +79,6 @@ void mult_with_C1_DSW(float *C1_DSW_mat, aie::vector<float, 16> *x_u_cur, uint32
 
         aie::accum<accfloat, 16> C1_DSW_temp = aie::zeros<accfloat, 16>();
 
-
-        // AIE_PREPARE_FOR_PIPELINE
-        // #pragma clang  loop unroll(full)
-        // AIE_PREPARE_FOR_PIPELINE
-        // #pragma clang loop max_iteration_count(U_SIZE+ STATE_SIZE)
-        // for(uint32_t col = 0; col < U_SIZE+ STATE_SIZE; col++){
-
-        //     const uint32_t col_div_16 = col/16;
-        //     const uint32_t col_mod_16 = col%16 ;
-            
-        //     aie::vector<float, 16> a = aie::load_v<16>(C1_DSW_mat);
-        //     C1_DSW_mat += 16; // next column
-            
-        //     aie::vector<float, 16>b= aie::broadcast<float, 16>(   (x_u_cur+col_div_16)->get(col_mod_16)  );
-
-        //     C1_DSW_temp = mac_elem_16_accuracy_safe(a,b, C1_DSW_temp,0,0,0  );
-        //     // C1_DSW_temp = aie::mac(C1_DSW_temp, a, b);
-        // }
-        // // for now, store  back to out
-
-
         C1_DSW_mat = mv_16_row_with_STATE_U_SIZE_col_parallel(
             C1_DSW_mat, x_u_cur, C1_DSW_temp
         );
@@ -107,16 +86,6 @@ void mult_with_C1_DSW(float *C1_DSW_mat, aie::vector<float, 16> *x_u_cur, uint32
         aie::mask<16> lt_res_mask = aie::lt< aie::vector<float, 16> , float>(  C1_DSW_temp ,0);
         aie::mask<16> gt_res_mask = aie::gt< aie::vector<float, 16> , float>(  C1_DSW_temp ,0);
 
-        // if(row %2 == 0){
-        //     c1_res_mask[c1_res_offset]=  gt_res.to_uint32() & 0x0000FFFF;
-        //     c1_res_mask[c1_res_offset+3]=  lt_res.to_uint32() & 0x0000FFFF;
-
-
-        // }else{
-        //     c1_res_mask[c1_res_offset]=  gt_res.to_uint32()  <<16;
-        //     c1_res_mask[c1_res_offset+3]=  lt_res.to_uint32() <<16;
-        //     c1_res_offset ++;
-        // }
 
         uint32_t impulse_mask = 0b11111;
         uint32_t natural_mask = impulse_mask<<5;
@@ -149,16 +118,6 @@ void mult_with_A_B_To_Vector_Array(float *A_B_C_D_mat, aie::vector<float, 16> *x
     AIE_LOOP_RANGE(loop_iteration, loop_iteration)
     for(uint32_t row = 0; row < loop_iteration; row++){
         aie::accum<accfloat, 16> ABtemp = aie::zeros<accfloat, 16>();
-        // // #pragma clang loop_unroll(full)
-        // for(uint32_t col = 0; col < U_SIZE+STATE_SIZE; col++){
-        //     const uint32_t col_div_16 = col/16;
-        //     const uint32_t col_mod_16 = col%16 ;
-        //     aie::vector<float, 16> a = aie::load_v<16>(A_B_C_D_mat);
-        //     A_B_C_D_mat += 16; // next column
-            
-        //     aie::vector<float, 16>b= aie::broadcast<float, 16>(   (x_u_cur+col_div_16)->get(col_mod_16)  );
-        //     ABtemp = mac_elem_16_accuracy_safe(a,b, ABtemp,0,0,0  );
-        // }
         A_B_C_D_mat = mv_16_row_with_STATE_U_SIZE_col_parallel(
             A_B_C_D_mat, 
             x_u_cur,
@@ -179,19 +138,6 @@ void mult_with_A_B_To_Array(float *A_B_C_D_mat, aie::vector<float, 16> *x_u_cur,
     AIE_LOOP_RANGE(loop_iteration, loop_iteration)
     for(uint32_t row = 0; row < loop_iteration; row++){
         aie::accum<accfloat, 16> ABtemp = aie::zeros<accfloat, 16>();
-        // AIE_PREPARE_FOR_PIPELINE
-        // #pragma clang loop max_iteration_count(  U_SIZE+ STATE_SIZE)
-        // for(uint32_t col = 0; col < U_SIZE+STATE_SIZE; col++){
-        //     const uint32_t col_div_16 = col/16;
-        //     const uint32_t col_mod_16 = col%16 ;
-            
-        //     aie::vector<float, 16> a = aie::load_v<16>(A_B_C_D_mat);
-        //     A_B_C_D_mat += 16; // next column
-            
-        //     aie::vector<float, 16>b= aie::broadcast<float, 16>(   (x_u_cur+col_div_16)->get(col_mod_16)  );
-
-        //     ABtemp = mac_elem_16_accuracy_safe(a,b, ABtemp,0,0,0  );
-        // }
         A_B_C_D_mat = mv_16_row_with_STATE_U_SIZE_col_parallel(
             A_B_C_D_mat, 
             x_u_cur,
@@ -238,18 +184,6 @@ void mult_with_C_D_aligned_nonimpulse_only(float *C_D_mat, aie::vector<float, 16
     for(uint32_t row = 0; row < num_of_iteration; row++){
         aie::accum<accfloat, 16> C_D_temp = aie::zeros<accfloat, 16>();
            
-        // AIE_PREPARE_FOR_PIPELINE
-        // #pragma clang  loop max_iteration_count( U_SIZE+STATE_SIZE)
-        // for(uint32_t col = 0; col <U_SIZE+STATE_SIZE; col++){
-        //     const uint32_t col_div_16 = col/16;
-        //     const uint32_t col_mod_16 = col%16 ;         
-
-        //     aie::vector<float, 16> a = aie::load_v<16>(C_D_mat);
-        //     C_D_mat += 16; // next column
-        //     aie::vector<float, 16>b= aie::broadcast<float, 16>(   (x_u_cur+col_div_16)->get(col_mod_16)  );
-        //     C_D_temp = mac_elem_16_accuracy_safe(a,b, C_D_temp,0,0,0  );
-        // }
-
         C_D_mat= mv_16_row_with_STATE_U_SIZE_col_parallel(
             C_D_mat, 
             x_u_cur,
@@ -280,15 +214,6 @@ void mult_with_C_D_aligned_nonimpulse_and_impulse(float *C_D_mat, aie::vector<fl
         event0();
         aie::accum<accfloat, 16> C_D_temp = aie::zeros<accfloat, 16>();
        
-        // for(uint32_t col = 0; col <U_SIZE+STATE_SIZE; col++){
-        //     const uint32_t col_div_16 = col/16;
-        //     const uint32_t col_mod_16 = col%16 ;         
-
-        //     aie::vector<float, 16> a = aie::load_v<16>(C_D_mat);
-        //     C_D_mat += 16; // next column
-        //     aie::vector<float, 16>b= aie::broadcast<float, 16>(   (x_u_cur+col_div_16)->get(col_mod_16)  );
-        //     C_D_temp = mac_elem_16_accuracy_safe(a,b, C_D_temp,0,0,0  );
-        // }
         
         C_D_mat = mv_16_row_with_STATE_U_SIZE_col_parallel(C_D_mat, x_u_cur, C_D_temp);
 
@@ -303,16 +228,6 @@ void mult_with_C_D_aligned_nonimpulse_and_impulse(float *C_D_mat, aie::vector<fl
     for(uint32_t row = 0; row < num_of_iteration/2; row++){
         event0();        
         aie::accum<accfloat, 16> C_D_temp = aie::zeros<accfloat, 16>();
-
-        // for(uint32_t col = 0; col <U_SIZE+STATE_SIZE; col++){
-        //     const uint32_t col_div_16 = col/16;
-        //     const uint32_t col_mod_16 = col%16 ;         
-
-        //     aie::vector<float, 16> a = aie::load_v<16>(C_D_mat);
-        //     C_D_mat += 16; // next column
-        //     aie::vector<float, 16>b= aie::broadcast<float, 16>(   (x_u_cur+col_div_16)->get(col_mod_16)  );
-        //     C_D_temp = mac_elem_16_accuracy_safe(a,b, C_D_temp,0,0,0  );
-        // }
         C_D_mat =  mv_16_row_with_STATE_U_SIZE_col_parallel(
             C_D_mat, 
             x_u_cur,
