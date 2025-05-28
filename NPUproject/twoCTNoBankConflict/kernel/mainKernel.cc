@@ -139,9 +139,11 @@ void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur,
 
 extern "C" {
     void CT_main(float* in, float* out,
+        float *in_1, float*out_1,
         const int32_t buffer_in_prod_lock_id, const int32_t buffer_in_con_loc_id,
         const int32_t buffer_out_prod_lock_id, const int32_t buffer_out_con_lock_id,
 
+        const int32_t ABCD_con_lock,
         float* C1_DSW_Buffer, float *ABCD_buffer
     ) {
 
@@ -162,16 +164,9 @@ extern "C" {
         for (uint32_t i = 0; i < vector_size_of_x_u_cur; ++i) {
             x_u_cur[i] = aie::zeros<float, 16>(); 
         }
-        // // for testing
-        // for(auto k  = 0; k < STATE_SIZE; k++){
-        //     x_u_cur[0].set(10, k);
-        // }
 
 
-        // // //test purpose
-        // float v = 10.01;
-        // x_u_cur[0].set(v, 0);
-        // // x_u_cur[0] = aie::add(x_u_cur[0], v);
+        acquire_greater_equal(ABCD_con_lock , 2);  // all matrix are ready     
 
         for (uint64_t l = 0; l < PING_PONG_BUFFER_ITERATION; l++) {
             acquire_greater_equal(buffer_in_con_loc_id , 1);
@@ -218,7 +213,7 @@ extern "C" {
             // );
         
             iteration_core<vector_size_of_x_u_cur>(
-                in+BUFFER_SIZE_OF_IN_PING_POING,out +BUFFER_SIZE_OF_OUT_PING_PONG , x_u_cur, C1_DSW_Buffer, ABCD_buffer, externalSwitchDiodeStates
+                in_1,out_1 , x_u_cur, C1_DSW_Buffer, ABCD_buffer, externalSwitchDiodeStates
             );
 
             release(buffer_in_prod_lock_id , 1);

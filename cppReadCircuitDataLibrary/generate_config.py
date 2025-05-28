@@ -236,6 +236,55 @@ def main_single_CT(json_config_file:str, output_json_file:str, output_header_fil
 
 
         
+         
+def main_two_CT_no_conflict(json_config_file:str, output_json_file:str, output_header_file:str , override_memory_limit:bool):
+    common_conf: MatrixConfig =common_matrix_config(json_config_file)
+    
+    #INTENDED to be allocated on stack for it
+    buffer_size_of_cur_X_U = custom_ceil(  common_conf.state_size+ common_conf.u_size , 16)
+    buffer_size_of_C1_DSW_mat_res = common_conf.C1_DSW_row  
+    buffer_size_of_A_B_C_D_mat_res =common_conf.ABCD_rows  
+    
+    stack_size = 1024 # default value
+    stack_size += (buffer_size_of_cur_X_U +buffer_size_of_C1_DSW_mat_res  + buffer_size_of_A_B_C_D_mat_res )*4 # 4 byte for float
+
+    # note: because load 16 float at a time for vector instruction, need to ensure the address are aligned to 64byte(4*16)
+    buffer_size_for_in_out_in_float = ((64)*(1024) - stack_size)//4 - (common_conf.buffer_size_of_C1_DSW_matrixes +common_conf.buffer_size_of_ABCD_matrixes)  # 4 byte for float
+    # define a ping pong for it? 
+
+    iteration_step_per_buffer =   int( ((15*1024)//4) // (  max(common_conf.input_length_per_iter, common_conf.output_length_per_iter) ))
+    buffer_size_of_in_ping_pong = common_conf.input_length_per_iter*(iteration_step_per_buffer)
+    buffer_size_of_out_ping_pong = common_conf.output_length_per_iter*(iteration_step_per_buffer)
+    
+    assert min(buffer_size_of_in_ping_pong*4, buffer_size_of_out_ping_pong*4 ) <= 15*1024 # 1024 byte for stack size
+    assert max(buffer_size_of_in_ping_pong*4, buffer_size_of_out_ping_pong*4 ) <= 16*1024
+    
+    
+    ping_pong_buffer_iteration =  math.ceil(common_conf.iteration_steps/iteration_step_per_buffer)
+    print("Total number of ping pong buffer: ", ping_pong_buffer_iteration)
+    
+    # now write the final config result to file
+
+    extracted_Data = {
+
+        "iteration_step_per_ping_pong_buffer": iteration_step_per_buffer,
+        "buffer_size_of_in_ping_poing": buffer_size_of_in_ping_pong,
+        "buffer_size_of_out_ping_pong": buffer_size_of_out_ping_pong,
+        "ping_pong_buffer_iteration": ping_pong_buffer_iteration,
+
+        
+        "buffer_size_of_cur_X_U": buffer_size_of_cur_X_U,
+        "buffer_size_of_C1_DSW_mat_res":buffer_size_of_C1_DSW_mat_res,
+        "buffer_size_of_A_B_C_D_mat_res": buffer_size_of_A_B_C_D_mat_res,
+        "stack_size": stack_size
+        
+    }  | MatrixConfig_to_dict(common_conf)     
+    with open(output_json_file,"w") as outfile:
+        json.dump( extracted_Data, outfile, indent=4)
+    
+    
+    generate_header(output_json_file, output_header_file)
+        
 def main_single_CT_memory_overside(json_config_file:str, output_json_file:str, output_header_file:str, num_iteration_mat_on_CT:int=1 ):
     
     common_conf: MatrixConfig =common_matrix_config(json_config_file)
@@ -297,18 +346,17 @@ if __name__ == "__main__":
     parser.add_argument("--final_json", default="final_config.json", help="Path to output processed JSON file.")
     parser.add_argument("--header", default="circuitConfig.h", help="Path to output C header file.")
     parser.add_argument("--override", default="FALSE", help="Option to consider the memory size limit on single CT")
-    parser.add_argument("--CTNumber", default="1", help="number_of_CT_used")
-    parser.add_argument("--MatrixNumToCache", default="-1", help="Number of iteration matrix to cache on Ct memory, -1 means all of it")
+    parser.add_argument("--Mode", default="1", help="mode of configuration")
     args = parser.parse_args()
 
     if args.override == "FALSE":
         override_opt = False
     else:
         override_opt = True
-    if args.CTNumber == "1" and args.MatrixNumToCache == "-1":
+    if args.Mode == "1":
         main_single_CT(args.input_json, args.final_json, args.header,override_opt)
-    elif args.CTNumber == "1":
-        main_single_CT_memory_overside(args.input_json, args.final_json, args.header, int(args.MatrixNumToCache))
+    elif args.Mode == "2":
+        main_two_CT_no_conflict(args.input_json, args.final_json, args.header,override_opt)
     else:
         raise ValueError("Unknown CT numbers")
         
