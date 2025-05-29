@@ -194,8 +194,19 @@ def single_mat_vect_mult():
         out_buffer_prod_lock = lock(ComputeTile_0_2, lock_id=10, init=2)
         out_buffer_con_lock = lock(ComputeTile_0_2, lock_id=11, init=0)
 
-
-
+        # first uint32 externalSwitchDiodeState
+        # then external_switch_toggled(uint32 0==false, else is true)
+        # then diode_change  (uint32 0== false, else is true)
+        C_D_matrix_select_ty = np.ndarray[ (3, ), np.dtype[np.uint32]]
+        # test_buf = [
+        #     buffer(tile=ComputeTile_0_2, datatype=C_D_matrix_select_ty, name="test_buf")   
+        # ]
+        
+        C_D_matrix_select_buffer = [
+            buffer(tile=ComputeTile_0_2, datatype=C_D_matrix_select_ty, name="C_D_matrix_select_buffer")   
+        ]
+        
+        
         # strategy to balance out the S2MM workload on two port of CT_0_2
 
         A_B_C_D_num_for_balance_cutoff = balance_matrix_transfer_case(
@@ -263,24 +274,40 @@ def single_mat_vect_mult():
         CT_0_3_main_func = external_func("CT_main", inputs=[
             in_data_ty, out_data_ty,
             in_data_ty, out_data_ty,            
-            np.int32, np.int32, np.int32, np.int32,
+            np.int32, np.int32,
             np.int32,
-            switch_diode_matrix_ty, A_B_C_D_ty
+            switch_diode_matrix_ty, A_B_C_D_ty,
+            C_D_matrix_select_ty
         ])
 
-        @core(ComputeTile_0_3, "mainKernel.o", stack_size=stack_size_in_byte)
+        @core(ComputeTile_0_3, "kernel1.o", stack_size=stack_size_in_byte)
         def core_body():
             # for _ in range_(sys.maxsize):
             CT_0_3_main_func(
                 in_buffer[0], out_buffer[0],
                 in_buffer[1], out_buffer[1],                
-                constant(8),constant(9),constant(10),constant(11),
+                constant(8),constant(9),
                 constant(48 +3 ),
-                switch_diode_buffer[0], A_B_C_D_buffer[0]
+                switch_diode_buffer[0], A_B_C_D_buffer[0],
+                C_D_matrix_select_buffer[0]
                 
             )
 
 
+        CT_0_2_main_func = external_func("CT_0_2_main", inputs=[
+            out_data_ty, out_data_ty,
+            A_B_C_D_ty,
+            C_D_matrix_select_ty,
+            np.int32, np.int32
+        ] )
+        @core(ComputeTile_0_2, "kernel2.o", stack_size=stack_size_in_byte)
+        def core_body():
+            CT_0_2_main_func(
+                out_buffer[0],out_buffer[1],
+                A_B_C_D_buffer[0],
+                C_D_matrix_select_buffer[0],
+                constant(10+48),constant(11+48),
+            )
             
         matrix_size =C1_DSW_buffer_size+A_B_C_D_buffer_size
         data_flow_out_size = buffer_size_of_out_ping_pong *ping_pong_buffer_iteration   # lest do 4 multple o f ping-pong size
@@ -290,7 +317,7 @@ def single_mat_vect_mult():
         in_1_size = (A_B_C_D_buffer_size-mid_offset)  + data_flow_in_size
         
         if(trace_size > 0):
-            tiles_to_trace = [ComputeTile_0_3,ComputeTile_0_3] #TODO: also shimtile?
+            tiles_to_trace = [ComputeTile_0_3,ComputeTile_0_2,ComputeTile_0_3,ComputeTile_0_2] #TODO: also shimtile?
             trace_utils.configure_packet_tracing_flow(tiles_to_trace, ShimTile_1)
 
         # leave first 6(0-5) packet id for tracing
@@ -335,9 +362,11 @@ def single_mat_vect_mult():
                         PortEvent(CoreEvent.PORT_RUNNING_0, 1, True),  # master(1)
                         PortEvent(CoreEvent.PORT_RUNNING_1, 1, False),  # slave(1)
                         PortEvent(CoreEvent.PORT_RUNNING_2, 7, False),  # slave(1)                        
-                        CoreEvent.INSTR_LOAD,
-                        CoreEvent.INSTR_STORE,
-                        # CoreEvent.LOCK_STALL,
+                        # CoreEvent.INSTR_CASCADE_PUT,
+                        # CoreEvent.INSTR_CASCADE_GET,
+                        # CoreEvent.INSTR_STORE,
+                        CoreEvent.LOCK_STALL,
+                        CoreEvent.STREAM_STALL,
                     ],
                     coremem_events=[
                             MemEvent.CONFLICT_DM_BANK_0,

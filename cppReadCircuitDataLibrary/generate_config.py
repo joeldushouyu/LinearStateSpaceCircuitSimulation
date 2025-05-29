@@ -251,8 +251,9 @@ def main_two_CT_no_conflict(json_config_file:str, output_json_file:str, output_h
     # note: because load 16 float at a time for vector instruction, need to ensure the address are aligned to 64byte(4*16)
     buffer_size_for_in_out_in_float = ((64)*(1024) - stack_size)//4 - (common_conf.buffer_size_of_C1_DSW_matrixes +common_conf.buffer_size_of_ABCD_matrixes)  # 4 byte for float
     # define a ping pong for it? 
-
-    iteration_step_per_buffer =   int( ((15*1024)//4) // (  max(common_conf.input_length_per_iter, common_conf.output_length_per_iter) ))
+    #TODO: since compute bound, don't use too many?
+    iteration_step_per_buffer =   int( ((10*1024)//4) // (  max(common_conf.input_length_per_iter, common_conf.output_length_per_iter) ))
+    iteration_step_per_buffer = 1#TODO: for testing purpose to simulate realworld scenario
     buffer_size_of_in_ping_pong = common_conf.input_length_per_iter*(iteration_step_per_buffer)
     buffer_size_of_out_ping_pong = common_conf.output_length_per_iter*(iteration_step_per_buffer)
     

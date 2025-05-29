@@ -11,7 +11,8 @@ TemplateRepoDir ?= $(or $(TEMPLATE_REPO_DIR),/home/shouyud/LinearStateSpaceCircu
 TemplaeHostDir := $(TemplateRepoDir)/host
 
 # create a dynamic link of /common folder, 
-ENABLE_CHESSCC ?= 1
+# ENABLE_CHESSCC ?= 1
+# AIETOOLS_DIR = /tools/ryzen_ai-1.4.0/vitis_aie_essentials
 
 DEVICE ?= npu2
 HOME_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
