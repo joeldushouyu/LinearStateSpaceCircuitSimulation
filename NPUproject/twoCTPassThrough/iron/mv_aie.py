@@ -85,7 +85,7 @@ def single_mat_vect_mult():
 
         in_data_ty = np.ndarray[ (buffer_size*2, ), dtype_in]
         out_data_ty = np.ndarray[ (buffer_size*2, ), dtype_out]
-        control_packet_ty = np.ndarray[ (2,), np.dtype[np.int32]]
+        control_packet_ty = np.ndarray[ (3,), np.dtype[np.int32]]
 
         ComputeTile_0_3, To_CT_0_2_control_read_buffer, From_CT_0_2_control_read_res_buffer, To_CT_0_2_control_write_buffer = setup_CT_0_3(control_packet_ty) 
         ComputeTile_0_2, in_buffer, out_buffer, CT2_control_out_buffer, CT2_control_in_buffer = setup_CT_0_2(
@@ -141,19 +141,35 @@ def single_mat_vect_mult():
 
         packetflow(9, source=ComputeTile_0_2, source_port=WireBundle.DMA, source_channel=0,
                     dest = ShimTile_0, dest_port= WireBundle.DMA, dest_channel=1
-                   ) 
-        # path for control packet 
+                   )
+        
+        # Control Packet path from CT_0_3 -> CT_0_2 
+        # packet_id for sending out read control packet
         packetflow(10, ComputeTile_0_3, source_port=WireBundle.DMA, source_channel=0,
                    dest = ComputeTile_0_2, dest_port=WireBundle.TileControl, dest_channel=0,
                    )
-        
+        # packet_id for the result of read control packet
         packetflow(11, ComputeTile_0_2, source_port=WireBundle.TileControl, source_channel=0,
                    dest = ComputeTile_0_3, dest_port=WireBundle.DMA, dest_channel=0,
                    )    
-        
+        # packet_id for sending write control packet
         packetflow(12, ComputeTile_0_3, source_port=WireBundle.DMA, source_channel=1,
                     dest = ComputeTile_0_2, dest_port=WireBundle.TileControl, dest_channel=0,
                     )
+
+        packetflow(13, ComputeTile_0_3, source_port=WireBundle.DMA, source_channel=0,
+                   dest = ShimTile_0, dest_port=WireBundle.TileControl, dest_channel=0,
+                   )
+        # packet_id for the result of read control packet
+        packetflow(14, ShimTile_0, source_port=WireBundle.TileControl, source_channel=0,
+                   dest = ComputeTile_0_3, dest_port=WireBundle.DMA, dest_channel=0,
+                   )    
+        # packet_id for sending write control packet
+        packetflow(15, ComputeTile_0_3, source_port=WireBundle.DMA, source_channel=1,
+                    dest = ShimTile_0, dest_port=WireBundle.TileControl, dest_channel=0,
+                    )
+
+
 
         
         memref.global_("in_SHM_CT_0_2_0", T.memref( total_size, T.f32() ), sym_visibility="public")            
@@ -175,13 +191,13 @@ def single_mat_vect_mult():
                     trace_size=trace_size, # beacuse have 2 tile to,
                         coretile_events=[
                         CoreEvent.INSTR_EVENT_0,
-                        CoreEvent.DM_ADDRESS_OUT_OF_RANGE,
+                        CoreEvent.INSTR_EVENT_1,
                         PortEvent(CoreEvent.PORT_RUNNING_0, 1, True),  # master(1)
                         PortEvent(CoreEvent.PORT_RUNNING_1, 1, False),  # slave(1)
                         PortEvent(CoreEvent.PORT_RUNNING_2, 7, False),  # slave(1)                        
-                        CoreEvent.CONTROL_PKT_ERROR,
-                        CoreEvent.DM_ACCESS_TO_UNAVAILABLE
-                        # CoreEvent.LOCK_STALL,
+                        CoreEvent.INSTR_LOCK_ACQUIRE_REQ,
+                        CoreEvent.INSTR_LOCK_RELEASE_REQ,
+                        CoreEvent.LOCK_STALL,
                     ],
                 )
 

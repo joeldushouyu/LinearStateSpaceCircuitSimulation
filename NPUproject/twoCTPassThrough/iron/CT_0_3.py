@@ -105,7 +105,7 @@ def setup_CT_0_3(control_package_data_ty):
         
         with block[1]:
             use_lock(To_CT_0_2_control_read_buffer_con_lock, LockAction.AcquireGreaterEqual, value=1)
-            dma_bd(To_CT_0_2_control_read_buffer[0], offset=0, len=1, packet= (0,10)) # for now, assume it is always an write operation
+            dma_bd(To_CT_0_2_control_read_buffer[0], offset=0, len=2) # 1st: packet_flow header, 2nd read_control_packet
             use_lock(To_CT_0_2_control_read_buffer_prod_lock, LockAction.Release, value=1)
             next_bd(block[1])
         with block[2]:
@@ -119,7 +119,7 @@ def setup_CT_0_3(control_package_data_ty):
             s3 = dma_start(DMAChannelDir.MM2S, 1, dest=block[5], chain=block[6])
         with block[5]:
             use_lock(To_CT_0_2_control_write_buffer_con_lock, LockAction.AcquireGreaterEqual, value=1)
-            dma_bd(To_CT_0_2_control_write_buffer[0], offset=0, len = 2,packet= (0,12))
+            dma_bd(To_CT_0_2_control_write_buffer[0], offset=0, len = 3) # 1st: packet_flow_header, 2nd write_control_packet, 3rd write_reg_val
             use_lock(To_CT_0_2_control_write_buffer_prod_lock, LockAction.Release, value=1)
             next_bd(block[5])
         with block[6]:

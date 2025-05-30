@@ -61,7 +61,8 @@ __attribute__((noinline)) void passThrough_simple(uint32_t *restrict in, uint32_
   }
   // event1();
 }
-bool parity(uint32_t n) {
+bool even_parity(uint32_t n) {
+    // Return true of even number of "1" bits, false otherwise
     uint32_t p = 0;
     while (n) {
         p += n & 1;
@@ -73,10 +74,25 @@ uint32_t control_packet_gen(int32_t stream_id, int32_t operation, int32_t beats,
   //operation: 0 read, 1 write
   uint32_t control_packet =
         stream_id << 24 | operation << 22 | beats << 20 | address;
-  control_packet |= (0x1 & parity(control_packet)) << 31;
+  control_packet |= (0x1 & even_parity(control_packet)) << 31;
 
   return control_packet;
 }
+
+
+uint32_t packet_flow_gen(uint32_t packet_type, uint32_t stream_id, uint32_t source_core_id =get_coreid()){
+
+    //TODO: put a check on the packet_type? core=0, memtile=1, shimtile=2???
+    uint32_t packet_header = (source_core_id << 16) | (packet_type<<12) | (stream_id);
+
+    bool odd_parity  = (even_parity(packet_header)) ;
+    packet_header |= (0x1 & odd_parity) << 31;
+
+    return packet_header;
+}
+
+
+
 
 extern "C" {
 
@@ -107,12 +123,13 @@ void passThroughTest(uint32_t *in, uint32_t *out,
         // write_process_bus( (in+1),0x0000032038, 1, 1  );  
         //TODO: either enable here, or enable at runtime sequenc?
         acquire_greater_equal(control_packet_write_prod_lock, 1);
-        *control_write_buffer =   control_packet_gen(12, 0, 0,   0x0000032038 );
-        *(control_write_buffer+1)   = 1;
+        *(control_write_buffer) = packet_flow_gen(0, 12);
+        *(control_write_buffer+1) =   control_packet_gen(12, 0, 0,   0x0000032038 );
+        *(control_write_buffer+2)   = 1;
         release(control_packet_write_con_lock, 1); 
 
 
-        bool FIX_ERROR_BY_CONTROL_PACKET= false;
+        bool FIX_ERROR_BY_CONTROL_PACKET= true;
 
         if(!FIX_ERROR_BY_CONTROL_PACKET){
           event0();
@@ -135,28 +152,33 @@ void passThroughTest(uint32_t *in, uint32_t *out,
       
         }else{
             acquire_greater_equal(control_packet_write_prod_lock, 1);
-            *control_write_buffer =   control_packet_gen(12, 0, 0,   0x001D044 );
-            *(control_write_buffer+1) = (1<<30) | (9<<19); //0x40480000; //(1<<31) | (9<<19);
+            *(control_write_buffer) = packet_flow_gen(0, 12);
+            *(control_write_buffer+1) =   control_packet_gen(12, 0, 0,   0x001D044 );
+            *(control_write_buffer+2) = (1<<30) | (9<<19); //0x40480000; //(1<<31) | (9<<19);
             release(control_packet_write_con_lock, 1);
             
             acquire_greater_equal(control_packet_write_prod_lock, 1);
-            *control_write_buffer =   control_packet_gen(12, 0, 0,   0x1DE10 );
-            *(control_write_buffer+1) =  (1<<1);
+            *(control_write_buffer) = packet_flow_gen(0, 12);            
+            *(control_write_buffer+1) =   control_packet_gen(12, 0, 0,   0x1DE10 );
+            *(control_write_buffer+2) =  (1<<1);
             release(control_packet_write_con_lock, 1); // toggle to turn off, 
 
             acquire_greater_equal(control_packet_write_prod_lock, 1);
-            *control_write_buffer =   control_packet_gen(12, 0, 0,   0x1DE10 );
-            *(control_write_buffer+1) =  (0<<1);
+            *(control_write_buffer) = packet_flow_gen(0, 12);            
+            *(control_write_buffer+1) =   control_packet_gen(12, 0, 0,   0x1DE10 );
+            *(control_write_buffer+2) =  (0<<1);
             release(control_packet_write_con_lock, 1); // toggle to turn on 
            
             acquire_greater_equal(control_packet_write_prod_lock, 1);
-            *control_write_buffer =   control_packet_gen(12, 0, 0,   0x1DE14 );
-            *(control_write_buffer+1) =  (1<<16) | (2);
+            *(control_write_buffer) = packet_flow_gen(0, 12);            
+            *(control_write_buffer+1) =   control_packet_gen(12, 0, 0,   0x1DE14 );
+            *(control_write_buffer+2) =  (1<<16) | (2);
             release(control_packet_write_con_lock, 1); 
         }
 
         acquire_greater_equal(control_packet_read_prod_lock, 1);
-        *control_read_buffer =   control_packet_gen(11, 1, 0,   0x001D044  );
+        *control_read_buffer     =  packet_flow_gen(0, 10); 
+        *(control_read_buffer+1) =   control_packet_gen(11, 1, 0,   0x001D044  );//NOTE:return packet path is 11
         release(control_packet_read_con_lock, 1);
 
         acquire_greater_equal(control_packet_read_res_con_lock, 1);
@@ -164,15 +186,54 @@ void passThroughTest(uint32_t *in, uint32_t *out,
         release(control_packet_read_res_prod_lock, 1);
 
     }else{
-      event0();
-      read_processor_bus(in,  0x1D044,1,4);        // NOTE: Write did go through, but somehow did not apply to qeue?0x1D044, 1, 1);
-      event0();
-      
-     read_processor_bus(in+1,  0x0000032000,1,4);   //Prove that CT control is always enable during bitstream
 
-      *(val_write_ptr) =(1<<30) | (9<<19) | (5<<0); // need enable packet, laso packet_type force to be 0, because is core???
-      write_process_bus( (uint32_t*)(val_write_ptr),0x000001D0E4, 1, 4  );   // only give 40000000
-      read_processor_bus((in+3), 0x000001D0E4, 1, 1);
+        read_processor_bus(in,  0x1D044,1,4);        // NOTE: Write did go through, but somehow did not apply to qeue?0x1D044, 1, 1);
+
+        read_processor_bus(in+1,  0x0000032000,1,4);   //Prove that CT control is always enable during bitstream
+
+        *(val_write_ptr) =(1<<30) | (9<<19) | (5<<0); // need enable packet, laso packet_type force to be 0, because is core???
+        write_process_bus( (uint32_t*)(val_write_ptr),0x000001D0E4, 1, 4  );   // only give 40000000
+        read_processor_bus((in+3), 0x000001D0E4, 1, 1);
+        
+
+        // Read and write to a random registers in shimtile
+        // use to test what is the latency looks like
+        event0();
+        acquire_greater_equal(control_packet_read_prod_lock, 1);
+        event0();
+        *control_read_buffer     =  packet_flow_gen(0, 13); //TO shimtile_0
+        *(control_read_buffer+1) =   control_packet_gen(14, 1, 0,   0x000001D1E0  );//NOTE:return packet path is 11
+        release(control_packet_read_con_lock, 1);
+        event0();
+
+     
+        acquire_greater_equal(control_packet_read_res_con_lock, 1);
+        *(in+10) = *control_read_buffer_res;
+        release(control_packet_read_res_prod_lock, 1);
+        event1();
+        
+        // now write to same address
+        event0();
+        acquire_greater_equal(control_packet_write_prod_lock, 1);
+        *(control_write_buffer) = packet_flow_gen(0, 15);            
+        *(control_write_buffer+1) =   control_packet_gen(15, 0, 0,   0x000001D1E0 );
+        *(control_write_buffer+2) = 0x2FF;
+        release(control_packet_write_con_lock, 1); 
+        event1();
+
+        //read again
+        // Read and write to a random registers in shimtile
+        // use to test what is the latency looks like
+        event0();
+        acquire_greater_equal(control_packet_read_prod_lock, 1);
+        *control_read_buffer     =  packet_flow_gen(0, 13); //TO shimtile_0
+        *(control_read_buffer+1) =   control_packet_gen(14, 1, 0,   0x000001D1E0  );//NOTE:return packet path is 11
+        release(control_packet_read_con_lock, 1);
+
+        acquire_greater_equal(control_packet_read_res_con_lock, 1);
+        *(in+11) = *control_read_buffer_res;
+        release(control_packet_read_res_prod_lock, 1);
+        event1();        
         
     }
 
