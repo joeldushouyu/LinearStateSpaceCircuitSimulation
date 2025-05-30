@@ -63,7 +63,7 @@ int main(int argc, const char *argv[]) {
 
     // compare the two sequences
     int total_size = 4096;
-    int TRACE_SIZE = 8192;
+    int TRACE_SIZE = 16*1024;
 
 
     buffer<int32_t> seq_0 = accel_desc_0.instr_seq.to_bo().cast_to<int32_t>();

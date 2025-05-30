@@ -59,14 +59,13 @@ from helper_func import generate_packet_attribute, custom_ceil
 def single_mat_vect_mult():
     dev = AIEDevice.npu2
     
-    trace_size = 8192
+    trace_size = 16*1024
     buffer_size = 1024
     
     total_size = 4096
 
     dtype_in = np.dtype[np.uint32]
     dtype_out = np.dtype[np.uint32]
-    
     
     @device(AIEDevice.npu2)
     def device_body():
@@ -117,7 +116,7 @@ def single_mat_vect_mult():
             
             
         if(trace_size > 0):
-            tiles_to_trace = [ComputeTile_0_2] #TODO: also shimtile?
+            tiles_to_trace = [ComputeTile_0_2,ShimTile_0] #TODO: also shimtile?
             trace_utils.configure_packet_tracing_flow(tiles_to_trace, ShimTile_1)
 
         # leave first 6(0-5) packet id for tracing
@@ -147,7 +146,7 @@ def single_mat_vect_mult():
         @runtime_sequence(np.ndarray[(total_size, ), dtype_in], np.ndarray[(total_size, ), dtype_out], np.ndarray[(1, ), dtype_in], np.ndarray[(1, ), dtype_in]  )
         def sequence(A,B, zero0, zero1):
             # work balance module
-            npu_maskwrite32(address=0x32038, row=2, column=0, value=0x1, mask=0x1)
+            npu_maskwrite32(address=0x32038, row=2, column=0, value=0x1, mask=0x1)         
             if(trace_size > 0):
                 trace_utils.configure_packet_tracing_aie2(
                     tiles_to_trace=tiles_to_trace,
@@ -159,22 +158,33 @@ def single_mat_vect_mult():
                         CoreEvent.INSTR_EVENT_1,
                         PortEvent(CoreEvent.PORT_RUNNING_0, 1, True),  # master(1)
                         PortEvent(CoreEvent.PORT_RUNNING_1, 1, False),  # slave(1)
-                        PortEvent(CoreEvent.PORT_RUNNING_2, 7, False),  # slave(1)                        
+                        PortEvent(CoreEvent.PORT_IDLE_2, 7, True),  # slave(1)                        
                         CoreEvent.INSTR_LOCK_ACQUIRE_REQ,
                         CoreEvent.INSTR_LOCK_RELEASE_REQ,
                         CoreEvent.LOCK_STALL,
                     ],
+                                        
+                    shimtile_events=[
+                        ShimTileEvent.DMA_S2MM_0_START_TASK,
+                        ShimTileEvent.DMA_S2MM_1_START_TASK,
+                        ShimTileEvent.DMA_MM2S_0_START_TASK,
+                        ShimTileEvent.DMA_S2MM_0_FINISHED_TASK,
+                        ShimTileEvent.DMA_S2MM_1_FINISHED_TASK,
+                        ShimTileEvent.DMA_MM2S_0_FINISHED_TASK,
+                        ShimTileEvent.DMA_S2MM_0_STREAM_STARVATION,
+                        ShimTileEvent.DMA_S2MM_1_STREAM_STARVATION,
+                    ],                        
                 )
 
-            npu_dma_memcpy_nd(
-                metadata="in_SHM_CT_0_2_0",
-                bd_id=0,
-                mem=A,
-                offsets=[0,0,0,0],
-                sizes=[1,1,1, total_size],
-                strides=[0,0,0,1],
-                packet=(0,6)
-            )
+            # npu_dma_memcpy_nd(
+            #     metadata="in_SHM_CT_0_2_0",
+            #     bd_id=0,
+            #     mem=A,
+            #     offsets=[0,0,0,0],
+            #     sizes=[1,1,1, total_size],  
+            #     strides=[0,0,0,1],
+            #     packet=(0,6) #should be 6, leave to kerenlt to send control packet to corret this
+            # )
             npu_dma_memcpy_nd(
                 metadata="out_CT_0_2_SHM",
                 bd_id=1,

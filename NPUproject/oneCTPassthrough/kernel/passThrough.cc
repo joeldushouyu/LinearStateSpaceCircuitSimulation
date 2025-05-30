@@ -105,13 +105,90 @@ void passThroughTest(uint32_t *in, uint32_t *out,
                   int32_t CT2_control_in_prod_lock, int32_t CT2_control_in_con_lock
                   
 ){
-  // assume divisible and multiple of two
-  for(uint32_t i = 0; i < (total_passThrough_size /buffer_size ); i += 2){
-    //NOTE: need to enable core access to bus externally
+
+
+volatile int dummy = 0;
+for (uint32_t i = 0; i < 20000; i++) {
+    dummy++;
+}
+
     
 
+  // 0x000001D000, 0x1000
+  // 0x000001D004  0x77fb9000
+  //0x000001D008   0x40308000
+  // 0x000001D00C  0
+  //0x000001D010  0x40000000
+  //0x000001D014  0
+  //0x000001D018  0
+  //0x000001D01C  2000000
+
+
+  // FIRST, configred bd_0 for transaction
+
+  event0();
+  acquire_greater_equal(CT2_control_out_prod_lock, 1);
+  *CT2_control_out_buffer = control_packet_gen(14, 0, 0,0x000001D000  );
+  *(CT2_control_out_buffer+1)=   0x1000; //or 0x40308000
+  release(CT2_control_out_con_lock, 1);
+  event0();
+
+  acquire_greater_equal(CT2_control_out_prod_lock, 1);
+  *CT2_control_out_buffer = control_packet_gen(14, 0, 0,0x000001D004  );
+  *(CT2_control_out_buffer+1)=   0x77fb9000; //or NOTE: disable ASLR
+  release(CT2_control_out_con_lock, 1);
+
+  acquire_greater_equal(CT2_control_out_prod_lock, 1);
+  *CT2_control_out_buffer = control_packet_gen(14, 0, 0,0x000001D008  );
+  *(CT2_control_out_buffer+1)=   0x40308000; //or NOTE: disable ASLR
+  release(CT2_control_out_con_lock, 1);
+
+  acquire_greater_equal(CT2_control_out_prod_lock, 1);
+  *CT2_control_out_buffer = control_packet_gen(14, 0, 0,0x000001D00C  );
+  *(CT2_control_out_buffer+1)=   0; //or NOTE: disable ASLR
+  release(CT2_control_out_con_lock, 1);
+
+    acquire_greater_equal(CT2_control_out_prod_lock, 1);
+  *CT2_control_out_buffer = control_packet_gen(14, 0, 0,0x000001D010  );
+  *(CT2_control_out_buffer+1)=   0x40000000; //or NOTE: disable ASLR
+  release(CT2_control_out_con_lock, 1);
+
+
+
+  acquire_greater_equal(CT2_control_out_prod_lock, 1);
+  *CT2_control_out_buffer = control_packet_gen(14, 0, 0,0x000001D014  );
+  *(CT2_control_out_buffer+1)=   0; //or NOTE: disable ASLR
+  release(CT2_control_out_con_lock, 1);
+
+  acquire_greater_equal(CT2_control_out_prod_lock, 1);
+  *CT2_control_out_buffer = control_packet_gen(14, 0, 0,0x000001D018  );
+  *(CT2_control_out_buffer+1)=   0; //or NOTE: disable ASLR
+  release(CT2_control_out_con_lock, 1);
+
+
+  acquire_greater_equal(CT2_control_out_prod_lock, 1);
+  *CT2_control_out_buffer = control_packet_gen(14, 0, 0,0x000001D01C  );
+  *(CT2_control_out_buffer+1)=   0x2000000; //or NOTE: disable ASLR
+  release(CT2_control_out_con_lock, 1);
+
+    // acquire_greater_equal(CT2_control_out_prod_lock, 1);
+    // *CT2_control_out_buffer = control_packet_gen(14, 0, 0,0x000001D210  );
+    // *(CT2_control_out_buffer+1)=   27<<8;
+    // release(CT2_control_out_con_lock, 1);
+
+    // Now, configure MM2S0 to  send BD_0
+    event0();
+    acquire_greater_equal(CT2_control_out_prod_lock, 1);
+    *CT2_control_out_buffer = control_packet_gen(14, 0, 0,0x000001D214  );
+    *(CT2_control_out_buffer+1)=   0;  //Do not issue token, because did not setup wait at runtime sequence
+    release(CT2_control_out_con_lock, 1);
+    event1();       
+
+  for(uint32_t i = 0; i < (total_passThrough_size /buffer_size ); i += 2){
+    //NOTE: need to enable core access to bus externally    
 
     acquire_greater_equal(in_buffer_con_lock, 1);
+    event0();
     if(i == 0){
         //BD_ID_4 is the control packet out
         
@@ -122,23 +199,27 @@ void passThroughTest(uint32_t *in, uint32_t *out,
         read_processor_bus(in+14, 0x000001D090, 1, 16); // 0
         read_processor_bus(in+15, 0x000001D094, 1, 16); // 0       
 
-        //MM2S info
-        read_processor_bus(in+20, 0x000001DE18, 1, 16);
-        read_processor_bus(in+21, 0x000001DE1C, 1, 16);        
+        // //MM2S info
+        // read_processor_bus(in+20, 0x000001DE18, 1, 16);
+        // read_processor_bus(in+21, 0x000001DE1C, 1, 16);        
 
         // Given the values above are all "0", it seem BD is not configured until lock is acquire??
 
-        event0();
-        acquire_greater_equal(CT2_control_out_prod_lock, 1);
-        *CT2_control_out_buffer =  control_packet_gen(14, 1, 0, 0x000001D004);
-        release(CT2_control_out_con_lock, 1);
-        event0();
+        // event0();
+        // acquire_greater_equal(CT2_control_out_prod_lock, 1);
+        // *CT2_control_out_buffer =  control_packet_gen(14, 1, 0, 0x000001D01C);
+        // release(CT2_control_out_con_lock, 1);
+        // event0();
 
-        event0();
-        acquire_greater_equal(CT2_control_in_con_lock, 1);
-        *(in+23) = *CT2_control_res_buffer;
-        release(CT2_control_in_prod_lock, 1);
-        event1();
+        // event0();
+        // acquire_greater_equal(CT2_control_in_con_lock, 1);
+        // *(in+23) = *CT2_control_res_buffer;
+        // release(CT2_control_in_prod_lock, 1);
+        // event1();
+
+
+
+
 
 
     }else{

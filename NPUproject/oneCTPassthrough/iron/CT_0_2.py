@@ -136,7 +136,8 @@ def setup_CT_0_2(in_data_ty, out_data_ty, control_package_ty,
             s2 = dma_start(DMAChannelDir.MM2S, 1, dest=block[7], chain=block[8])
         with block[7]:
             use_lock(CT2_control_out_con_lock, LockAction.AcquireGreaterEqual, value=1)
-            dma_bd(CT2_control_out_buffer[0], offset=0, len=1, packet=(0,13)) #Send control packet message, Need set len=1 for Read, len=2 for write package
+            #dma_bd(CT2_control_out_buffer[0], offset=0, len=1, packet=(0,13)) #Send control packet message, Need set len=1 for Read, len=2 for write package
+            dma_bd(CT2_control_out_buffer[0], offset=0, len=2, packet=(0,13)) #Send control packet message, Need set len=1 for Read, len=2 for write package            
             use_lock(CT2_control_out_prod_lock, LockAction.Release, value=1)
             next_bd(block[7])
         with block[8]:
