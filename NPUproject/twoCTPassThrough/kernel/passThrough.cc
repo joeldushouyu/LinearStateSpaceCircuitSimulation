@@ -26,7 +26,7 @@ void read_processor_bus(uint32_t *data, uint32_t addr, uint32_t size,
     #if defined(__chess__)
         data[i] = *(&addr_space_start + (offset / 4));
     #elif defined(__AIECC__)
-        data[i] = read_tm(addr  );
+        data[i] = read_tm(offset  );
     #else
         static_assert(false, "Unexpected case here");   
     #endif
@@ -39,7 +39,7 @@ void write_process_bus(uint32_t *data, uint32_t addr, uint32_t size, uint32_t st
     #if defined(__chess__)
         *(&addr_space_start + (offset / 4)) =  data[i];
     #elif defined(__AIECC__)
-        write_tm( data[i],addr );
+        write_tm( data[i],offset );
     #else
         static_assert(false, "Unexpected case here");   
     #endif    
