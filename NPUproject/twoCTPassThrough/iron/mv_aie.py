@@ -154,13 +154,7 @@ def single_mat_vect_mult():
         packetflow(12, ComputeTile_0_3, source_port=WireBundle.DMA, source_channel=1,
                     dest = ComputeTile_0_2, dest_port=WireBundle.TileControl, dest_channel=0,
                     )
-          
-        # packetflow(13, ComputeTile_0_2, source_port=WireBundle.DMA , source_channel=1,
-        #            dest=ComputeTile_0_2, dest_port=WireBundle.TileControl, dest_channel=0
-        #            )
-        # packetflow(14, ComputeTile_0_2, source_port=WireBundle.TileControl, source_channel=0,
-        #            dest=ComputeTile_0_2, dest_port=WireBundle.DMA, dest_channel=1
-        #            )
+
         
         memref.global_("in_SHM_CT_0_2_0", T.memref( total_size, T.f32() ), sym_visibility="public")            
         memref.global_("out_CT_0_2_SHM", T.memref( total_size, T.f32()), sym_visibility="public" ) # result out

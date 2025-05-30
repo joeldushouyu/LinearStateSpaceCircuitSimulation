@@ -16,20 +16,38 @@
 
 #include <aie_api/aie.hpp>
 
-// template <typename T, int N>
-// __attribute__((noinline)) void passThrough_aie(T *restrict in, T *restrict out,
-//                                                const int32_t height,
-//                                                const int32_t width) {
-//   event0();
+constexpr uint32_t tm_start_addr = 0x80000;
+static volatile uint32_t chess_storage(TM : tm_start_addr) addr_space_start;
 
-//   v64uint8 *restrict outPtr = (v64uint8 *)out;
-//   v64uint8 *restrict inPtr = (v64uint8 *)in;
+void read_processor_bus(uint32_t *data, uint32_t addr, uint32_t size,
+                        uint32_t stride) {
+  for (uint32_t i = 0; i < size; i++) {
+    uint32_t offset = addr + (i * stride);
+    #if defined(__chess__)
+        data[i] = *(&addr_space_start + (offset / 4));
+    #elif defined(__AIECC__)
+        data[i] = read_tm(addr  );
+    #else
+        static_assert(false, "Unexpected case here");   
+    #endif
+  }
+}
 
-//   for (int j = 0; j < (height * width); j += N) // Nx samples per loop
-//     chess_prepare_for_pipelining chess_loop_range(6, ) { *                                                                                                                                          outPtr++ = *inPtr++; }
+void write_process_bus(uint32_t *data, uint32_t addr, uint32_t size, uint32_t stride){
+  for (uint32_t i = 0; i < size; i++) {
+    uint32_t offset = addr + (i * stride);
+    #if defined(__chess__)
+        *(&addr_space_start + (offset / 4)) =  data[i];
+    #elif defined(__AIECC__)
+        write_tm( data[i],addr );
+    #else
+        static_assert(false, "Unexpected case here");   
+    #endif    
+  }
+}
 
-//   event1();
-// }
+
+
 
 template<typename T>
 __attribute__((noinline)) void passThrough_simple(uint32_t *restrict in, uint32_t*restrict out, const int32_t size){
@@ -78,132 +96,93 @@ void passThroughTest(uint32_t *in, uint32_t *out,
                   int32_t CT2_control_in_prod_lock, int32_t CT2_control_in_con_lock
                   
 ){
+  uint32_t val_write[1];
+  volatile uint32_t *val_write_ptr = val_write; 
   // assume divisible and multiple of two
   for(uint32_t i = 0; i < (total_passThrough_size /buffer_size ); i += 2){
 
     acquire_greater_equal(in_buffer_con_lock, 1);
     if(i == 0){
-        // // how about if I do it in CT_0_2?
-        // #define COMPUTE_0_2_BASE 0x208000
-        // #define DMA_BD_2_1_OFFSET 0x1D048
-        // volatile int32_t* BD_2_1 = (volatile int32_t*)(0x200000 + 0x001D044);
-        // int32_t val = *BD_2_1;
 
-        // int32_t* MM2S_0_CTR = (int32_t*)  0x1DE10;
-        // int32_t* MM2S_0_START = (int32_t*)(0x1DE14|0x200000);
-        // int32_t val = *BD_2_1;
-        // First, let us fix the issue in CT_0_2 through control packet
-    
-        acquire_greater_equal(control_packet_write_prod_lock, 1);
-        *control_write_buffer =   control_packet_gen(12, 0, 0,   0x001D044 );
-        *(control_write_buffer+1) = (1<<30) | (9<<19); //0x40480000; //(1<<31) | (9<<19);
-        release(control_packet_write_con_lock, 1);
-        // NOTE: Write did go through, but somehow did not apply to qeue?
-
-        //Try CT fix it myself instead?
-        // acquire_greater_equal(CT2_control_out_prod_lock, 1);
-        // *CT2_control_out_buffer = control_packet_gen(13, 0, 0,   0x001D044 );
-        // *(CT2_control_out_buffer+1)  = (1<<30) | (9<<19);
-        // release(CT2_control_out_con_lock, 1);
-
-        // auto k = get_coreid();
-        
-        acquire_greater_equal(control_packet_write_prod_lock, 1);
-        *control_write_buffer =   control_packet_gen(12, 0, 0,   0x1DE10 );
-        *(control_write_buffer+1) =  (1<<1);
-        release(control_packet_write_con_lock, 1); // toggle to turn off, 
-
-        acquire_greater_equal(control_packet_write_prod_lock, 1);
-        *control_write_buffer =   control_packet_gen(12, 0, 0,   0x1DE10 );
-        *(control_write_buffer+1) =  (0<<1);
-        release(control_packet_write_con_lock, 1); // toggle to turn on 
-  
-        acquire_greater_equal(control_packet_write_prod_lock, 1);
-        *control_write_buffer =   control_packet_gen(12, 0, 0,   0x1DE14 );
-        *(control_write_buffer+1) =  (1<<16) | (2);
-        release(control_packet_write_con_lock, 1); 
-
-
-        // wrtei core contro?
-
-  
-        acquire_greater_equal(control_packet_write_prod_lock, 1);
-        *control_write_buffer =   control_packet_gen(12, 0, 0,   0x0000032000 );
-        *(control_write_buffer+1)   = 1;
-        release(control_packet_write_con_lock, 1); 
-
-  
+        // write_process_bus( (in+1),0x0000032038, 1, 1  );  
+        //TODO: either enable here, or enable at runtime sequenc?
         acquire_greater_equal(control_packet_write_prod_lock, 1);
         *control_write_buffer =   control_packet_gen(12, 0, 0,   0x0000032038 );
         *(control_write_buffer+1)   = 1;
         release(control_packet_write_con_lock, 1); 
 
-        // *BD_2_1 = (1<<30) | (9<<19); //0x40480000; //(1<<31) | (9<<19);
-        // *MM2S_0_CTR  = 1<<1;
-        // *MM2S_0_CTR  = 0<<1;
-        // *MM2S_0_START = (1<<16) | (2);
-        // ERRORO read value: 2404400
-        // CORRECT read value: 2400400
-        
 
-        event0();
+        bool FIX_ERROR_BY_CONTROL_PACKET= false;
+
+        if(!FIX_ERROR_BY_CONTROL_PACKET){
+          event0();
+          *(val_write_ptr) =(1<<30) | (9<<19);
+          write_process_bus( (uint32_t*)(val_write_ptr),0x001D044, 1, 4  );
+          event0();           
+
+          event0();
+          *(val_write_ptr) =(1<<1);
+          write_process_bus( (uint32_t*)(val_write_ptr),0x1DE10, 1, 4  );  
+          event0();             
+
+          event0();
+          *(val_write_ptr) =(10<1);
+          write_process_bus( (uint32_t*)(val_write_ptr),0x1DE10, 1, 4  ); 
+          event0();          
+
+          *(val_write_ptr) =(1<<16) | (2);
+          write_process_bus( (uint32_t*)(val_write_ptr),0x1DE14, 1, 4  );            
+      
+        }else{
+            acquire_greater_equal(control_packet_write_prod_lock, 1);
+            *control_write_buffer =   control_packet_gen(12, 0, 0,   0x001D044 );
+            *(control_write_buffer+1) = (1<<30) | (9<<19); //0x40480000; //(1<<31) | (9<<19);
+            release(control_packet_write_con_lock, 1);
+            
+            acquire_greater_equal(control_packet_write_prod_lock, 1);
+            *control_write_buffer =   control_packet_gen(12, 0, 0,   0x1DE10 );
+            *(control_write_buffer+1) =  (1<<1);
+            release(control_packet_write_con_lock, 1); // toggle to turn off, 
+
+            acquire_greater_equal(control_packet_write_prod_lock, 1);
+            *control_write_buffer =   control_packet_gen(12, 0, 0,   0x1DE10 );
+            *(control_write_buffer+1) =  (0<<1);
+            release(control_packet_write_con_lock, 1); // toggle to turn on 
+           
+            acquire_greater_equal(control_packet_write_prod_lock, 1);
+            *control_write_buffer =   control_packet_gen(12, 0, 0,   0x1DE14 );
+            *(control_write_buffer+1) =  (1<<16) | (2);
+            release(control_packet_write_con_lock, 1); 
+        }
+
         acquire_greater_equal(control_packet_read_prod_lock, 1);
         *control_read_buffer =   control_packet_gen(11, 1, 0,   0x001D044  );
         release(control_packet_read_con_lock, 1);
-        event1();
-        // see the value of it
 
-
-
-        event0();
         acquire_greater_equal(control_packet_read_res_con_lock, 1);
         *(in) = *control_read_buffer_res;
         release(control_packet_read_res_prod_lock, 1);
-        event1();
 
-        // try to read
-        
-        // acquire_greater_equal(CT2_control_out_prod_lock, 1);
-        // *CT2_control_out_buffer = control_packet_gen(14, 1,0,0x001D044);
-        // release(CT2_control_out_con_lock, 1);
-
-        // acquire_greater_equal(CT2_control_in_con_lock, 1);
-        //  *(in) = *CT2_control_res_buffer;
-        // release(CT2_control_in_prod_lock, 1);
     }else{
-       volatile int32_t* BD_2_1 = (volatile int32_t*)(  (1<<25) | (1<<20) |0x1D044);
-       int32_t val = *BD_2_1;
-      *(in+1) = val;
-    //     // event0();
-    //     // acquire_greater_equal(control_packet_read_prod_lock, 1);
-    //     // *control_read_buffer =   control_packet_gen(11, 1, 0,   0x001D044  );
-    //     // release(control_packet_read_con_lock, 1);
-    //     // event1();
-    //     // // see the value of it
+      event0();
+      read_processor_bus(in,  0x1D044,1,4);        // NOTE: Write did go through, but somehow did not apply to qeue?0x1D044, 1, 1);
+      event0();
+      
+     read_processor_bus(in+1,  0x0000032000,1,4);   //Prove that CT control is always enable during bitstream
 
-
-
-    //     // event0();
-    //     // acquire_greater_equal(control_packet_read_res_con_lock, 1);
-    //     // *(in) = *control_read_buffer_res;
-    //     // release(control_packet_read_res_prod_lock, 1);
-    //     // event1();
-    //  auto k =  get_coreid();
-    // //   volatile int32_t* cord_id_pt = (volatile int32_t*)(    (10<<3) | 0b111);
-    // //   int32_t val = *cord_id_pt;
-    //   *(in+2) = k;        
+      *(val_write_ptr) =(1<<30) | (9<<19) | (5<<0); // need enable packet, laso packet_type force to be 0, because is core???
+      write_process_bus( (uint32_t*)(val_write_ptr),0x000001D0E4, 1, 4  );   // only give 40000000
+      read_processor_bus((in+3), 0x000001D0E4, 1, 1);
+        
     }
 
-    // *in = 0x10001;
+
     acquire_greater_equal(out_buffer_prod_lock, 1);
     passThrough_simple<uint32_t>(in, out, buffer_size);
     release(in_buffer_prod_lock, 1);
     release(out_buffer_con_lock, 1);
 
     
-
-
-
 
     acquire_greater_equal(in_buffer_con_lock, 1);
     acquire_greater_equal(out_buffer_prod_lock, 1);
@@ -215,24 +194,6 @@ void passThroughTest(uint32_t *in, uint32_t *out,
 
 
 }
-
-
-// // #endif
-// void passThroughLine_float_0(float *in, float *out, int32_t lineWidth) {
-//   passThrough_simple<float>( in, out, lineWidth);
-// }
-// void passThroughLine_float_1(float *in, float *out, int32_t lineWidth) {
-//   passThrough_simple<float>( in, out, lineWidth);
-// }
-
-// void passThroughLine_float_2(float *in, float *out, int32_t lineWidth) {
-//   passThrough_simple<float>( in, out, lineWidth);
-// }
-
-// void passThroughLine_float_3(float *in, float *out, int32_t lineWidth) {
-//   passThrough_simple<float>( in, out, lineWidth);
-// }
-
 
 
 } // extern "C"
