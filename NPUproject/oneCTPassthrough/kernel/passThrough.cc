@@ -20,26 +20,30 @@ constexpr uint32_t tm_start_addr = 0x80000;
 static volatile uint32_t chess_storage(TM : tm_start_addr) addr_space_start;
 
 void read_processor_bus(uint32_t *data, uint32_t addr, uint32_t size,
-                        uint32_t stride) {
+                        uint32_t stride=16) {
   for (uint32_t i = 0; i < size; i++) {
-    uint32_t offset = addr + (i * stride);
+    
     #if defined(__chess__)
+        uint32_t offset = addr + (i * stride);
         data[i] = *(&addr_space_start + (offset / 4));
     #elif defined(__AIECC__)
-        data[i] = read_tm(offset/4  );
+        uint32_t offset =addr  +  (i*(stride/4));    
+        data[i] = read_tm(offset );
     #else
         static_assert(false, "Unexpected case here");   
     #endif
   }
 }
 
-void write_process_bus(uint32_t *data, uint32_t addr, uint32_t size, uint32_t stride){
+void write_process_bus(uint32_t *data, uint32_t addr, uint32_t size, uint32_t stride=16){
   for (uint32_t i = 0; i < size; i++) {
-    uint32_t offset = addr + (i * stride);
+
     #if defined(__chess__)
+        uint32_t offset = addr + (i * stride);
         *(&addr_space_start + (offset / 4)) =  data[i];
     #elif defined(__AIECC__)
-        write_tm( data[i],offset/4 );
+        uint32_t offset =addr  +  (i*(stride/4));
+        write_tm( data[i],  offset );
     #else
         static_assert(false, "Unexpected case here");   
     #endif    
@@ -124,7 +128,7 @@ for (uint32_t i = 0; i < 20000; i++) {
   //0x000001D01C  2000000
 
 
-  // FIRST, configred bd_0 for transaction
+//   FIRST, configred Shimtile's bd_0 for transaction
 
   event0();
   acquire_greater_equal(CT2_control_out_prod_lock, 1);
@@ -182,7 +186,7 @@ for (uint32_t i = 0; i < 20000; i++) {
     *CT2_control_out_buffer = control_packet_gen(14, 0, 0,0x000001D214  );
     *(CT2_control_out_buffer+1)=   0;  //Do not issue token, because did not setup wait at runtime sequence
     release(CT2_control_out_con_lock, 1);
-    event1();       
+    event1();           
 
   for(uint32_t i = 0; i < (total_passThrough_size /buffer_size ); i += 2){
     //NOTE: need to enable core access to bus externally    
@@ -226,7 +230,6 @@ for (uint32_t i = 0; i < 20000; i++) {
        
     }
 
-    // *in = 0x10001;
     acquire_greater_equal(out_buffer_prod_lock, 1);
     passThrough_simple<uint32_t>(in, out, buffer_size);
     release(in_buffer_prod_lock, 1);
