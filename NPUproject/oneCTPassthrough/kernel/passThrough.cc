@@ -110,7 +110,7 @@ void passThroughTest(uint32_t *in, uint32_t *out,
                   
 ){
 
-
+uint32_t write_buffer[1];
 volatile int dummy = 0;
 for (uint32_t i = 0; i < 20000; i++) {
     dummy++;
@@ -207,19 +207,35 @@ for (uint32_t i = 0; i < 20000; i++) {
         // read_processor_bus(in+20, 0x000001DE18, 1, 16);
         // read_processor_bus(in+21, 0x000001DE1C, 1, 16);        
 
-        // Given the values above are all "0", it seem BD is not configured until lock is acquire??
+  
+        // NOTE: if look at MM2S-1 of CT_0_2, it is configured to send packet of len=2( for output)
+        //But if we want to read it, Then we needs to change to len=1, only send read control packet
+        read_processor_bus( write_buffer, 0x000001D080, 1, 16 );// first read
+        uint32_t len_mask = 0x3FFF;
+        *write_buffer =  ( (*write_buffer) & ~len_mask) | ( (0x1) & len_mask);  
+        write_process_bus( write_buffer, 0x000001D080, 1, 16 );
 
-        // event0();
-        // acquire_greater_equal(CT2_control_out_prod_lock, 1);
-        // *CT2_control_out_buffer =  control_packet_gen(14, 1, 0, 0x000001D01C);
-        // release(CT2_control_out_con_lock, 1);
-        // event0();
 
-        // event0();
-        // acquire_greater_equal(CT2_control_in_con_lock, 1);
-        // *(in+23) = *CT2_control_res_buffer;
-        // release(CT2_control_in_prod_lock, 1);
-        // event1();
+        read_processor_bus(in+20, 0x000001D080, 1, 16); // 0     
+        //After change it, need to modify MM2S queue to notify it resets it
+
+        *(write_buffer) =(1<<1);
+        write_process_bus( (uint32_t*)(write_buffer),0x000001DE18, 1, 4  );  
+        *(write_buffer) =(10<1);
+        write_process_bus( (uint32_t*)(write_buffer),0x000001DE18, 1, 4  ); 
+
+        *(write_buffer) =(1<<16) | (4);
+        write_process_bus( (uint32_t*)(write_buffer),0x000001DE1C, 1, 4  );      
+
+        // Now, send read control packet
+        acquire_greater_equal(CT2_control_out_prod_lock, 1);
+        *CT2_control_out_buffer =  control_packet_gen(14, 1, 0, 0x000001D01C);
+        release(CT2_control_out_con_lock, 1);
+
+        acquire_greater_equal(CT2_control_in_con_lock, 1);
+        *(in+23) = *CT2_control_res_buffer; // Result of read control packet
+        release(CT2_control_in_prod_lock, 1);
+
 
 
 
