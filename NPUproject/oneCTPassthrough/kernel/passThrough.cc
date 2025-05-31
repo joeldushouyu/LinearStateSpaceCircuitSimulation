@@ -36,20 +36,31 @@ void read_processor_bus(uint32_t *data, uint32_t addr, uint32_t size,
 }
 
 void write_process_bus(uint32_t *data, uint32_t addr, uint32_t size, uint32_t stride=16){
-  for (uint32_t i = 0; i < size; i++) {
+  
+    for (uint32_t i = 0; i < size; i++) {
 
-    #if defined(__chess__)
-        uint32_t offset = addr + (i * stride);
-        *(&addr_space_start + (offset / 4)) =  data[i];
-    #elif defined(__AIECC__)
-        uint32_t offset =addr  +  (i*(stride/4));
-        write_tm( data[i],  offset );
-    #else
-        static_assert(false, "Unexpected case here");   
-    #endif    
-  }
+        #if defined(__chess__)
+            uint32_t offset = addr + (i * stride);
+            *(&addr_space_start + (offset / 4)) =  data[i];
+        #elif defined(__AIECC__)
+            uint32_t offset =addr  +  (i*(stride/4));
+            write_tm( data[i],  offset );
+        #else
+            static_assert(false, "Unexpected case here");   
+        #endif    
+    }
 }
 
+
+inline void compiler_sync_barrier(){
+    #if defined(__chess__)
+        chess_separator_scheduler(2);
+    #elif defined(__AIECC__)
+        __builtin_aie2p_sched_barrier();   
+    #else
+        static_assert(false, "Unexpected case here");   
+    #endif
+}
 
 
 
@@ -130,12 +141,12 @@ for (uint32_t i = 0; i < 20000; i++) {
 
 //   FIRST, configred Shimtile's bd_0 for transaction
 
-  event0();
+//   event0();
   acquire_greater_equal(CT2_control_out_prod_lock, 1);
   *CT2_control_out_buffer = control_packet_gen(14, 0, 0,0x000001D000  );
   *(CT2_control_out_buffer+1)=   0x1000; //or 0x40308000
   release(CT2_control_out_con_lock, 1);
-  event0();
+//   event0();
 
   acquire_greater_equal(CT2_control_out_prod_lock, 1);
   *CT2_control_out_buffer = control_packet_gen(14, 0, 0,0x000001D004  );
@@ -181,18 +192,17 @@ for (uint32_t i = 0; i < 20000; i++) {
     // release(CT2_control_out_con_lock, 1);
 
     // Now, configure MM2S0 to  send BD_0
-    event0();
+    event0(); // Send Write packet
     acquire_greater_equal(CT2_control_out_prod_lock, 1);
     *CT2_control_out_buffer = control_packet_gen(14, 0, 0,0x000001D214  );
     *(CT2_control_out_buffer+1)=   0;  //Do not issue token, because did not setup wait at runtime sequence
     release(CT2_control_out_con_lock, 1);
-    event1();           
 
   for(uint32_t i = 0; i < (total_passThrough_size /buffer_size ); i += 2){
     //NOTE: need to enable core access to bus externally    
 
     acquire_greater_equal(in_buffer_con_lock, 1);
-    event0();
+    event1(); // whem Shimtile receives write packet that configures and start sending data
     if(i == 0){
         //BD_ID_4 is the control packet out
         
@@ -213,6 +223,7 @@ for (uint32_t i = 0; i < 20000; i++) {
         read_processor_bus( write_buffer, 0x000001D080, 1, 16 );// first read
         uint32_t len_mask = 0x3FFF;
         *write_buffer =  ( (*write_buffer) & ~len_mask) | ( (0x1) & len_mask);  
+        compiler_sync_barrier();          
         write_process_bus( write_buffer, 0x000001D080, 1, 16 );
 
 
@@ -220,14 +231,21 @@ for (uint32_t i = 0; i < 20000; i++) {
         //After change it, need to modify MM2S queue to notify it resets it
 
         *(write_buffer) =(1<<1);
-        write_process_bus( (uint32_t*)(write_buffer),0x000001DE18, 1, 4  );  
-        *(write_buffer) =(10<1);
-        write_process_bus( (uint32_t*)(write_buffer),0x000001DE18, 1, 4  ); 
+        compiler_sync_barrier();  
+        write_process_bus( (uint32_t*)(write_buffer),0x000001DE18, 1, 16 );  
 
+        *(write_buffer) =(0<1);
+        compiler_sync_barrier();  
+        write_process_bus( (uint32_t*)(write_buffer),0x000001DE18, 1, 16  ); 
+
+        
+        event0();
         *(write_buffer) =(1<<16) | (4);
-        write_process_bus( (uint32_t*)(write_buffer),0x000001DE1C, 1, 4  );      
+        compiler_sync_barrier();         
+        write_process_bus( (uint32_t*)(write_buffer),0x000001DE1C, 1, 16  );      
+        event0();
 
-        // Now, send read control packet
+        event0();
         acquire_greater_equal(CT2_control_out_prod_lock, 1);
         *CT2_control_out_buffer =  control_packet_gen(14, 1, 0, 0x000001D01C);
         release(CT2_control_out_con_lock, 1);
@@ -235,7 +253,7 @@ for (uint32_t i = 0; i < 20000; i++) {
         acquire_greater_equal(CT2_control_in_con_lock, 1);
         *(in+23) = *CT2_control_res_buffer; // Result of read control packet
         release(CT2_control_in_prod_lock, 1);
-
+        event1();    
 
 
 

@@ -10,9 +10,9 @@ MlirDIR ?= $(or $(Mlir_DIR),/home/shouyud/PROJECT/mlir-aie)
 TemplateRepoDir ?= $(or $(TEMPLATE_REPO_DIR),/home/shouyud/LinearStateSpaceCircuitSimulation/Template)
 TemplaeHostDir := $(TemplateRepoDir)/host
 
-# # create a dynamic link of /common folder, 
+# # # create a dynamic link of /common folder, 
 # ENABLE_CHESSCC ?= 1
-
+OUTPUT_KERNEL_ASSEMBLY := true
 DEVICE ?= npu2
 HOME_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 CPP_REFERENCE_DIR := ${HOME_DIR}/../../cppReadCircuitDataLibrary
