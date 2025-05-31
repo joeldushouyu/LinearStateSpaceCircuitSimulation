@@ -47,6 +47,13 @@ from aie.dialects.memref import alloc, store, alloca
 from aie.extras import types as T
 
 from aie.dialects.aiex import control_packet
+from ctypes import addressof
+from aie.extras.dialects.ext.memref import (
+    MemRef,
+    store as memref_store,
+    load as memref_load,
+    global_ as memref_global
+)
 
 import os
 import json
@@ -81,10 +88,10 @@ def single_mat_vect_mult():
         in_data_ty = np.ndarray[ (buffer_size*2, ), dtype_in]
         out_data_ty = np.ndarray[ (buffer_size*2, ), dtype_out]
         control_packet_ty = np.ndarray[ (2,), np.dtype[np.int32]]
-
+        rtp_data_ty = np.ndarray[(1,), np.dtype[np.uint32] ]
        
-        ComputeTile_0_2, in_buffer, out_buffer, CT2_control_out_buffer, CT2_control_in_buffer = setup_CT_0_2(
-            in_data_ty, out_data_ty, control_packet_ty,
+        ComputeTile_0_2, in_buffer, out_buffer, CT2_control_out_buffer, CT2_control_in_buffer,rtp_buffer = setup_CT_0_2(
+            in_data_ty, out_data_ty, control_packet_ty,rtp_data_ty,
             buffer_size, total_size
         )
         ComputeTile_0_2.attributes["controlled_id"] = generate_packet_attribute(0,20)
@@ -100,6 +107,7 @@ def single_mat_vect_mult():
             np.int32, np.int32               
         ])
 
+        
         @core(ComputeTile_0_2, "passThrough.o", stack_size=1024)
         def core_body():
             passThroughTest_func(
@@ -128,7 +136,7 @@ def single_mat_vect_mult():
                     dest = ShimTile_0, dest_port= WireBundle.DMA, dest_channel=1
                    ) 
         # path for control packet 
-        packetflow(13, ComputeTile_0_2, source_port=WireBundle.DMA , source_channel=1,
+        packetflow(13, source=ComputeTile_0_2, source_port=WireBundle.DMA , source_channel=1,
                    dest=ShimTile_0, dest_port=WireBundle.TileControl, dest_channel=0
                    )
         packetflow(14, ShimTile_0, source_port=WireBundle.TileControl, source_channel=0,
@@ -146,7 +154,8 @@ def single_mat_vect_mult():
         @runtime_sequence(np.ndarray[(total_size, ), dtype_in], np.ndarray[(total_size, ), dtype_out], np.ndarray[(1, ), dtype_in], np.ndarray[(1, ), dtype_in]  )
         def sequence(A,B, zero0, zero1):
             # work balance module
-            npu_maskwrite32(address=0x32038, row=2, column=0, value=0x1, mask=0x1)         
+            npu_maskwrite32(address=0x32038, row=2, column=0, value=0x1, mask=0x1)    
+ 
             if(trace_size > 0):
                 trace_utils.configure_packet_tracing_aie2(
                     tiles_to_trace=tiles_to_trace,
@@ -195,8 +204,20 @@ def single_mat_vect_mult():
                 issue_token=True
             )
             
-            
             npu_dma_wait("out_CT_0_2_SHM")
+            
+            npu_dma_memcpy_nd(  # Note: this will not run, because it blocks by out_CT_0_2 shm
+                                # And if try to read the virtual address at CT, it will always vbe 0
+                                # This is because this not execute unti OUT_CT_0_2_SHM is finished
+                                # In other words, npu_dma_wait is a block api call
+                metadata="in_SHM_CT_0_2_0",
+                bd_id=0,
+                mem=A,
+                offsets=[0,0,0,0],
+                sizes=[1,1,1, 1],  
+                strides=[0,0,0,1],
+                packet=(0,22) #should be 6, leave to kerenlt to send control packet to corret this
+            )
 
 with mlir_mod_ctx() as ctx:
     single_mat_vect_mult()

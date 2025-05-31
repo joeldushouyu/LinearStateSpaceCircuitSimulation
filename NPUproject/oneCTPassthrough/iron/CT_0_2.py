@@ -58,7 +58,7 @@ from aie.dialects._aiex_ops_gen import _Dialect
 
 from helper_func import generate_packet_attribute, custom_ceil
 
-def setup_CT_0_2(in_data_ty, out_data_ty, control_package_ty,
+def setup_CT_0_2(in_data_ty, out_data_ty, control_package_ty,rtp_data_ty,
                  buffer_size:int, total_size:int):
 
     ComputeTile_0_2 = tile(0,2, allocation_scheme="basic-sequential")
@@ -101,7 +101,18 @@ def setup_CT_0_2(in_data_ty, out_data_ty, control_package_ty,
     CT2_control_in_prod_lock = lock(ComputeTile_0_2, lock_id=2, init=1, sym_name="CT2_control_in_prod_lock")
     CT2_control_in_con_lock = lock(ComputeTile_0_2, lock_id=3, init=0, sym_name="CT2_control_in_con_lock")
     
-
+    offset += 4*4
+    
+    val_ty = try_convert_np_type_to_mlir_type(rtp_data_ty)
+    rtp_init_val = DenseElementsAttr.get(
+                 np.array([0], np.uint32),#np.arange(0, 1, dtype=np.int32),
+                type=try_convert_np_type_to_mlir_type(rtp_data_ty).element_type,
+                context=None,
+            )
+    rtp_buffer = [
+        buffer_raw(tile=ComputeTile_0_2, buffer=try_convert_np_type_to_mlir_type(rtp_data_ty), sym_name="CT2_rtp_buffer", 
+                   initial_value=rtp_init_val, address=offset)
+    ]
     
     @mem(ComputeTile_0_2)
     def m(block):
@@ -152,5 +163,5 @@ def setup_CT_0_2(in_data_ty, out_data_ty, control_package_ty,
                             
 
         
-    return ComputeTile_0_2, in_buffer, out_buffer, CT2_control_out_buffer, CT2_control_in_buffer
+    return ComputeTile_0_2, in_buffer, out_buffer, CT2_control_out_buffer, CT2_control_in_buffer, rtp_buffer
     

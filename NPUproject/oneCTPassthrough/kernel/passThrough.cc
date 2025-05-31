@@ -107,6 +107,48 @@ uint32_t packet_flow_gen(uint32_t packet_type, uint32_t stream_id, uint32_t sour
 }
 
 
+inline void configure_BD_4_MM2S_1_dma_bd_len(uint32_t len, uint32_t bd_repeat_len=1 ){
+    uint32_t len_mask = 0;
+    uint32_t write_buffer[1];
+
+
+
+    *(write_buffer) =(1<<1);// disable MM2S-1
+    compiler_sync_barrier();  
+    write_process_bus( (uint32_t*)(write_buffer),0x000001DE18, 1, 16 );  
+    compiler_sync_barrier();  
+
+
+
+    // compiler_sync_barrier();  
+    read_processor_bus( write_buffer, 0x000001D080, 1, 16 );// first read
+    compiler_sync_barrier();  
+
+    len_mask = 0x3FFF;
+    *write_buffer =  ( (*write_buffer) & ~len_mask) | ( (len) & len_mask);  
+    compiler_sync_barrier();          
+    write_process_bus( write_buffer, 0x000001D080, 1, 16 );
+    compiler_sync_barrier();  
+
+
+
+    *(write_buffer) =(0<1);  // renable MM2S-1
+    compiler_sync_barrier();  
+    write_process_bus( (uint32_t*)(write_buffer),0x000001DE18, 1, 16  ); 
+    compiler_sync_barrier();  
+
+    event0();
+    *(write_buffer) =(bd_repeat_len<<16) | (4);
+    compiler_sync_barrier();         
+    write_process_bus( (uint32_t*)(write_buffer),0x000001DE1C, 1, 16  ); 
+    compiler_sync_barrier();           
+    event0();
+
+
+
+}
+
+
 extern "C" {
 
 void passThroughTest(uint32_t *in, uint32_t *out, 
@@ -123,39 +165,39 @@ void passThroughTest(uint32_t *in, uint32_t *out,
 
 uint32_t write_buffer[1];
 volatile int dummy = 0;
-for (uint32_t i = 0; i < 20000; i++) {
-    dummy++;
+for (uint32_t i = 0; i < 50000; i++) {
+    dummy++;  // wait for Trace to finish setting up the events
 }
 
-    
 
-  // 0x000001D000, 0x1000
-  // 0x000001D004  0x77fb9000
-  //0x000001D008   0x40308000
-  // 0x000001D00C  0
-  //0x000001D010  0x40000000
-  //0x000001D014  0
-  //0x000001D018  0
-  //0x000001D01C  2000000
+    uint32_t Shimtile_BD_1_1_val = 0;
+
+    configure_BD_4_MM2S_1_dma_bd_len(1);// configure to write control packet len 
+    acquire_greater_equal(CT2_control_out_prod_lock, 1);
+    *CT2_control_out_buffer =  control_packet_gen(14, 1, 0, 0x000001D024);
+    release(CT2_control_out_con_lock, 1);
+
+    acquire_greater_equal(CT2_control_in_con_lock, 1);
+    Shimtile_BD_1_1_val = *CT2_control_res_buffer; // Result of read control packet
+    release(CT2_control_in_prod_lock, 1);
 
 
-//   FIRST, configred Shimtile's bd_0 for transaction
+    configure_BD_4_MM2S_1_dma_bd_len(2);// configure to write control packet len
 
-//   event0();
   acquire_greater_equal(CT2_control_out_prod_lock, 1);
   *CT2_control_out_buffer = control_packet_gen(14, 0, 0,0x000001D000  );
   *(CT2_control_out_buffer+1)=   0x1000; //or 0x40308000
   release(CT2_control_out_con_lock, 1);
-//   event0();
+
 
   acquire_greater_equal(CT2_control_out_prod_lock, 1);
   *CT2_control_out_buffer = control_packet_gen(14, 0, 0,0x000001D004  );
-  *(CT2_control_out_buffer+1)=   0x77fb9000; //or NOTE: disable ASLR
+  *(CT2_control_out_buffer+1)=  0x77fb9000;// Shimtile_BD_0_1_val; //0x77fb9000; //or NOTE: disable ASLR OR TODO: read from shimtile registers?
   release(CT2_control_out_con_lock, 1);
 
   acquire_greater_equal(CT2_control_out_prod_lock, 1);
   *CT2_control_out_buffer = control_packet_gen(14, 0, 0,0x000001D008  );
-  *(CT2_control_out_buffer+1)=   0x40308000; //or NOTE: disable ASLR
+  *(CT2_control_out_buffer+1)= 0x40308000;//  (1<<30) | (6<<19) | (0<<16) | ( 0x3FFF &Shimtile_BD_0_2_val );   //0x40308000; //or NOTE: disable ASLR
   release(CT2_control_out_con_lock, 1);
 
   acquire_greater_equal(CT2_control_out_prod_lock, 1);
@@ -205,60 +247,32 @@ for (uint32_t i = 0; i < 20000; i++) {
     event1(); // whem Shimtile receives write packet that configures and start sending data
     if(i == 0){
         //BD_ID_4 is the control packet out
-        
+        *(in+5) = Shimtile_BD_1_1_val;
         read_processor_bus(in+10, 0x000001D080, 1, 16); // 0
         read_processor_bus(in+11, 0x000001D084, 1, 16); // 0 
         read_processor_bus(in+12, 0x000001D088, 1, 16); // 0        
         read_processor_bus(in+13, 0x000001D08C, 1, 16); // 0
         read_processor_bus(in+14, 0x000001D090, 1, 16); // 0
         read_processor_bus(in+15, 0x000001D094, 1, 16); // 0       
-
+        read_processor_bus(in+21, 0x000001D080, 1, 16); // 0     
         // //MM2S info
         // read_processor_bus(in+20, 0x000001DE18, 1, 16);
         // read_processor_bus(in+21, 0x000001DE1C, 1, 16);        
 
-  
         // NOTE: if look at MM2S-1 of CT_0_2, it is configured to send packet of len=2( for output)
         //But if we want to read it, Then we needs to change to len=1, only send read control packet
-        read_processor_bus( write_buffer, 0x000001D080, 1, 16 );// first read
-        uint32_t len_mask = 0x3FFF;
-        *write_buffer =  ( (*write_buffer) & ~len_mask) | ( (0x1) & len_mask);  
-        compiler_sync_barrier();          
-        write_process_bus( write_buffer, 0x000001D080, 1, 16 );
+        configure_BD_4_MM2S_1_dma_bd_len(1);
 
-
-        read_processor_bus(in+20, 0x000001D080, 1, 16); // 0     
-        //After change it, need to modify MM2S queue to notify it resets it
-
-        *(write_buffer) =(1<<1);
-        compiler_sync_barrier();  
-        write_process_bus( (uint32_t*)(write_buffer),0x000001DE18, 1, 16 );  
-
-        *(write_buffer) =(0<1);
-        compiler_sync_barrier();  
-        write_process_bus( (uint32_t*)(write_buffer),0x000001DE18, 1, 16  ); 
-
-        
-        event0();
-        *(write_buffer) =(1<<16) | (4);
-        compiler_sync_barrier();         
-        write_process_bus( (uint32_t*)(write_buffer),0x000001DE1C, 1, 16  );      
-        event0();
-
+        read_processor_bus(in+22, 0x000001D080, 1, 16); // 0     
         event0();
         acquire_greater_equal(CT2_control_out_prod_lock, 1);
-        *CT2_control_out_buffer =  control_packet_gen(14, 1, 0, 0x000001D01C);
+        *CT2_control_out_buffer =  control_packet_gen(14, 1, 0, 0x000001D004);
         release(CT2_control_out_con_lock, 1);
 
         acquire_greater_equal(CT2_control_in_con_lock, 1);
-        *(in+23) = *CT2_control_res_buffer; // Result of read control packet
+        *(in+24) =*CT2_control_res_buffer; // Result of read control packet
         release(CT2_control_in_prod_lock, 1);
         event1();    
-
-
-
-
-
 
     }else{
        
