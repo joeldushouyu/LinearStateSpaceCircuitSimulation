@@ -51,12 +51,18 @@ void write_process_bus(uint32_t *data, uint32_t addr, uint32_t size, uint32_t st
     }
 }
 
-
-inline void compiler_sync_barrier(){
+inline volatile void compiler_sync_barrier(){
     #if defined(__chess__)
         chess_separator_scheduler(2);
     #elif defined(__AIECC__)
-        __builtin_aie2p_sched_barrier();   
+        __builtin_aie2p_sched_barrier();     
+        volatile int32_t k = 0;
+        for(int32_t i = 0; i < 1; i++){
+            k++;
+        }
+        __builtin_aie2p_sched_barrier();  
+
+
     #else
         static_assert(false, "Unexpected case here");   
     #endif
@@ -67,14 +73,14 @@ inline void compiler_sync_barrier(){
 template<typename T>
 __attribute__((noinline)) void passThrough_simple(uint32_t *restrict in, uint32_t*restrict out, const int32_t size){
   
-  // event0()  ;
+
 
   for( int32_t j = 0; j < size; j++){
     *out = *in;
     out++;
     in++;
   }
-  // event1();
+
 }
 bool even_parity(uint32_t n) {
     // Return true of even number of "1" bits, false otherwise
@@ -113,16 +119,9 @@ inline void configure_BD_4_MM2S_1_dma_bd_len(uint32_t len, uint32_t bd_repeat_le
 
 
 
-    *(write_buffer) =(1<<1);// disable MM2S-1
-    compiler_sync_barrier();  
-    write_process_bus( (uint32_t*)(write_buffer),0x000001DE18, 1, 16 );  
-    compiler_sync_barrier();  
 
-
-
-    // compiler_sync_barrier();  
     read_processor_bus( write_buffer, 0x000001D080, 1, 16 );// first read
-    compiler_sync_barrier();  
+
 
     len_mask = 0x3FFF;
     *write_buffer =  ( (*write_buffer) & ~len_mask) | ( (len) & len_mask);  
@@ -130,19 +129,22 @@ inline void configure_BD_4_MM2S_1_dma_bd_len(uint32_t len, uint32_t bd_repeat_le
     write_process_bus( write_buffer, 0x000001D080, 1, 16 );
     compiler_sync_barrier();  
 
-
+    *(write_buffer) =(1<<1);// disable MM2S-1
+    compiler_sync_barrier();  
+    write_process_bus( (uint32_t*)(write_buffer),0x000001DE18, 1, 16 );  
+    compiler_sync_barrier();  
 
     *(write_buffer) =(0<1);  // renable MM2S-1
     compiler_sync_barrier();  
     write_process_bus( (uint32_t*)(write_buffer),0x000001DE18, 1, 16  ); 
     compiler_sync_barrier();  
 
-    event0();
+    compiler_sync_barrier();             
     *(write_buffer) =(bd_repeat_len<<16) | (4);
     compiler_sync_barrier();         
     write_process_bus( (uint32_t*)(write_buffer),0x000001DE1C, 1, 16  ); 
     compiler_sync_barrier();           
-    event0();
+
 
 
 
@@ -234,7 +236,7 @@ for (uint32_t i = 0; i < 50000; i++) {
     // release(CT2_control_out_con_lock, 1);
 
     // Now, configure MM2S0 to  send BD_0
-    event0(); // Send Write packet
+
     acquire_greater_equal(CT2_control_out_prod_lock, 1);
     *CT2_control_out_buffer = control_packet_gen(14, 0, 0,0x000001D214  );
     *(CT2_control_out_buffer+1)=   0;  //Do not issue token, because did not setup wait at runtime sequence
@@ -244,7 +246,7 @@ for (uint32_t i = 0; i < 50000; i++) {
     //NOTE: need to enable core access to bus externally    
 
     acquire_greater_equal(in_buffer_con_lock, 1);
-    event1(); // whem Shimtile receives write packet that configures and start sending data
+
     if(i == 0){
         //BD_ID_4 is the control packet out
         *(in+5) = Shimtile_BD_1_1_val;
@@ -264,7 +266,7 @@ for (uint32_t i = 0; i < 50000; i++) {
         configure_BD_4_MM2S_1_dma_bd_len(1);
 
         read_processor_bus(in+22, 0x000001D080, 1, 16); // 0     
-        event0();
+
         acquire_greater_equal(CT2_control_out_prod_lock, 1);
         *CT2_control_out_buffer =  control_packet_gen(14, 1, 0, 0x000001D004);
         release(CT2_control_out_con_lock, 1);
@@ -272,7 +274,7 @@ for (uint32_t i = 0; i < 50000; i++) {
         acquire_greater_equal(CT2_control_in_con_lock, 1);
         *(in+24) =*CT2_control_res_buffer; // Result of read control packet
         release(CT2_control_in_prod_lock, 1);
-        event1();    
+ 
 
     }else{
        
