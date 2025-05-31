@@ -52,10 +52,10 @@ void write_process_bus(uint32_t *data, uint32_t addr, uint32_t size, uint32_t st
 }
 
 inline volatile void compiler_sync_barrier(){
-    volatile int32_t k = 0;
     #if defined(__chess__)
         chess_separator_scheduler(2); // found by trial and error
     #elif defined(__AIECC__)
+        volatile int32_t k = 0;    
         __builtin_aie2p_sched_barrier();     
         k++; // ensure two  nop() as above
         __builtin_aie2p_sched_barrier();  
@@ -122,24 +122,19 @@ inline void configure_BD_4_MM2S_1_dma_bd_len(uint32_t len, uint32_t bd_repeat_le
 
 
     len_mask = 0x3FFF;
-    *write_buffer =  ( (*write_buffer) & ~len_mask) | ( (len) & len_mask);  
-    compiler_sync_barrier();          
+    *write_buffer =  ( (*write_buffer) & ~len_mask) | ( (len) & len_mask);         
     write_process_bus( write_buffer, 0x000001D080, 1, 16 );
     compiler_sync_barrier();  
 
     *(write_buffer) =(1<<1);// disable MM2S-1
-    compiler_sync_barrier();  
     write_process_bus( (uint32_t*)(write_buffer),0x000001DE18, 1, 16 );  
     compiler_sync_barrier();  
 
     *(write_buffer) =(0<1);  // renable MM2S-1
-    compiler_sync_barrier();  
     write_process_bus( (uint32_t*)(write_buffer),0x000001DE18, 1, 16  ); 
     compiler_sync_barrier();  
-
-    compiler_sync_barrier();             
+       
     *(write_buffer) =(bd_repeat_len<<16) | (4);
-    compiler_sync_barrier();         
     write_process_bus( (uint32_t*)(write_buffer),0x000001DE1C, 1, 16  ); 
     compiler_sync_barrier();           
 
