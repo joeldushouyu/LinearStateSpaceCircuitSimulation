@@ -53,19 +53,16 @@ void write_process_bus(uint32_t *data, uint32_t addr, uint32_t size, uint32_t st
 
 inline volatile void compiler_sync_barrier(){
     #if defined(__chess__)
-        chess_separator_scheduler(2); // found by trial and error
+        chess_separator_scheduler(2);
     #elif defined(__AIECC__)
+          __builtin_aie2p_sched_barrier();    
         volatile int32_t k = 0;    
         __builtin_aie2p_sched_barrier();     
-        k++; // ensure two  nop() as above
-        __builtin_aie2p_sched_barrier();  
 
     #else
         static_assert(false, "Unexpected case here");   
     #endif
 }
-
-
 
 
 template<typename T>
