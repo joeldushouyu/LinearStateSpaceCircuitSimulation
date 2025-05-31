@@ -52,21 +52,19 @@ void write_process_bus(uint32_t *data, uint32_t addr, uint32_t size, uint32_t st
 }
 
 inline volatile void compiler_sync_barrier(){
+    volatile int32_t k = 0;
     #if defined(__chess__)
-        chess_separator_scheduler(2);
+        chess_separator_scheduler(2); // found by trial and error
     #elif defined(__AIECC__)
         __builtin_aie2p_sched_barrier();     
-        volatile int32_t k = 0;
-        for(int32_t i = 0; i < 1; i++){
-            k++;
-        }
+        k++; // ensure two  nop() as above
         __builtin_aie2p_sched_barrier();  
-
 
     #else
         static_assert(false, "Unexpected case here");   
     #endif
 }
+
 
 
 
