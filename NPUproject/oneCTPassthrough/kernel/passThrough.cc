@@ -214,19 +214,19 @@ for (uint32_t i = 0; i < 50000; i++) {
   *(CT2_control_out_buffer+1)=   0; //or NOTE: disable ASLR
   release(CT2_control_out_con_lock, 1);
 
-
+    event0();
   acquire_greater_equal(CT2_control_out_prod_lock, 1);
   *CT2_control_out_buffer = control_packet_gen(14, 0, 0,0x000001D01C  );
   *(CT2_control_out_buffer+1)=   0x2000000; //or NOTE: disable ASLR
   release(CT2_control_out_con_lock, 1);
-
+    event0();
     // acquire_greater_equal(CT2_control_out_prod_lock, 1);
     // *CT2_control_out_buffer = control_packet_gen(14, 0, 0,0x000001D210  );
     // *(CT2_control_out_buffer+1)=   27<<8;
     // release(CT2_control_out_con_lock, 1);
 
     // Now, configure MM2S0 to  send BD_0
-
+    event0();
     acquire_greater_equal(CT2_control_out_prod_lock, 1);
     *CT2_control_out_buffer = control_packet_gen(14, 0, 0,0x000001D214  );
     *(CT2_control_out_buffer+1)=   0;  //Do not issue token, because did not setup wait at runtime sequence
@@ -236,6 +236,7 @@ for (uint32_t i = 0; i < 50000; i++) {
     //NOTE: need to enable core access to bus externally    
 
     acquire_greater_equal(in_buffer_con_lock, 1);
+    event1();
 
     if(i == 0){
         //BD_ID_4 is the control packet out
@@ -256,7 +257,7 @@ for (uint32_t i = 0; i < 50000; i++) {
         configure_BD_4_MM2S_1_dma_bd_len(1);
 
         read_processor_bus(in+22, 0x000001D080, 1, 16); // 0     
-
+        event0();
         acquire_greater_equal(CT2_control_out_prod_lock, 1);
         *CT2_control_out_buffer =  control_packet_gen(14, 1, 0, 0x000001D004);
         release(CT2_control_out_con_lock, 1);
@@ -264,7 +265,7 @@ for (uint32_t i = 0; i < 50000; i++) {
         acquire_greater_equal(CT2_control_in_con_lock, 1);
         *(in+24) =*CT2_control_res_buffer; // Result of read control packet
         release(CT2_control_in_prod_lock, 1);
- 
+        event1();
 
     }else{
        
