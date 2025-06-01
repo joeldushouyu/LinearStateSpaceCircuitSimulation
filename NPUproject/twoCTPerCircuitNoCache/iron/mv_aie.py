@@ -47,41 +47,10 @@ from aie.extras import types as T
 
 
 from aie.dialects.aiex import control_packet
-# def round_to_nearest_multiple(n, multiple):
-#   """Rounds an integer to the nearest multiple of a given number"""
-#   if multiple == 0:
-#       return n  # Avoid division by zero
-#   return ((n + multiple - 1) // multiple) * multiple
 import os
 import json
 import json
-# npu_dma_memcpy_nd
-def balance_matrix_transfer_case(switch_diode_matrix_size, buffer_A_B_C_D_size, A_B_C_D_row_size, A_B_C_D_col_size):
-    mid_point = (switch_diode_matrix_size+ buffer_A_B_C_D_size)//2
-    
-    # Note: the matrix granduality is divided to 2 matrix
-    # one matrix for switch_diode case, and repeats for total_sw_size
-    
-    # another matrix for A_B_C_D_ case, and repeats for total_sw_size
-    
-    
-    
-    mid_size = (mid_point-switch_diode_matrix_size)
-    
-    A_B_C_D_matrix_number_cutoff = mid_size//(  A_B_C_D_row_size *A_B_C_D_col_size )
-    
-    return   A_B_C_D_matrix_number_cutoff
 
-    # if(mid_point > switch_diode_matrix_size and mid_point < (switch_diode_matrix_size+A_B_matrix_size)):
-    #     return 1, mid_point-switch_diode_matrix_size  # midpoint in A_B_matrix
-    # elif(mid_point   >  (switch_diode_matrix_size+A_B_matrix_size) and mid_point < (switch_diode_matrix_size+A_B_matrix_size+C_D_imp_matrix_size)):
-    #     return 2, mid_point-switch_diode_matrix_size-A_B_matrix_size
-    # else:
-    #     raise ValueError("Unexpected scenario")
-    
-
-# def custom_floor(x, multiplier):
-#   return math.floor(x / multiplier) * multiplier
 
 def custom_ceil(x, multiplier):
   return math.ceil(x / multiplier) * multiplier
@@ -206,16 +175,7 @@ def single_mat_vect_mult():
         
         # strategy to balance out the S2MM workload on two port of CT_0_2
 
-        A_B_C_D_num_for_balance_cutoff = balance_matrix_transfer_case(
-            switch_diode_matrix_size=C1_DSW_buffer_size,
-            buffer_A_B_C_D_size= A_B_C_D_buffer_size,
-            A_B_C_D_col_size=A_B_C_D_col_size,
-            A_B_C_D_row_size=A_B_C_D_row_size
-        )
-        # print(A_B_C_D_num_for_balance_cutoff)
-        mid_offset = A_B_C_D_num_for_balance_cutoff *(A_B_C_D_row_size)*(A_B_C_D_col_size )
-        
-        
+         
         @mem(ComputeTile_0_2)
         def m(block):
             s0 = dma_start(DMAChannelDir.S2MM, 0, dest=block[1], chain=block[3])
@@ -253,17 +213,10 @@ def single_mat_vect_mult():
                 next_bd(block[2])
             with block[2]:
                 use_lock(A_B_C_D_prod_lock, LockAction.AcquireGreaterEqual, value=1)
-                dma_bd( A_B_C_D_buffer[0], offset=0, len=mid_offset)
+                dma_bd( A_B_C_D_buffer[0], offset=0, len=A_B_C_D_buffer_size)
                 use_lock(A_B_C_D_con_lock, LockAction.Release, value=1)
-                next_bd(block[5])
+                next_bd(block[3])
             with block[3]:
-                s1 = dma_start(DMAChannelDir.S2MM, 1, dest=block[4], chain=block[5])
-            with block[4]:
-                use_lock(A_B_C_D_prod_lock, LockAction.AcquireGreaterEqual, value=1)
-                dma_bd(A_B_C_D_buffer[0], offset=mid_offset, len=A_B_C_D_buffer_size-mid_offset)
-                use_lock(A_B_C_D_con_lock, LockAction.Release, value=1)
-                next_bd(block[5])
-            with block[5]:
                 EndOp()
 
 
@@ -310,8 +263,6 @@ def single_mat_vect_mult():
         data_flow_out_size = buffer_size_of_out_ping_pong *ping_pong_buffer_iteration   # lest do 4 multple o f ping-pong size
         data_flow_in_size =  buffer_size_of_in_ping_pong*ping_pong_buffer_iteration
 
-        in_0_size = C1_DSW_buffer_size +mid_offset
-        in_1_size = (A_B_C_D_buffer_size-mid_offset)  + data_flow_in_size
         
         if(trace_size > 0):
             tiles_to_trace = [ComputeTile_0_3,ComputeTile_0_2,ComputeTile_0_3,ComputeTile_0_2] #TODO: also shimtile?
@@ -320,9 +271,6 @@ def single_mat_vect_mult():
         # leave first 6(0-5) packet id for tracing
         packetflow( 6, source=ShimTile_0, source_port=WireBundle.DMA, source_channel=0, 
                    dest = ComputeTile_0_3, dest_port=WireBundle.DMA, dest_channel=0
-                   )
-        packetflow(8, source=ShimTile_0, source_port=WireBundle.DMA, source_channel=1,
-                   dest=ComputeTile_0_3, dest_port=WireBundle.DMA, dest_channel=1
                    )
         # output ping-pong form CT_0_2
         packetflow(pkt_id=9, source=ComputeTile_0_2, source_port=WireBundle.DMA, source_channel=0,
@@ -333,8 +281,8 @@ def single_mat_vect_mult():
                    dest = ComputeTile_0_2, dest_port=WireBundle.DMA, dest_channel=0
                    )
         
-        memref.global_("in_SHM_CT_0_3_0", T.memref( in_0_size, T.f32() ), sym_visibility="public")            
-        memref.global_("in_SHM_CT_0_3_1", T.memref(in_1_size, T.f32()), sym_visibility="public")
+        memref.global_("in_SHM_CT_0_3_0", T.memref( matrix_size, T.f32() ), sym_visibility="public")            
+        memref.global_("in_SHM_CT_0_3_1", T.memref(data_flow_in_size, T.f32()), sym_visibility="public")
 
         memref.global_("out_CT_0_2_SHM", T.memref( data_flow_out_size, T.f32()), sym_visibility="public" ) # result out
 
@@ -378,30 +326,37 @@ def single_mat_vect_mult():
                 )
     
 
+            
+            # changes 
+            # MM2S 0 sending input iteration data only
+            
+            # MM2S 1 sends C1_DSW, ABCD matrixes
+            
+            npu_dma_memcpy_nd(metadata="in_SHM_CT_0_3_1", bd_id=0, mem=in_buf, offsets=[0,0,0,0], 
+                                     sizes=[1,1,1, data_flow_in_size ], strides=[0,0,0,1], packet=(0,10))
+            
             # version of DMA transmit data without doing data reordering(should be done by host already)
             npu_dma_memcpy_nd(
                 metadata="in_SHM_CT_0_3_0",
                 bd_id=1,
                 mem=A, offsets=[0,0,0,0], 
-                # sizes= [1, total_switch_diode_state  , C1_DSW_col_size, C1_DSW_row_size ],
-                # strides=[0,  C1_DSW_matrix_size ,1,C1_DSW_col_size],  
-                sizes = [  1,1,1, in_0_size],
+                sizes = [  1,1,1, C1_DSW_buffer_size],
+                strides= [ 0,0,0,1 ],
+                packet=(0,6)                  
+            )
+            npu_dma_memcpy_nd(
+                metadata="in_SHM_CT_0_3_0",
+                bd_id=2,
+                mem=A, offsets=[0,0,0,C1_DSW_buffer_size], 
+
+                sizes = [  1,1,1, A_B_C_D_buffer_size],
                 strides= [ 0,0,0,1 ],
                 packet=(0,6)                  
             )
 
-            assert in_0_size % A_B_C_D_col_size == 0
-            if (in_1_size-data_flow_in_size > 0):
-                npu_dma_memcpy_nd(metadata="in_SHM_CT_0_3_1", bd_id=3, mem=A, 
-                    offsets=[0, 0,  0,  in_0_size   ], #TODO: assert is okay for it
-                    sizes = [1,1,1,    in_1_size-data_flow_in_size  ] ,
-                    strides=[0,0,0,1],    
-                    packet=(0, 8))
 
-            npu_dma_memcpy_nd(metadata="out_CT_0_2_SHM", bd_id=4, mem=out_buf, offsets=[0,0,0,0], sizes=[1,1,1, data_flow_out_size], 
+            npu_dma_memcpy_nd(metadata="out_CT_0_2_SHM", bd_id=3, mem=out_buf, offsets=[0,0,0,0], sizes=[1,1,1, data_flow_out_size], 
                                      strides=[0,0,0,1], issue_token=True)
-            npu_dma_memcpy_nd(metadata="in_SHM_CT_0_3_1", bd_id=5, mem=in_buf, offsets=[0,0,0,0], 
-                                     sizes=[1,1,1, data_flow_in_size ], strides=[0,0,0,1], packet=(0,10))
 
             npu_dma_wait("out_CT_0_2_SHM")
 

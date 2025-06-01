@@ -149,7 +149,7 @@ extern "C" {
         }
 
 
-        acquire_greater_equal(ABCD_con_lock , 2);  // all matrix are ready     
+        acquire_greater_equal(ABCD_con_lock , 1);  // all matrix are ready     
 
         for (uint64_t l = 0; l < PING_PONG_BUFFER_ITERATION; l++) {
             acquire_greater_equal(buffer_in_con_loc_id , 1);
