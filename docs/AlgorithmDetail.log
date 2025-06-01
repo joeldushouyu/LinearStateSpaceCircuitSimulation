@@ -1,10 +1,10 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2025.3.4)  4 MAR 2025 10:43
+This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2025.5.27)  27 MAY 2025 15:38
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
  %&-line parsing enabled.
-**/home/shouyud/clemsonLab/HIL_explore/SystemModel/docs/AlgorithmDetail.tex
-(/home/shouyud/clemsonLab/HIL_explore/SystemModel/docs/AlgorithmDetail.tex
+**/home/shouyud/LinearStateSpaceCircuitSimulation/docs/AlgorithmDetail.tex
+(/home/shouyud/LinearStateSpaceCircuitSimulation/docs/AlgorithmDetail.tex
 LaTeX2e <2023-11-01> patch level 1
 L3 programming layer <2024-01-22>
 (./IEEEtran.cls
@@ -364,76 +364,96 @@ Package upgreek Info: Using Euler Roman for upright Greek on input line 31.
 \symugrf@m=\mathgroup4
 LaTeX Font Info:    Overwriting symbol font `ugrf@m' in version `bold'
 (Font)                  U/eur/m/n --> U/eur/b/n on input line 38.
+) (/usr/share/texlive/texmf-dist/tex/latex/blkarray/blkarray.sty
+Package: blkarray 2015/02/27 v0.07 Block array (dpc)
+\c@BAenumi=\count300
+\BA@col=\count301
+\BA@block@cnt=\count302
+\BA@final@box=\box100
+\BA@first@box=\box101
+\BA@colsep=\dimen179
+\BA@ftn=\toks24
+\BAextrarowheight=\dimen180
+\BAextraheightafterhline=\dimen181
+\BAarrayrulewidth=\dimen182
+\BAdoublerulesep=\dimen183
+\BAfootskip=\dimen184
+\BA@dashbox=\box102
+\BA@ddashbox=\box103
 ) (/usr/share/texlive/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def
 File: l3backend-pdftex.def 2024-01-04 L3 backend support: PDF output (pdfTeX)
-\l__color_backend_stack_int=\count300
-\l__pdf_internal_box=\box100
+\l__color_backend_stack_int=\count303
+\l__pdf_internal_box=\box104
 ) (./AlgorithmDetail.aux)
 \openout1 = `AlgorithmDetail.aux'.
 
-LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 19.
-LaTeX Font Info:    ... okay on input line 19.
-LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 19.
-LaTeX Font Info:    ... okay on input line 19.
-LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 19.
-LaTeX Font Info:    ... okay on input line 19.
-LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 19.
-LaTeX Font Info:    ... okay on input line 19.
-LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 19.
-LaTeX Font Info:    ... okay on input line 19.
-LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 19.
-LaTeX Font Info:    ... okay on input line 19.
-LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 19.
-LaTeX Font Info:    ... okay on input line 19.
-LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 19.
-LaTeX Font Info:    ... okay on input line 19.
-LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 19.
-LaTeX Font Info:    ... okay on input line 19.
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 20.
+LaTeX Font Info:    ... okay on input line 20.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 20.
+LaTeX Font Info:    ... okay on input line 20.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 20.
+LaTeX Font Info:    ... okay on input line 20.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 20.
+LaTeX Font Info:    ... okay on input line 20.
+LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 20.
+LaTeX Font Info:    ... okay on input line 20.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 20.
+LaTeX Font Info:    ... okay on input line 20.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 20.
+LaTeX Font Info:    ... okay on input line 20.
+LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 20.
+LaTeX Font Info:    ... okay on input line 20.
+LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 20.
+LaTeX Font Info:    ... okay on input line 20.
  (/usr/share/texlive/texmf-dist/tex/context/base/mkii/supp-pdf.mkii
 [Loading MPS to PDF converter (version 2006.09.02).]
-\scratchcounter=\count301
-\scratchdimen=\dimen179
-\scratchbox=\box101
-\nofMPsegments=\count302
-\nofMParguments=\count303
-\everyMPshowfont=\toks24
-\MPscratchCnt=\count304
-\MPscratchDim=\dimen180
-\MPnumerator=\count305
-\makeMPintoPDFobject=\count306
-\everyMPtoPDFconversion=\toks25
+\scratchcounter=\count304
+\scratchdimen=\dimen185
+\scratchbox=\box105
+\nofMPsegments=\count305
+\nofMParguments=\count306
+\everyMPshowfont=\toks25
+\MPscratchCnt=\count307
+\MPscratchDim=\dimen186
+\MPnumerator=\count308
+\makeMPintoPDFobject=\count309
+\everyMPtoPDFconversion=\toks26
 ) (/usr/share/texlive/texmf-dist/tex/latex/epstopdf-pkg/epstopdf-base.sty
 Package: epstopdf-base 2020-01-24 v2.11 Base part for package epstopdf
 Package epstopdf-base Info: Redefining graphics rule for `.eps' on input line 485.
  (/usr/share/texlive/texmf-dist/tex/latex/latexconfig/epstopdf-sys.cfg
 File: epstopdf-sys.cfg 2010/07/13 v1.3 Configuration of (r)epstopdf for TeX Live
 ))
-Package hyperref Info: Link coloring OFF on input line 19.
+Package hyperref Info: Link coloring OFF on input line 20.
  (./AlgorithmDetail.out) (./AlgorithmDetail.out)
 \@outlinefile=\write3
 \openout3 = `AlgorithmDetail.out'.
 
+<./pictures/simpleTopology.png, id=41, 335.2525pt x 255.95625pt>
+File: ./pictures/simpleTopology.png Graphic file (type png)
+<use ./pictures/simpleTopology.png>
+Package pdftex.def Info: ./pictures/simpleTopology.png  used on input line 100.
+(pdftex.def)             Requested size: 129.0pt x 98.48682pt.
+ [1{/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}{/usr/share/texlive/texmf-dist/fonts/enc/dvips/base/8r.enc}
 
-Overfull \hbox (6.01729pt too wide) detected at line 115
+
+ <./pictures/simpleTopology.png>]
+Overfull \hbox (6.02365pt too wide) detected at line 321
 [][][][]
  []
 
 
-Overfull \hbox (16.01411pt too wide) in paragraph at lines 139--163
+Overfull \hbox (16.01411pt too wide) in paragraph at lines 352--376
 [][] 
  []
 
-[1{/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}{/usr/share/texlive/texmf-dist/fonts/enc/dvips/base/8r.enc}
-
-
-]
 
 Package amsmath Warning: Bracket group [M_{f11}-M_{f12}A^{-1}_{22}A_{21}] at formula start!
 (amsmath)                It could be a misspelled positional argument.
 (amsmath)                If it belongs to the formula add a \relax in
-(amsmath)                front to hide it on input line 227.
+(amsmath)                front to hide it on input line 440.
 
-(./AlgorithmDetail.bbl)
+[2] (./AlgorithmDetail.bbl)
 
 ** Conference Paper **
 Before submitting the final camera ready copy, remember to:
@@ -445,27 +465,27 @@ Before submitting the final camera ready copy, remember to:
  uses only Type 1 fonts and that every step in the generation
  process uses the appropriate paper size.
 
-[2] (./AlgorithmDetail.aux)
+[3] (./AlgorithmDetail.aux)
  ***********
 LaTeX2e <2023-11-01> patch level 1
 L3 programming layer <2024-01-22>
  ***********
 Package rerunfilecheck Info: File `AlgorithmDetail.out' has not changed.
-(rerunfilecheck)             Checksum: 248B7F18E138A90C29292B829EA7F618;532.
+(rerunfilecheck)             Checksum: BE38D0CBEF755B0BA0EEF7221C1D55D3;821.
  ) 
 Here is how much of TeX's memory you used:
- 10363 strings out of 476106
- 161105 string characters out of 5793934
- 1961975 words of memory out of 5000000
- 32235 multiletter control sequences out of 15000+600000
- 589817 words of font info for 90 fonts, out of 8000000 for 9000
- 59 hyphenation exceptions out of 8191
- 75i,11n,79p,315b,446s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 10717 strings out of 476182
+ 165999 string characters out of 5795595
+ 1973975 words of memory out of 5000000
+ 32560 multiletter control sequences out of 15000+600000
+ 592656 words of font info for 100 fonts, out of 8000000 for 9000
+ 14 hyphenation exceptions out of 8191
+ 75i,11n,79p,314b,454s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/times/utmb8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/times/utmbi8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
-Output written on AlgorithmDetail.pdf (2 pages, 127907 bytes).
+Output written on AlgorithmDetail.pdf (3 pages, 153288 bytes).
 PDF statistics:
- 154 PDF objects out of 1000 (max. 8388607)
- 126 compressed objects within 2 object streams
- 31 named destinations out of 1000 (max. 500000)
- 33 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 194 PDF objects out of 1000 (max. 8388607)
+ 163 compressed objects within 2 object streams
+ 40 named destinations out of 1000 (max. 500000)
+ 54 words of extra memory for PDF output out of 10000 (max. 10000000)
 

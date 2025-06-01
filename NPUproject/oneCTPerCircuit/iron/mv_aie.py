@@ -304,7 +304,7 @@ def single_mat_vect_mult():
         in_1_size = (A_B_C_D_buffer_size-mid_offset)  + data_flow_in_size
         
         if(trace_size > 0):
-            tiles_to_trace = [ComputeTile_0_2] #TODO: also shimtile?
+            tiles_to_trace = [ComputeTile_0_2, ComputeTile_0_2] #TODO: also shimtile?
             trace_utils.configure_packet_tracing_flow(tiles_to_trace, ShimTile_1)
 
         # leave first 6(0-5) packet id for tracing
@@ -348,6 +348,16 @@ def single_mat_vect_mult():
                         CoreEvent.INSTR_STORE,
                         # CoreEvent.LOCK_STALL,
                     ],
+                    coremem_events=[
+                            MemEvent.CONFLICT_DM_BANK_0,
+                            MemEvent.CONFLICT_DM_BANK_1,
+                            MemEvent.CONFLICT_DM_BANK_2,
+                            MemEvent.CONFLICT_DM_BANK_3,
+                            MemEvent.CONFLICT_DM_BANK_4,
+                            MemEvent.CONFLICT_DM_BANK_5,
+                            MemEvent.CONFLICT_DM_BANK_6,
+                            MemEvent.CONFLICT_DM_BANK_7,
+                    ],                        
                 )
     
             # # transfer the switch_diode_matrix in column major order

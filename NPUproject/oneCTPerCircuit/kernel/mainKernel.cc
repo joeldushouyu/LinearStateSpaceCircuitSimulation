@@ -29,8 +29,8 @@ void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur,
     float*C1_DSW_Buffer, float*ABCD_buffer, uint32_t &externalSwitchDiodeState){
     
 
-    AIE_PREPARE_FOR_PIPELINE
-    #pragma clang  loop max_iteration_count( ITERATION_STEP_PER_PING_PONG_BUFFER)
+    AIE_PREPARE_FOR_PIPELINING
+    AIE_LOOP_RANGE( ITERATION_STEP_PER_PING_PONG_BUFFER, ITERATION_STEP_PER_PING_PONG_BUFFER)
     for(uint32_t k = 0; k < ITERATION_STEP_PER_PING_PONG_BUFFER; k++){
         event0();
         uint32_t C1_Mask_Res[6] = {0};

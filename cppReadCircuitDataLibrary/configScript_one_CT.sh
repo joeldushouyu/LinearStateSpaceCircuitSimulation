@@ -23,4 +23,4 @@ make hdf5_reader
 python generate_config.py ./config.json \
   --final_json final_config.json \
   --header circuitConfig.hpp \
-  --CTNumber 1
+  --Mode 1
