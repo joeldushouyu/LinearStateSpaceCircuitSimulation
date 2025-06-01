@@ -46,10 +46,7 @@ from aie.dialects.memref import alloc, store, alloca
 from aie.extras import types as T
 
 
-from custom_npu_dma_memcpy import NpuDmaMemcpyNd as custom_npu_dma_memcpy_nd
 from aie.dialects.aiex import control_packet
-from CT_0_2_helper import *
-from custom_npu_dma_memcpy import generate_packet_attribute
 # def round_to_nearest_multiple(n, multiple):
 #   """Rounds an integer to the nearest multiple of a given number"""
 #   if multiple == 0:
@@ -382,7 +379,7 @@ def single_mat_vect_mult():
     
 
             # version of DMA transmit data without doing data reordering(should be done by host already)
-            custom_npu_dma_memcpy_nd(
+            npu_dma_memcpy_nd(
                 metadata="in_SHM_CT_0_3_0",
                 bd_id=1,
                 mem=A, offsets=[0,0,0,0], 
@@ -390,22 +387,21 @@ def single_mat_vect_mult():
                 # strides=[0,  C1_DSW_matrix_size ,1,C1_DSW_col_size],  
                 sizes = [  1,1,1, in_0_size],
                 strides= [ 0,0,0,1 ],
-                packet_id=6,
-                packet_type=0                  
+                packet=(0,6)                  
             )
 
             assert in_0_size % A_B_C_D_col_size == 0
             if (in_1_size-data_flow_in_size > 0):
-                custom_npu_dma_memcpy_nd(metadata="in_SHM_CT_0_3_1", bd_id=3, mem=A, 
+                npu_dma_memcpy_nd(metadata="in_SHM_CT_0_3_1", bd_id=3, mem=A, 
                     offsets=[0, 0,  0,  in_0_size   ], #TODO: assert is okay for it
                     sizes = [1,1,1,    in_1_size-data_flow_in_size  ] ,
-                    strides=[0,0,0,1],                                                                    
-                    packet_id=8, packet_type=0)
+                    strides=[0,0,0,1],    
+                    packet=(0, 8))
 
-            custom_npu_dma_memcpy_nd(metadata="out_CT_0_2_SHM", bd_id=4, mem=out_buf, offsets=[0,0,0,0], sizes=[1,1,1, data_flow_out_size], 
+            npu_dma_memcpy_nd(metadata="out_CT_0_2_SHM", bd_id=4, mem=out_buf, offsets=[0,0,0,0], sizes=[1,1,1, data_flow_out_size], 
                                      strides=[0,0,0,1], issue_token=True)
-            custom_npu_dma_memcpy_nd(metadata="in_SHM_CT_0_3_1", bd_id=5, mem=in_buf, offsets=[0,0,0,0], 
-                                     sizes=[1,1,1, data_flow_in_size ], strides=[0,0,0,1], packet_id=10, packet_type=0)
+            npu_dma_memcpy_nd(metadata="in_SHM_CT_0_3_1", bd_id=5, mem=in_buf, offsets=[0,0,0,0], 
+                                     sizes=[1,1,1, data_flow_in_size ], strides=[0,0,0,1], packet=(0,10))
 
             npu_dma_wait("out_CT_0_2_SHM")
 
