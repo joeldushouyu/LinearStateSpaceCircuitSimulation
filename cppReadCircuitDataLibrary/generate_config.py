@@ -22,13 +22,21 @@ class MatrixConfig(NamedTuple):
     C1_DSW_mat_size: int
     state_size_aligned: int
     y_size_aligned: int  # Y round up to 16
-    ABCD_rows: int # rounded up to 16
-    ABCD_cols: int # rounded up to 16
+    ABCD_rows: int # size of AB, CD_natural, CD_impulse together
+    ABCD_cols: int 
     ABCD_mat_size: int
+    AB_rows: int  # rounded up to 16
+    AB_cols:int
+    AB_mat_size: int
+    CD_nat_or_imp_rows: int # same for natural and impulse
+    CD_nat_or_imp_cols: int # same for natural and impulse
+    CD_nat_or_imp_mat_size: int # same for natural and impulse
     input_length_per_iter: int # number of float for each input
     output_length_per_iter: int # number of output for each input
     buffer_size_of_C1_DSW_matrixes: int # total number of float for switch_diode_matrix
     buffer_size_of_ABCD_matrixes: int # total number of float for abcd matrix
+    buffer_size_of_AB_matrixes:int
+    buffer_size_of_CD_natural_impulse_matrixes:int
 
  
 def MatrixConfig_to_dict(val:MatrixConfig):
@@ -49,6 +57,15 @@ def MatrixConfig_to_dict(val:MatrixConfig):
         "A_B_C_D_col_size": val.ABCD_cols,
         "A_B_C_D_matrix_size": val.ABCD_mat_size,
         "A_B_C_D_buffer_size": val.buffer_size_of_ABCD_matrixes,
+        
+        "AB_rows": val.AB_rows,
+        "AB_cols":val.AB_cols,
+        "AB_mat_size":val.AB_mat_size,
+        "CD_nat_or_imp_rows":val.CD_nat_or_imp_rows,
+        "CD_nat_or_imp_cols":val.CD_nat_or_imp_cols,
+        "CD_nat_or_imp_mat_size":val.CD_nat_or_imp_mat_size,
+        "AB_buffer_size":val.buffer_size_of_AB_matrixes,
+        "CD_natural_impulse_buffer_size":val.buffer_size_of_CD_natural_impulse_matrixes,
         
         "input_size_per_iteration": val.input_length_per_iter,
         "output_size_per_iteration": val.output_length_per_iter,
@@ -140,17 +157,24 @@ def common_matrix_config(json_config_file:str):
     
     state_size_ceil_to_16 = custom_ceil(state_size, 16)
     y_size_ceil_to_16 = custom_ceil(y_size, 16)
-    A_B_C_D_mat_row =   state_size_ceil_to_16 +  y_size_ceil_to_16*2  # For ease of computation, use CEIL(,16) for all dimeison/size
-    A_B_C_D_mat_col = (state_size + u_size)
+    A_B_mat_row =  state_size_ceil_to_16
+    A_B_mat_col = CD_nat_or_imp_cols =  (state_size + u_size)
+    CD_nat_or_imp_rows =  y_size_ceil_to_16
+    
+    A_B_C_D_mat_row =  A_B_mat_row +  2*CD_nat_or_imp_rows # For ease of computation, use CEIL(,16) for all dimeison/size
+    A_B_C_D_mat_col =A_B_mat_col
     A_B_C_D_mat_size = A_B_C_D_mat_row * A_B_C_D_mat_col
     
+    AB_mat_size = A_B_mat_row*A_B_mat_col
+    CD_nat_or_imp_mat_size = CD_nat_or_imp_rows *CD_nat_or_imp_cols
     _len_of_switch_size = (custom_ceil(switch_size+diode_size,32)//32 )   # number of 4byte(float) use for sending external switch for each iteration
     len_of_input_for_each_iteration = u_size+ _len_of_switch_size
     len_of_output_for_each_iteration =y_size_ceil_to_16
     
     buffer_size_of_C1_DSW_matrix = total_switch_size*C1_DSW_mat_size
     buffer_A_B_C_D_size = total_switch_size * A_B_C_D_mat_size
-    
+    buffer_AB_size = total_switch_size*AB_mat_size
+    buffer_CD_natural_impulse_size = total_switch_size*( 2*CD_nat_or_imp_mat_size) # 2CD matrix, natural and impulse
 
     return MatrixConfig(
         trace_size=trace_size,
@@ -170,10 +194,18 @@ def common_matrix_config(json_config_file:str):
         ABCD_rows=A_B_C_D_mat_row,
         ABCD_cols=A_B_C_D_mat_col,
         ABCD_mat_size=A_B_C_D_mat_size,
+        AB_rows = A_B_mat_row,
+        AB_cols = A_B_mat_col,
+        AB_mat_size = AB_mat_size,
+        CD_nat_or_imp_rows = CD_nat_or_imp_rows,
+        CD_nat_or_imp_cols=CD_nat_or_imp_cols,
+        CD_nat_or_imp_mat_size = CD_nat_or_imp_mat_size,
         input_length_per_iter=len_of_input_for_each_iteration,
         output_length_per_iter=len_of_output_for_each_iteration,
         buffer_size_of_C1_DSW_matrixes=buffer_size_of_C1_DSW_matrix,
         buffer_size_of_ABCD_matrixes=buffer_A_B_C_D_size,
+        buffer_size_of_AB_matrixes=buffer_AB_size,
+        buffer_size_of_CD_natural_impulse_matrixes=buffer_CD_natural_impulse_size
         
         
         
@@ -285,6 +317,62 @@ def main_two_CT_no_conflict(json_config_file:str, output_json_file:str, output_h
     
     
     generate_header(output_json_file, output_header_file)
+    
+    
+    
+    
+    
+         
+def main_two_CT_no_matrix_cache(json_config_file:str, output_json_file:str, output_header_file:str , override_memory_limit:bool):
+    common_conf: MatrixConfig =common_matrix_config(json_config_file)
+    
+    #INTENDED to be allocated on stack for it
+    buffer_size_of_cur_X_U = custom_ceil(  common_conf.state_size+ common_conf.u_size , 16)
+    buffer_size_of_C1_DSW_mat_res = common_conf.C1_DSW_row  
+    buffer_size_of_A_B_C_D_mat_res =common_conf.ABCD_rows  
+    
+    stack_size = 1024 # default value
+    stack_size += (buffer_size_of_cur_X_U +buffer_size_of_C1_DSW_mat_res  + buffer_size_of_A_B_C_D_mat_res )*4 # 4 byte for float
+
+    # note: because load 16 float at a time for vector instruction, need to ensure the address are aligned to 64byte(4*16)
+    buffer_size_for_in_out_in_float = ((64)*(1024) - stack_size)//4 - (common_conf.buffer_size_of_C1_DSW_matrixes +common_conf.buffer_size_of_ABCD_matrixes)  # 4 byte for float
+    # define a ping pong for it? 
+    #TODO: since compute bound, don't use too many?
+    iteration_step_per_buffer =   int( ((10*1024)//4) // (  max(common_conf.input_length_per_iter, common_conf.output_length_per_iter) ))
+    iteration_step_per_buffer = 1#TODO: for testing purpose to simulate realworld scenario
+    buffer_size_of_in_ping_pong = common_conf.input_length_per_iter*(iteration_step_per_buffer)
+    buffer_size_of_out_ping_pong = common_conf.output_length_per_iter*(iteration_step_per_buffer)
+    
+    assert min(buffer_size_of_in_ping_pong*4, buffer_size_of_out_ping_pong*4 ) <= 15*1024 # 1024 byte for stack size
+    assert max(buffer_size_of_in_ping_pong*4, buffer_size_of_out_ping_pong*4 ) <= 16*1024
+    
+    
+    ping_pong_buffer_iteration =  math.ceil(common_conf.iteration_steps/iteration_step_per_buffer)
+    print("Total number of ping pong buffer: ", ping_pong_buffer_iteration)
+    
+
+
+    extracted_Data = {
+
+        "iteration_step_per_ping_pong_buffer": iteration_step_per_buffer,
+        "buffer_size_of_in_ping_poing": buffer_size_of_in_ping_pong,
+        "buffer_size_of_out_ping_pong": buffer_size_of_out_ping_pong,
+        "ping_pong_buffer_iteration": ping_pong_buffer_iteration,
+
+        
+        "buffer_size_of_cur_X_U": buffer_size_of_cur_X_U,
+        "buffer_size_of_C1_DSW_mat_res":buffer_size_of_C1_DSW_mat_res,
+        "buffer_size_of_A_B_C_D_mat_res": buffer_size_of_A_B_C_D_mat_res,
+        "stack_size": stack_size
+
+        
+    }  | MatrixConfig_to_dict(common_conf)     
+    with open(output_json_file,"w") as outfile:
+        json.dump( extracted_Data, outfile, indent=4)
+    
+    
+    generate_header(output_json_file, output_header_file)
+            
         
 def main_single_CT_memory_overside(json_config_file:str, output_json_file:str, output_header_file:str, num_iteration_mat_on_CT:int=1 ):
     
@@ -362,6 +450,8 @@ if __name__ == "__main__":
         main_single_CT(args.input_json, args.final_json, args.header,override_opt)
     elif args.Mode == "2":
         main_two_CT_no_conflict(args.input_json, args.final_json, args.header,override_opt)
+    elif args.Mode == "3":
+        main_two_CT_no_matrix_cache(args.input_json, args.final_json, args.header,override_opt)
     else:
         raise ValueError("Unknown CT numbers")
         
