@@ -58,6 +58,9 @@ def custom_ceil(x, multiplier):
 
 
 
+def generate_packet_attribute(packet_type:int, packet_id:int):
+    return Attribute.parse(f"#aie.packet_info<pkt_type = {packet_type}, pkt_id = {packet_id}>")
+
 kernel_mat_v_size = 16
 def single_mat_vect_mult():
     dev = AIEDevice.npu2
@@ -99,7 +102,7 @@ def single_mat_vect_mult():
     dtype_in = np.dtype[np.float32]
     dtype_out = np.dtype[np.float32]
     
-    
+    SHIMTILE_0_CONTROL_ID=4
     @device(AIEDevice.npu2)
     def device_body():
 
@@ -107,6 +110,7 @@ def single_mat_vect_mult():
    
         # Tile declarations
         ShimTile_0 = tile(0,0)
+        ShimTile_0.attributes["controlled_id"] = generate_packet_attribute(0,SHIMTILE_0_CONTROL_ID)
         ShimTile_1 = tile(1, 0)
         # ComputeTile_0_2 = tile(0,2)        
         # ComputeTile_0_2 = tile(0,2, allocation_scheme="bank-aware")        
@@ -326,35 +330,43 @@ def single_mat_vect_mult():
                 )
     
 
-            
+            # enable core access to bus
+            npu_maskwrite32(address=0x32038, column=0, row=2, value=0x1, mask=0x1)
+            npu_maskwrite32(address=0x32038, column=0, row=3, value=0x1, mask=0x1)
             # changes 
             # MM2S 0 sending input iteration data only
             
             # MM2S 1 sends C1_DSW, ABCD matrixes
+            # version of DMA transmit data without doing data reordering(should be done by host already)
             
-            npu_dma_memcpy_nd(metadata="in_SHM_CT_0_3_1", bd_id=0, mem=in_buf, offsets=[0,0,0,0], 
+            # repalce npu_dam_memcpy_nd with manual setp
+            npu_write32(address=0x1d000, column=0, row=0, value= C1_DSW_buffer_size+A_B_C_D_buffer_size )
+            npu_write32(address=0x1d004, column=0, row=0, value=0)
+            npu_write32(address=0x1d008, column=0, row=0, value= (1<<30) | (6<<19) | (0<<16))
+            npu_write32(address=0x1d00C, column=0, row=0, value=0)
+            npu_write32(address=0x1d010, column=0, row=0, value= (2<<30))
+            npu_write32(address=0x1d014, column=0, row=0, value=0)
+            npu_write32(address=0x1d018, column=0, row=0, value=0)
+            npu_write32(address=0x1d01C, column=0, row=0, value=0x2000000)
+            
+            npu_address_patch (addr = 0x1d004 , arg_idx = 0 , arg_plus = 0 ) # argidx=0, since is A, arg_puls=0 for zero offset
+            npu_maskwrite32(address=0x1d210, column=0, row=0, mask=0xF00,  value=(SHIMTILE_0_CONTROL_ID<<8))
+            npu_write32(address=0x1D214, column=0, row=0, value=0x0)
+            
+            # now, push to MM2S-0
+            # npu_dma_memcpy_nd(
+            #     metadata="in_SHM_CT_0_3_0",
+            #     bd_id=0,
+            #     mem=A, offsets=[0,0,0,0], 
+            #     sizes = [  1,1,1, C1_DSW_buffer_size+A_B_C_D_buffer_size],
+            #     strides= [ 0,0,0,1 ],
+            #     packet=(0,6)                  
+            # )
+            
+            
+            npu_dma_memcpy_nd(metadata="in_SHM_CT_0_3_1", bd_id=1, mem=in_buf, offsets=[0,0,0,0], 
                                      sizes=[1,1,1, data_flow_in_size ], strides=[0,0,0,1], packet=(0,10))
             
-            # version of DMA transmit data without doing data reordering(should be done by host already)
-            npu_dma_memcpy_nd(
-                metadata="in_SHM_CT_0_3_0",
-                bd_id=1,
-                mem=A, offsets=[0,0,0,0], 
-                sizes = [  1,1,1, C1_DSW_buffer_size],
-                strides= [ 0,0,0,1 ],
-                packet=(0,6)                  
-            )
-            npu_dma_memcpy_nd(
-                metadata="in_SHM_CT_0_3_0",
-                bd_id=2,
-                mem=A, offsets=[0,0,0,C1_DSW_buffer_size], 
-
-                sizes = [  1,1,1, A_B_C_D_buffer_size],
-                strides= [ 0,0,0,1 ],
-                packet=(0,6)                  
-            )
-
-
             npu_dma_memcpy_nd(metadata="out_CT_0_2_SHM", bd_id=3, mem=out_buf, offsets=[0,0,0,0], sizes=[1,1,1, data_flow_out_size], 
                                      strides=[0,0,0,1], issue_token=True)
 
