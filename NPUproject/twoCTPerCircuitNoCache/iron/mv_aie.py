@@ -101,6 +101,7 @@ def single_mat_vect_mult():
     total_switch_diode_state = extracted_data.get("total_switch_diode_state")
     dtype_in = np.dtype[np.float32]
     dtype_out = np.dtype[np.float32]
+    dtype_npuint32  = np.dtype[np.uint32]
     
     SHIMTILE_0_CONTROL_ID=4
     @device(AIEDevice.npu2)
@@ -142,6 +143,27 @@ def single_mat_vect_mult():
         offset += A_B_C_D_buffer_size*4
         assert offset %64 == 0
         
+        control_packet_ty = np.ndarray[ (16,),dtype_npuint32  ]
+        control_packet_CT_out = [
+            buffer_raw(tile=ComputeTile_0_3, buffer = try_convert_np_type_to_mlir_type(control_packet_ty), 
+                       sym_name="control_packet_CT_out", address=offset
+                       )
+            
+        ]
+        offset += 64
+        assert offset%64 == 0
+        control_packet_CT_out_prod_lock = lock(ComputeTile_0_3, lock_id=4, init=1, sym_name="control_packet_CT_out_prod_lock")
+        control_packet_CT_out_con_lock = lock(ComputeTile_0_3, lock_id=5, init=0, sym_name="control_packet_CT_out_con_lock")
+
+        control_packet_CT_in = [
+            buffer_raw(tile=ComputeTile_0_3, buffer=try_convert_np_type_to_mlir_type(control_packet_ty),
+                       sym_name="control_packet_CT_in", address=offset
+                       )
+        ]
+        offset += 64        
+        assert offset%64 == 0
+        control_packet_CT_in_prod_lock = lock(ComputeTile_0_3, lock_id=6, init=1, sym_name="control_packet_CT_in_prod_lock")
+        control_packet_CT_in_con_lock = lock(ComputeTile_0_3, lock_id=7, init=0, sym_name="control_packet_CT_in_con_lock")
         assert offset <= (64*1024)  # total of less than 64kB
         
         
@@ -219,8 +241,22 @@ def single_mat_vect_mult():
                 use_lock(A_B_C_D_prod_lock, LockAction.AcquireGreaterEqual, value=1)
                 dma_bd( A_B_C_D_buffer[0], offset=0, len=A_B_C_D_buffer_size)
                 use_lock(A_B_C_D_con_lock, LockAction.Release, value=1)
-                next_bd(block[3])
+                next_bd(block[7]) # finished 
             with block[3]:
+                s1 = dma_start(DMAChannelDir.MM2S, 0, dest=block[4], chain=block[5])
+            with block[4]:
+                use_lock(control_packet_CT_out_con_lock, LockAction.AcquireGreaterEqual, value=1)
+                dma_bd(control_packet_CT_out[0],offset=0, len=2, packet=(0, 8), bd_id=4 )# have CT to set the len of control packet message
+                use_lock(control_packet_CT_out_prod_lock, LockAction.Release, value=1)
+                next_bd(block[4])                
+            with block[5]:
+                s2 = dma_start(DMAChannelDir.S2MM, 1, dest=block[6], chain=block[7] )
+            with block[6]:
+                use_lock(control_packet_CT_in_prod_lock, LockAction.AcquireGreaterEqual, value=1)
+                dma_bd(control_packet_CT_in[0], offset=0, len=1) # can also be change by CT
+                use_lock(control_packet_CT_in_con_lock, LockAction.Release, value=1)
+                next_bd(block[6])
+            with block[7]:
                 EndOp()
 
 
@@ -231,7 +267,11 @@ def single_mat_vect_mult():
             np.int32, np.int32,
             np.int32,
             switch_diode_matrix_ty, A_B_C_D_ty,
-            C_D_matrix_select_ty
+            C_D_matrix_select_ty,
+            np.int32, np.int32,
+            np.int32, np.int32,
+            control_packet_ty,
+            control_packet_ty                        
         ])
 
         @core(ComputeTile_0_3, "kernel1.o", stack_size=stack_size_in_byte)
@@ -243,7 +283,11 @@ def single_mat_vect_mult():
                 constant(8),constant(9),
                 constant(48 +3 ),
                 switch_diode_buffer[0], A_B_C_D_buffer[0],
-                C_D_matrix_select_buffer[0]
+                C_D_matrix_select_buffer[0],
+                constant(48+4), constant(48+5),
+                constant(48+6), constant(48+7),
+                control_packet_CT_out[0],
+                control_packet_CT_in[0]
                 
             )
 
@@ -275,6 +319,14 @@ def single_mat_vect_mult():
         # leave first 6(0-5) packet id for tracing
         packetflow( 6, source=ShimTile_0, source_port=WireBundle.DMA, source_channel=0, 
                    dest = ComputeTile_0_3, dest_port=WireBundle.DMA, dest_channel=0
+                   )
+        # Shimtile TilControl -> Computile_0_3
+        packetflow(pkt_id=7, source=ShimTile_0, source_port=WireBundle.TileControl, source_channel=0,
+                   dest = ComputeTile_0_3, dest_port=WireBundle.DMA, dest_channel=1
+                   )
+        #CT_0_3 -> Shimtile Tilecontrol
+        packetflow(pkt_id=8, source=ComputeTile_0_3, source_port=WireBundle.DMA, source_channel=0,
+                   dest=ShimTile_0, dest_port=WireBundle.TileControl, dest_channel=0
                    )
         # output ping-pong form CT_0_2
         packetflow(pkt_id=9, source=ComputeTile_0_2, source_port=WireBundle.DMA, source_channel=0,
@@ -330,9 +382,7 @@ def single_mat_vect_mult():
                 )
     
 
-            # enable core access to bus
-            npu_maskwrite32(address=0x32038, column=0, row=2, value=0x1, mask=0x1)
-            npu_maskwrite32(address=0x32038, column=0, row=3, value=0x1, mask=0x1)
+
             # changes 
             # MM2S 0 sending input iteration data only
             
@@ -351,7 +401,8 @@ def single_mat_vect_mult():
             
             npu_address_patch (addr = 0x1d004 , arg_idx = 0 , arg_plus = 0 ) # argidx=0, since is A, arg_puls=0 for zero offset
             npu_maskwrite32(address=0x1d210, column=0, row=0, mask=0xF00,  value=(SHIMTILE_0_CONTROL_ID<<8))
-            npu_write32(address=0x1D214, column=0, row=0, value=0x0)
+            #npu_write32(address=0x1D214, column=0, row=0, value=0x0) #trigger by CT_03 through control packet
+            
             
             # now, push to MM2S-0
             # npu_dma_memcpy_nd(
@@ -369,6 +420,10 @@ def single_mat_vect_mult():
             
             npu_dma_memcpy_nd(metadata="out_CT_0_2_SHM", bd_id=3, mem=out_buf, offsets=[0,0,0,0], sizes=[1,1,1, data_flow_out_size], 
                                      strides=[0,0,0,1], issue_token=True)
+
+            # enable core access to bus
+            npu_maskwrite32(address=0x32038, column=0, row=2, value=0x1, mask=0x1) # NOTE: the place of it is crucial
+            npu_maskwrite32(address=0x32038, column=0, row=3, value=0x1, mask=0x1)
 
             npu_dma_wait("out_CT_0_2_SHM")
 

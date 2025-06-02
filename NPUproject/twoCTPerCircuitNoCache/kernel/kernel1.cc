@@ -23,6 +23,92 @@
 #include "LinearCircuitKernelCommon.hpp"
 
 
+constexpr uint32_t tm_start_addr = 0x80000;
+static volatile uint32_t chess_storage(TM : tm_start_addr) addr_space_start;
+
+void read_processor_bus(uint32_t *data, uint32_t addr, uint32_t size,
+                        uint32_t stride=16) {
+  for (uint32_t i = 0; i < size; i++) {
+    
+    #if defined(__chess__)
+        uint32_t offset = addr + (i * stride);
+        data[i] = *(&addr_space_start + (offset / 4));
+    #elif defined(__AIECC__)
+        uint32_t offset =addr  +  (i*(stride/4));    
+        data[i] = read_tm(offset );
+    #else
+        static_assert(false, "Unexpected case here");   
+    #endif
+  }
+}
+
+void write_process_bus(uint32_t *data, uint32_t addr, uint32_t size, uint32_t stride=16){
+  
+    for (uint32_t i = 0; i < size; i++) {
+
+        #if defined(__chess__)
+            uint32_t offset = addr + (i * stride);
+            *(&addr_space_start + (offset / 4)) =  data[i];
+        #elif defined(__AIECC__)
+            uint32_t offset =addr  +  (i*(stride/4));
+            write_tm( data[i],  offset );
+        #else
+            static_assert(false, "Unexpected case here");   
+        #endif    
+    }
+}
+
+inline volatile void compiler_sync_barrier(){
+    #if defined(__chess__)
+        chess_separator_scheduler(2);
+    #elif defined(__AIECC__)
+          __builtin_aie2p_sched_barrier();    
+        volatile int32_t k = 0;    
+        k++;
+        __builtin_aie2p_sched_barrier();     
+
+    #else
+        static_assert(false, "Unexpected case here");   
+    #endif
+}
+
+
+inline void configure_BD_x_MM2S_y_dma_bd_len(const uint32_t BD_x_0_addr, const uint32_t MM2S_port_num,  uint32_t len, uint32_t bd_repeat_len=1 ){
+    uint32_t len_mask = 0;
+    uint32_t write_buffer[1];
+
+
+    uint32_t MM2S_CTRL = (MM2S_port_num==0)? 0x000001DE10 : 0x000001DE18;
+    uint32_t MM2S_START_QUEUE  = (MM2S_port_num == 0) ? 0x000001DE14 : 0x000001DE1C;
+
+    read_processor_bus( write_buffer, BD_x_0_addr, 1, 16 );// first read
+
+
+    len_mask = 0x3FFF;
+    *write_buffer =  ( (*write_buffer) & ~len_mask) | ( (len) & len_mask);         
+    write_process_bus( write_buffer, BD_x_0_addr, 1, 16 );
+    compiler_sync_barrier();  
+
+    *(write_buffer) =(1<<1);// disable MM2S-1
+    write_process_bus( (uint32_t*)(write_buffer),MM2S_CTRL, 1, 16 );  
+    compiler_sync_barrier();  
+
+    *(write_buffer) =(0<1);  // renable MM2S-1
+    write_process_bus( (uint32_t*)(write_buffer),MM2S_CTRL, 1, 16  ); 
+    compiler_sync_barrier();  
+       
+    *(write_buffer) =(bd_repeat_len<<16) | (4);
+    write_process_bus( (uint32_t*)(write_buffer),MM2S_START_QUEUE, 1, 16  ); 
+    compiler_sync_barrier();           
+
+
+
+
+}
+
+
+
+
 
 
 template<uint32_t X_U_cur_vector_size>
@@ -128,7 +214,12 @@ extern "C" {
 
         const int32_t ABCD_con_lock,
         float* C1_DSW_Buffer, float *ABCD_buffer,
-        uint32_t* C_D_matrix_select_buffer
+        uint32_t* C_D_matrix_select_buffer, // Buffer for communication with CT_0_2
+        
+        const uint32_t control_packet_out_prod_lock, const uint32_t control_packet_out_con_lock,
+        const uint32_t control_packet_in_prod_lock, const uint32_t control_packet_in_con_lock,
+        uint32_t* control_packet_out_buf,
+        uint32_t* control_packet_in_buf
     ) {
 
         constexpr int32_t C1_DSW_mat_size = C1_DSW_MATRIX_SIZE;
@@ -148,6 +239,18 @@ extern "C" {
             x_u_cur[i] = aie::zeros<float, 16>(); 
         }
 
+
+        //TEST:
+        // trigger shimtile to send data to me
+        //BD_ID4
+        configure_BD_x_MM2S_y_dma_bd_len(0x000001D080,0, 2,0);//Configure MM2s-0 to send data
+        
+        
+        
+        acquire_greater_equal(control_packet_out_prod_lock,1);
+        *control_packet_out_buf = control_packet_gen( 8, 0,0, 0x1D214);
+        *(control_packet_out_buf+1) = 0x0;
+        release(control_packet_out_con_lock, 1);
 
         acquire_greater_equal(ABCD_con_lock , 1);  // all matrix are ready     
 
