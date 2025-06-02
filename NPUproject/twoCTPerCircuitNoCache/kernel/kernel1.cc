@@ -87,8 +87,8 @@ void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur,
 
 
         event0();
-        float *ABCD_ptr = retrieveMatrixOFfsetBaseOnState(externalSwitchDiodeState,A_B_C_D_MATRIX_SIZE  ,ABCD_buffer);
-
+        // float *ABCD_ptr = retrieveMatrixOFfsetBaseOnState(externalSwitchDiodeState,A_B_C_D_MATRIX_SIZE  ,ABCD_buffer);
+        float *ABCD_ptr = retrieveMatrixOFfsetBaseOnState(externalSwitchDiodeState,AB_MAT_SIZE  ,ABCD_buffer);
         // if( external_switch_toggled || !diode_change){
         //     mult_with_C_D_aligned_nonimpulse_and_impulse(
         //         ABCD_ptr  +(STATE_SIZE+U_SIZE)*STATE_SIZE_CEIL_TO_16,
@@ -109,8 +109,8 @@ void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur,
         static_assert( STATE_SIZE_CEIL_TO_16<=   X_U_cur_vector_size*16);
         // aie::vector<float, 16> x_next_temp [STATE_SIZE_CEIL_TO_16/16];
 
-        // mult_with_A_B_To_Vector_Array<STATE_SIZE_CEIL_TO_16>(ABCD_ptr, x_u_cur, x_u_cur);
-        mult_with_A_B_To_Vector_Array_FULLY_UNROLL<STATE_SIZE_CEIL_TO_16>(ABCD_ptr, x_u_cur, x_u_cur);
+        mult_with_A_B_To_Vector_Array<STATE_SIZE_CEIL_TO_16>(ABCD_ptr, x_u_cur, x_u_cur);
+        // mult_with_A_B_To_Vector_Array_FULLY_UNROLL<STATE_SIZE_CEIL_TO_16>(ABCD_ptr, x_u_cur, x_u_cur);
 
    
 
