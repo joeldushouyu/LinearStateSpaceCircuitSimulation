@@ -23,6 +23,17 @@
 #include "LinearCircuitKernelCommon.hpp"
 
 
+
+
+
+void passThroughFunc(float *data_in, float *data_out, uint32_t len) {
+    for (uint32_t i = 0; i < len; i++) {
+        data_out[i] = data_in[i];
+    }
+}
+
+
+
 constexpr uint32_t tm_start_addr = 0x80000;
 static volatile uint32_t chess_storage(TM : tm_start_addr) addr_space_start;
 
@@ -114,22 +125,22 @@ void control_Shimtile_transfer(
     uint32_t * control_packet_out_buf
 ){
 
-        configure_BD_x_MM2S_y_dma_bd_len(0x000001D080,0, 3,0);//Configure MM2s-0 to send data
-        // Write BD_00 and BD_01
-        acquire_greater_equal(control_packet_out_prod_lock,1);
-        *control_packet_out_buf = control_packet_gen( 8, 0,1, 0x1d000);
-        *(control_packet_out_buf+1) = length;
-        *(control_packet_out_buf+2)  = (virtual_address_base + address_offset);         
-        release(control_packet_out_con_lock, 1);
+    configure_BD_x_MM2S_y_dma_bd_len(0x000001D080,0, 3,0);//Configure MM2s-0 to send data
+    // Write BD_00 and BD_01
+    acquire_greater_equal(control_packet_out_prod_lock,1);
+    *control_packet_out_buf = control_packet_gen( 8, 0,1, 0x1d000);
+    *(control_packet_out_buf+1) = length;
+    *(control_packet_out_buf+2)  = (virtual_address_base + address_offset);         
+    release(control_packet_out_con_lock, 1);
 
 
-        //TODO: right now BD is fixed to be 4
-        configure_BD_x_MM2S_y_dma_bd_len(0x000001D080,0, 2,0);//Configure MM2s-0 to send data
-        // Send write message
-        acquire_greater_equal(control_packet_out_prod_lock,1);
-        *control_packet_out_buf = control_packet_gen( 8, 0,0, 0x1D214);
-        *(control_packet_out_buf+1) = 0x0;
-        release(control_packet_out_con_lock, 1);
+    //TODO: right now BD is fixed to be 4
+    configure_BD_x_MM2S_y_dma_bd_len(0x000001D080,0, 2,0);//Configure MM2s-0 to send data
+    // Send write message
+    acquire_greater_equal(control_packet_out_prod_lock,1);
+    *control_packet_out_buf = control_packet_gen( 8, 0,0, 0x1D214);
+    *(control_packet_out_buf+1) = 0x0;
+    release(control_packet_out_con_lock, 1);
 
 }
 
@@ -249,9 +260,9 @@ extern "C" {
         const uint32_t C1_DSW_matrix_prod_lock, const uint32_t C1_DSW_matrix_con_lock,
         const uint32_t AB_matrix_prod_lock, const uint32_t AB_matrix_con_lock,
         const uint32_t CD_natural_impulse_matrix_prod_lock, const uint32_t CD_natural_impulse_matrix_con_lock,
-        uint32_t* C1_DSW_matrix_buffer,
-        uint32_t* AB_matrix_buffer,
-        uint32_t *CD_natural_impulse_matrix_buffer
+        float* C1_DSW_matrix_buffer,
+        float* AB_matrix_buffer,
+        float *CD_natural_impulse_matrix_buffer
     ) {
 
         constexpr int32_t C1_DSW_mat_size = C1_DSW_MATRIX_SIZE;
@@ -283,16 +294,72 @@ extern "C" {
         release(control_packet_in_prod_lock, 1);
 
 
-        control_Shimtile_transfer(
-            BD_0_1_val, C1_DSW_BUFFER_SIZE + A_B_C_D_BUFFER_SIZE,
-            0, 
-            control_packet_out_prod_lock, control_packet_out_con_lock,
-            control_packet_out_buf
+        // control_Shimtile_transfer(
+        //     BD_0_1_val, C1_DSW_BUFFER_SIZE + A_B_C_D_BUFFER_SIZE,
+        //     0, 
+        //     control_packet_out_prod_lock, control_packet_out_con_lock,
+        //     control_packet_out_buf
 
-        );
+        // );
+        // acquire_greater_equal(ABCD_con_lock , 1);  // all matrix are ready     
+
+        // Now, Test to send command for shimtile to bring me data
+        for(uint32_t state_ind = 0; state_ind < TOTAL_SWITCH_DIODE_STATE; state_ind++){
+            // first request C1_DSW matrix
+            uint32_t C1_offset = state_ind*C1_DSW_MATRIX_SIZE;
+            control_Shimtile_transfer(BD_0_1_val, C1_DSW_MATRIX_SIZE, C1_offset*4,
+            control_packet_out_prod_lock, control_packet_out_con_lock, control_packet_out_buf
+            );
+
+            acquire_greater_equal(C1_DSW_matrix_con_lock, 1);
+            passThroughFunc( C1_DSW_matrix_buffer,  C1_DSW_Buffer+  C1_offset, 16);
+            release(C1_DSW_matrix_prod_lock, 1);
+
+            acquire_greater_equal(C1_DSW_matrix_con_lock, 1);
+            passThroughFunc( C1_DSW_matrix_buffer+16,  C1_DSW_Buffer+  C1_offset+16, (C1_DSW_MATRIX_SIZE-16));
+            release(C1_DSW_matrix_prod_lock, 1);
+
+            //Send 16 value of AB matrix to me
+            uint32_t AB_rel_offset = state_ind*A_B_C_D_MATRIX_SIZE + C1_DSW_BUFFER_SIZE;
+            control_Shimtile_transfer(BD_0_1_val, 16, AB_rel_offset*4,
+            control_packet_out_prod_lock, control_packet_out_con_lock, control_packet_out_buf
+            );
+
+            acquire_greater_equal(AB_matrix_con_lock, 1);
+            passThroughFunc(AB_matrix_buffer, ABCD_buffer+ state_ind*A_B_C_D_MATRIX_SIZE, 16  );
+            release(AB_matrix_prod_lock, 1);
 
 
-        acquire_greater_equal(ABCD_con_lock , 1);  // all matrix are ready     
+            // send rest of AB matrix to me
+            control_Shimtile_transfer(BD_0_1_val, (AB_MAT_SIZE-16), (AB_rel_offset+16)*4,
+            control_packet_out_prod_lock, control_packet_out_con_lock, control_packet_out_buf
+            );            
+            acquire_greater_equal(AB_matrix_con_lock, 1);
+            passThroughFunc(AB_matrix_buffer+16, ABCD_buffer+ state_ind*A_B_C_D_MATRIX_SIZE+16,  (AB_MAT_SIZE-16) );
+            release(AB_matrix_prod_lock, 1);
+
+          uint32_t CD_rel_offset = state_ind*A_B_C_D_MATRIX_SIZE + C1_DSW_BUFFER_SIZE + AB_MAT_SIZE;
+           // send 16 value of CD_natural matrix to me
+            control_Shimtile_transfer(BD_0_1_val, 16, CD_rel_offset*4,
+            control_packet_out_prod_lock, control_packet_out_con_lock, control_packet_out_buf
+            );
+
+            acquire_greater_equal(CD_natural_impulse_matrix_con_lock, 1);
+            passThroughFunc(CD_natural_impulse_matrix_buffer,ABCD_buffer+ state_ind*A_B_C_D_MATRIX_SIZE+AB_MAT_SIZE, 16  );
+            release(CD_natural_impulse_matrix_prod_lock, 1);
+
+
+            // send rest of CD_natural, and CD_impulse matrix to me
+            control_Shimtile_transfer(BD_0_1_val, 2*CD_NAT_OR_IMP_MAT_SIZE-16, (CD_rel_offset+16)*4,
+            control_packet_out_prod_lock, control_packet_out_con_lock, control_packet_out_buf
+            );
+            acquire_greater_equal(CD_natural_impulse_matrix_con_lock, 1);
+            passThroughFunc(CD_natural_impulse_matrix_buffer+16,ABCD_buffer+ state_ind*A_B_C_D_MATRIX_SIZE+AB_MAT_SIZE+16, 2*CD_NAT_OR_IMP_MAT_SIZE-16  );
+            release(CD_natural_impulse_matrix_prod_lock, 1);            
+
+
+        }   
+
         static_assert(PING_PONG_BUFFER_ITERATION%2 == 0);
         for (uint64_t l = 0; l < PING_PONG_BUFFER_ITERATION; l+=2) {
             acquire_greater_equal(buffer_in_con_loc_id , 1);

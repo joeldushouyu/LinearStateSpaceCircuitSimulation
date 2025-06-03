@@ -105,7 +105,7 @@ def single_mat_vect_mult():
     dtype_out = np.dtype[np.float32]
     dtype_npuint32  = np.dtype[np.uint32]
     
-    SHIMTILE_0_CONTROL_ID=4
+    SHIMTILE_0_CONTROL_ID=8
     @device(AIEDevice.npu2)
     def device_body():
 
@@ -312,51 +312,40 @@ def single_mat_vect_mult():
                 use_lock(control_packet_CT_in_con_lock, LockAction.Release, value=1)
                 next_bd(block[3])
             with block[4]:
-                s2  = dma_start(DMAChannelDir.S2MM, 0, dest=block[5], chain=block[7])
+                s2  = dma_start(DMAChannelDir.S2MM, 0, dest=block[5], chain=block[11]) 
             with block[5]:
-                use_lock(switch_diode_prod_lock, LockAction.AcquireGreaterEqual, value=1)
-                dma_bd(switch_diode_buffer[0], offset=0, len=C1_DSW_buffer_size)
-                use_lock(switch_diode_con_lock, LockAction.Release, value=1)
+                use_lock(C1_DSW_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
+                dma_bd(C1_DSW_matrix_buffer[0], offset=0, len = kernel_mat_v_size) # first transfer 16
+                use_lock(C1_DSW_matrix_con_lock, LockAction.Release, value=1)
                 next_bd(block[6])
             with block[6]:
-                use_lock(A_B_C_D_prod_lock, LockAction.AcquireGreaterEqual, value=1)
-                dma_bd( A_B_C_D_buffer[0], offset=0, len=A_B_C_D_buffer_size)
-                use_lock(A_B_C_D_con_lock, LockAction.Release, value=1)
-                next_bd(block[7]) # finished 
+                use_lock(C1_DSW_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
+                dma_bd(C1_DSW_matrix_buffer[0], offset=kernel_mat_v_size, len =C1_DSW_matrix_size-kernel_mat_v_size )
+                use_lock(C1_DSW_matrix_con_lock, LockAction.Release, value=1)
+                next_bd(block[7])
             with block[7]:
+                use_lock(AB_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
+                dma_bd(AB_matrix_buffer[0], offset=0, len=kernel_mat_v_size)
+                use_lock(AB_matrix_con_lock, LockAction.Release, value=1)
+                next_bd(block[8])
+            with block[8]:
+                use_lock(AB_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
+                dma_bd(AB_matrix_buffer[0], offset=kernel_mat_v_size, len = AB_matrix_size - kernel_mat_v_size)
+                use_lock(AB_matrix_con_lock, LockAction.Release, value=1)
+                next_bd(block[9])
+            with block[9]:
+                use_lock(CD_natural_impulse_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
+                dma_bd(CD_natural_impulse_matrix_buffer[0], offset=0, len=kernel_mat_v_size)
+                use_lock(CD_natural_impulse_matrix_con_lock, LockAction.Release, value=1)
+                next_bd(block[10])
+            with block[10]:
+                use_lock(CD_natural_impulse_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
+                dma_bd(CD_natural_impulse_matrix_buffer[0], offset=kernel_mat_v_size, len= (2*CD_nat_or_imp_matrix_size)-kernel_mat_v_size)
+                use_lock(CD_natural_impulse_matrix_con_lock, LockAction.Release, value=1)
+                next_bd(block[5])
+            with block[11]:
                 EndOp()
-            # with block[5]:
-            #     use_lock(C1_DSW_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
-            #     dma_bd(C1_DSW_matrix_buffer[0], offset=0, len = kernel_mat_v_size) # first transfer 16
-            #     use_lock(C1_DSW_matrix_con_lock, LockAction.Release, value=1)
-            #     next_bd(block[6])
-            # with block[6]:
-            #     use_lock(C1_DSW_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
-            #     dma_bd(C1_DSW_matrix_buffer[0], offset=kernel_mat_v_size, len =C1_DSW_matrix_size-kernel_mat_v_size )
-            #     use_lock(C1_DSW_matrix_con_lock, LockAction.Release, value=1)
-            #     next_bd(block[7])
-            # with block[7]:
-            #     use_lock(AB_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
-            #     dma_bd(AB_matrix_buffer[0], offset=0, len=kernel_mat_v_size)
-            #     use_lock(AB_matrix_con_lock, LockAction.Release, value=1)
-            #     next_bd(block[8])
-            # with block[8]:
-            #     use_lock(CD_natural_impulse_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
-            #     dma_bd(CD_natural_impulse_matrix_buffer[0], offset=0, len=kernel_mat_v_size)
-            #     use_lock(CD_natural_impulse_matrix_con_lock, LockAction.Release, value=1)
-            #     next_bd(block[9])
-            # with block[9]:
-            #     use_lock(AB_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
-            #     dma_bd(AB_matrix_buffer[0], offset=kernel_mat_v_size, len = AB_matrix_size - kernel_mat_v_size)
-            #     use_lock(AB_matrix_con_lock, LockAction.Release, value=1)
-            #     next_bd(block[10])
-            # with block[10]:
-            #     use_lock(CD_natural_impulse_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
-            #     dma_bd(CD_natural_impulse_matrix_buffer[0], offset=kernel_mat_v_size, len= (2*CD_nat_or_imp_matrix_size)-kernel_mat_v_size)
-            #     use_lock(CD_natural_impulse_matrix_con_lock, LockAction.Release, value=1)
-            #     next_bd(block[5])
-            # with block[11]:
-            #     EndOp()
+                
         CT_0_3_main_func = external_func("CT_main", inputs=[
             in_data_ty, out_data_ty,
             in_data_ty, out_data_ty,            
@@ -420,7 +409,7 @@ def single_mat_vect_mult():
 
         
         if(trace_size > 0):
-            tiles_to_trace = [ComputeTile_0_3,ComputeTile_0_2,ComputeTile_0_3,ComputeTile_0_2] #TODO: also shimtile?
+            tiles_to_trace = [ComputeTile_0_2] #TODO: also shimtile?
             trace_utils.configure_packet_tracing_flow(tiles_to_trace, ShimTile_1)
 
         # leave first 6(0-5) packet id for tracing
@@ -485,7 +474,16 @@ def single_mat_vect_mult():
                             MemEvent.CONFLICT_DM_BANK_5,
                             MemEvent.CONFLICT_DM_BANK_6,
                             MemEvent.CONFLICT_DM_BANK_7,
-                    ],                        
+                    ],         
+                   shimtile_events=[
+                        ShimTileEvent.DMA_MM2S_0_START_TASK,
+                        ShimTileEvent.DMA_MM2S_0_FINISHED_BD,
+                        ShimTileEvent.DMA_MM2S_0_MEMORY_STARVATION,
+                        ShimTileEvent.DMA_MM2S_0_FINISHED_TASK,
+                        ShimTileEvent.DMA_MM2S_ERROR,
+                        ShimTileEvent.CONTROL_PKT_ERROR
+   
+                    ],                                      
                 )
     
 

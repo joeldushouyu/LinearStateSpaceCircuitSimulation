@@ -120,6 +120,13 @@ int main(int argc, const char *argv[]) {
             }
         }
     }
+    float* matrix_in_ptr = matrix_in.data();
+    // Printing int pointer address
+    std::cout << "Address of ptrInt (hex): " << std::hex << static_cast<void*>(matrix_in_ptr) << std::endl;
+
+    // Printing double pointer address
+    std::cout << "Address of ptrDouble (hex): " << std::hex << static_cast<void*>(matrix_in_ptr + 4*C1_DSW_MATRIX_SIZE) << std::endl;
+
     assert(matrix_in_ind == C1_DSW_BUFFER_SIZE);
     
     //Recall A_B_C_D_ is store in row major order, now store in column major order with strie of kernel_mat_v_size
@@ -210,9 +217,9 @@ int main(int argc, const char *argv[]) {
     // copy of input
     for(uint32_t i = 0; i <ITERATION_STEP_NUMBER*INPUT_SIZE_PER_ITERATION; i++  ){
         in_0[i] = input_buffers[i];
-        if(i < 20){
-            std::cout << "in at i" << i << " " << in_0[i] << std::endl;
-        }
+        // if(i < 20){
+        //     std::cout << "in at i" << i << " " << in_0[i] << std::endl;
+        // }
     }
 
 
