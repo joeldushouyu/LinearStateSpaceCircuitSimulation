@@ -107,7 +107,8 @@
 			"typeindex": "cpp",
 			"variant": "cpp",
 			"syncstream": "cpp",
-			"spanstream": "cpp"
+			"spanstream": "cpp",
+			"string_span": "cpp"
 		}
 	}
 }

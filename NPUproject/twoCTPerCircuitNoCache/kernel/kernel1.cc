@@ -161,7 +161,7 @@ void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur,
         //     C1_Mask_Res,
         //     out // for debug, doe snot write back anymore
         // );
-        mult_with_C1_DSW_FULLY_UNROLL<6>(
+        mult_with_C1_DSW_lock_aware(
             retrieveMatrixOFfsetBaseOnState(externalSwitchDiodeState,C1_DSW_MATRIX_SIZE  ,C1_DSW_Buffer),
             x_u_cur,
             C1_Mask_Res,
@@ -220,7 +220,7 @@ void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur,
         static_assert( STATE_SIZE_CEIL_TO_16<=   X_U_cur_vector_size*16);
         // aie::vector<float, 16> x_next_temp [STATE_SIZE_CEIL_TO_16/16];
 
-        mult_with_A_B_To_Vector_Array<STATE_SIZE_CEIL_TO_16>(ABCD_ptr, x_u_cur, x_u_cur);
+        mult_with_A_B_To_Vector_Array_with_lock_aware<STATE_SIZE_CEIL_TO_16>(ABCD_ptr, x_u_cur, x_u_cur);
         // mult_with_A_B_To_Vector_Array_FULLY_UNROLL<STATE_SIZE_CEIL_TO_16>(ABCD_ptr, x_u_cur, x_u_cur);
 
    
@@ -244,7 +244,14 @@ extern "C" {
         const uint32_t control_packet_out_prod_lock, const uint32_t control_packet_out_con_lock,
         const uint32_t control_packet_in_prod_lock, const uint32_t control_packet_in_con_lock,
         uint32_t* control_packet_out_buf,
-        uint32_t* control_packet_in_buf
+        uint32_t* control_packet_in_buf,
+
+        const uint32_t C1_DSW_matrix_prod_lock, const uint32_t C1_DSW_matrix_con_lock,
+        const uint32_t AB_matrix_prod_lock, const uint32_t AB_matrix_con_lock,
+        const uint32_t CD_natural_impulse_matrix_prod_lock, const uint32_t CD_natural_impulse_matrix_con_lock,
+        uint32_t* C1_DSW_matrix_buffer,
+        uint32_t* AB_matrix_buffer,
+        uint32_t *CD_natural_impulse_matrix_buffer
     ) {
 
         constexpr int32_t C1_DSW_mat_size = C1_DSW_MATRIX_SIZE;

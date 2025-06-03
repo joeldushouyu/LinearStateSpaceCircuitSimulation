@@ -56,7 +56,7 @@ void iterationOutput(
         float *ABCD_ptr = retrieveMatrixOFfsetBaseOnState(externalSwitchDiodeState,A_B_C_D_MATRIX_SIZE  ,ABCD_buffer);
         //float *CD_ptr = retrieveMatrixOFfsetBaseOnState(externalSwitchDiodeState,2*CD_NAT_OR_IMP_MAT_SIZE ,ABCD_buffer+AB_BUFFER_SIZE);
         if(*(C_D_matrix_select_buffer+1) == 1){
-            mult_with_C_D_aligned_nonimpulse_and_impulse(
+            mult_with_C_D_aligned_nonimpulse_and_impulse_lock_aware(
                 ABCD_ptr  +(STATE_SIZE+U_SIZE)*STATE_SIZE_CEIL_TO_16,
                 x_u_cur,
                 out + k*OUTPUT_SIZE_PER_ITERATION
@@ -83,7 +83,7 @@ void iterationOutput(
             // );              
         }else{
 
-            mult_with_C_D_aligned_nonimpulse_only(
+            mult_with_C_D_aligned_nonimpulse_only_lock_aware(
                 ABCD_ptr  +(STATE_SIZE+U_SIZE)*STATE_SIZE_CEIL_TO_16,
                 x_u_cur,
                 out + k*OUTPUT_SIZE_PER_ITERATION

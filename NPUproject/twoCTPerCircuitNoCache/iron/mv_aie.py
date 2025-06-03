@@ -87,6 +87,8 @@ def single_mat_vect_mult():
     A_B_C_D_col_size = extracted_data.get("A_B_C_D_col_size")
     A_B_C_D_matrix_size = extracted_data.get("A_B_C_D_matrix_size")
     A_B_C_D_buffer_size = extracted_data.get("A_B_C_D_buffer_size")
+    AB_matrix_size = extracted_data.get("AB_mat_size")
+    CD_nat_or_imp_matrix_size= extracted_data.get("CD_nat_or_imp_mat_size")
     input_switch_size = extracted_data.get("input_switch_size")
     input_size_per_iteration = extracted_data.get("input_size_per_iteration")
     output_size_per_iteration = extracted_data.get("output_size_per_iteration")
@@ -164,6 +166,42 @@ def single_mat_vect_mult():
         assert offset%64 == 0
         control_packet_CT_in_prod_lock = lock(ComputeTile_0_3, lock_id=6, init=1, sym_name="control_packet_CT_in_prod_lock")
         control_packet_CT_in_con_lock = lock(ComputeTile_0_3, lock_id=7, init=0, sym_name="control_packet_CT_in_con_lock")
+        
+        C1_DSW_matrix_ty = np.ndarray[ (C1_DSW_matrix_size,), dtype_in]
+        AB_matrix_ty = np.ndarray[(AB_matrix_size,), dtype_in]
+        CD_natural_impulse_matrix_ty = np.ndarray[(CD_nat_or_imp_matrix_size*2, ), dtype_in]
+        
+        C1_DSW_matrix_buffer= [
+            buffer_raw(tile=ComputeTile_0_3, buffer=try_convert_np_type_to_mlir_type(C1_DSW_matrix_ty),
+                       sym_name="C1_DSW_matrix_buffer", address=offset
+                       )
+        ]
+        C1_DSW_matrix_prod_lock = lock(ComputeTile_0_3, lock_id=8, init=1, sym_name="C1_DSW_matrix_prod_lock")
+        C1_DSW_matrix_con_lock = lock(ComputeTile_0_3, lock_id=9, init=0, sym_name="C1_DSW_matrix_con_lock")
+        offset += 4*C1_DSW_matrix_size
+        assert offset %64 == 0
+        
+        AB_matrix_buffer = [
+            buffer_raw(tile=ComputeTile_0_3, buffer=try_convert_np_type_to_mlir_type(AB_matrix_ty),
+                       sym_name="AB_matrix_buffer", address=offset
+                       )
+            
+        ]
+        AB_matrix_prod_lock = lock(ComputeTile_0_3, lock_id=10, init=1, sym_name="AB_matrix_prod_lock")
+        AB_matrix_con_lock = lock(ComputeTile_0_3, lock_id=11, init=0, sym_name="AB_matrix_con_lock")
+        offset += 4*AB_matrix_size
+        assert offset%64 == 0
+        
+        CD_natural_impulse_matrix_buffer = [
+            buffer_raw(tile=ComputeTile_0_3, buffer=try_convert_np_type_to_mlir_type(CD_natural_impulse_matrix_ty),
+                       sym_name="CD_natural_impulse_matrix_buffer", address=offset
+                       )
+        ]
+        CD_natural_impulse_matrix_prod_lock = lock(ComputeTile_0_3, lock_id=12, init=1, sym_name="CD_natural_impulse_matrix_prod_lock")
+        CD_natural_impulse_matrix_con_lock = lock(ComputeTile_0_3, lock_id=13, init=0, sym_name="CD_natural_impulse_matrix_con_lock")
+        
+        offset += 4*(2*CD_nat_or_imp_matrix_size)
+        assert offset%64 == 0        
         assert offset <= (64*1024)  # total of less than 64kB
         
         
@@ -231,36 +269,94 @@ def single_mat_vect_mult():
                 EndOp()
         @mem(ComputeTile_0_3)
         def m(block):
-            s0  = dma_start(DMAChannelDir.S2MM, 0, dest=block[1], chain=block[3])
+            # s0  = dma_start(DMAChannelDir.S2MM, 0, dest=block[1], chain=block[3])
+            # with block[1]:
+            #     use_lock(switch_diode_prod_lock, LockAction.AcquireGreaterEqual, value=1)
+            #     dma_bd(switch_diode_buffer[0], offset=0, len=C1_DSW_buffer_size)
+            #     use_lock(switch_diode_con_lock, LockAction.Release, value=1)
+            #     next_bd(block[2])
+            # with block[2]:
+            #     use_lock(A_B_C_D_prod_lock, LockAction.AcquireGreaterEqual, value=1)
+            #     dma_bd( A_B_C_D_buffer[0], offset=0, len=A_B_C_D_buffer_size)
+            #     use_lock(A_B_C_D_con_lock, LockAction.Release, value=1)
+            #     next_bd(block[7]) # finished 
+            # with block[3]:
+            #     s1 = dma_start(DMAChannelDir.MM2S, 0, dest=block[4], chain=block[5])
+            # with block[4]:
+            #     use_lock(control_packet_CT_out_con_lock, LockAction.AcquireGreaterEqual, value=1)
+            #     dma_bd(control_packet_CT_out[0],offset=0, len=2, packet=(0, 8), bd_id=4 )# have CT to set the len of control packet message
+            #     use_lock(control_packet_CT_out_prod_lock, LockAction.Release, value=1)
+            #     next_bd(block[4])                
+            # with block[5]:
+            #     s2 = dma_start(DMAChannelDir.S2MM, 1, dest=block[6], chain=block[7] )
+            # with block[6]:
+            #     use_lock(control_packet_CT_in_prod_lock, LockAction.AcquireGreaterEqual, value=1)
+            #     dma_bd(control_packet_CT_in[0], offset=0, len=1) # can also be change by CT
+            #     use_lock(control_packet_CT_in_con_lock, LockAction.Release, value=1)
+            #     next_bd(block[6])
+            # with block[7]:
+            #     EndOp()
+            
+            
+            s0 =  dma_start(DMAChannelDir.MM2S, 0, dest=block[1], chain=block[2])
             with block[1]:
+                use_lock(control_packet_CT_out_con_lock, LockAction.AcquireGreaterEqual, value=1)
+                dma_bd(control_packet_CT_out[0],offset=0, len=2, packet=(0, 8), bd_id=4 )# have CT to set the len of control packet message
+                use_lock(control_packet_CT_out_prod_lock, LockAction.Release, value=1)
+                next_bd(block[1])                
+            with block[2]:
+                s1= dma_start(DMAChannelDir.S2MM, 1, dest=block[3], chain=block[4] )
+            with block[3]:
+                use_lock(control_packet_CT_in_prod_lock, LockAction.AcquireGreaterEqual, value=1)
+                dma_bd(control_packet_CT_in[0], offset=0, len=1) # can also be change by CT
+                use_lock(control_packet_CT_in_con_lock, LockAction.Release, value=1)
+                next_bd(block[3])
+            with block[4]:
+                s2  = dma_start(DMAChannelDir.S2MM, 0, dest=block[5], chain=block[7])
+            with block[5]:
                 use_lock(switch_diode_prod_lock, LockAction.AcquireGreaterEqual, value=1)
                 dma_bd(switch_diode_buffer[0], offset=0, len=C1_DSW_buffer_size)
                 use_lock(switch_diode_con_lock, LockAction.Release, value=1)
-                next_bd(block[2])
-            with block[2]:
+                next_bd(block[6])
+            with block[6]:
                 use_lock(A_B_C_D_prod_lock, LockAction.AcquireGreaterEqual, value=1)
                 dma_bd( A_B_C_D_buffer[0], offset=0, len=A_B_C_D_buffer_size)
                 use_lock(A_B_C_D_con_lock, LockAction.Release, value=1)
                 next_bd(block[7]) # finished 
-            with block[3]:
-                s1 = dma_start(DMAChannelDir.MM2S, 0, dest=block[4], chain=block[5])
-            with block[4]:
-                use_lock(control_packet_CT_out_con_lock, LockAction.AcquireGreaterEqual, value=1)
-                dma_bd(control_packet_CT_out[0],offset=0, len=2, packet=(0, 8), bd_id=4 )# have CT to set the len of control packet message
-                use_lock(control_packet_CT_out_prod_lock, LockAction.Release, value=1)
-                next_bd(block[4])                
-            with block[5]:
-                s2 = dma_start(DMAChannelDir.S2MM, 1, dest=block[6], chain=block[7] )
-            with block[6]:
-                use_lock(control_packet_CT_in_prod_lock, LockAction.AcquireGreaterEqual, value=1)
-                dma_bd(control_packet_CT_in[0], offset=0, len=1) # can also be change by CT
-                use_lock(control_packet_CT_in_con_lock, LockAction.Release, value=1)
-                next_bd(block[6])
             with block[7]:
                 EndOp()
-
-
-                
+            # with block[5]:
+            #     use_lock(C1_DSW_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
+            #     dma_bd(C1_DSW_matrix_buffer[0], offset=0, len = kernel_mat_v_size) # first transfer 16
+            #     use_lock(C1_DSW_matrix_con_lock, LockAction.Release, value=1)
+            #     next_bd(block[6])
+            # with block[6]:
+            #     use_lock(C1_DSW_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
+            #     dma_bd(C1_DSW_matrix_buffer[0], offset=kernel_mat_v_size, len =C1_DSW_matrix_size-kernel_mat_v_size )
+            #     use_lock(C1_DSW_matrix_con_lock, LockAction.Release, value=1)
+            #     next_bd(block[7])
+            # with block[7]:
+            #     use_lock(AB_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
+            #     dma_bd(AB_matrix_buffer[0], offset=0, len=kernel_mat_v_size)
+            #     use_lock(AB_matrix_con_lock, LockAction.Release, value=1)
+            #     next_bd(block[8])
+            # with block[8]:
+            #     use_lock(CD_natural_impulse_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
+            #     dma_bd(CD_natural_impulse_matrix_buffer[0], offset=0, len=kernel_mat_v_size)
+            #     use_lock(CD_natural_impulse_matrix_con_lock, LockAction.Release, value=1)
+            #     next_bd(block[9])
+            # with block[9]:
+            #     use_lock(AB_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
+            #     dma_bd(AB_matrix_buffer[0], offset=kernel_mat_v_size, len = AB_matrix_size - kernel_mat_v_size)
+            #     use_lock(AB_matrix_con_lock, LockAction.Release, value=1)
+            #     next_bd(block[10])
+            # with block[10]:
+            #     use_lock(CD_natural_impulse_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
+            #     dma_bd(CD_natural_impulse_matrix_buffer[0], offset=kernel_mat_v_size, len= (2*CD_nat_or_imp_matrix_size)-kernel_mat_v_size)
+            #     use_lock(CD_natural_impulse_matrix_con_lock, LockAction.Release, value=1)
+            #     next_bd(block[5])
+            # with block[11]:
+            #     EndOp()
         CT_0_3_main_func = external_func("CT_main", inputs=[
             in_data_ty, out_data_ty,
             in_data_ty, out_data_ty,            
@@ -271,7 +367,13 @@ def single_mat_vect_mult():
             np.int32, np.int32,
             np.int32, np.int32,
             control_packet_ty,
-            control_packet_ty                        
+            control_packet_ty,
+            np.int32, np.int32,
+            np.int32, np.int32,
+            np.int32, np.int32,
+            C1_DSW_matrix_ty,
+            AB_matrix_ty,
+            CD_natural_impulse_matrix_ty                                           
         ])
 
         @core(ComputeTile_0_3, "kernel1.o", stack_size=stack_size_in_byte)
@@ -287,8 +389,13 @@ def single_mat_vect_mult():
                 constant(48+4), constant(48+5),
                 constant(48+6), constant(48+7),
                 control_packet_CT_out[0],
-                control_packet_CT_in[0]
-                
+                control_packet_CT_in[0],
+                constant(48+8), constant(48+9),
+                constant(48+10), constant(48+11),
+                constant(48+12), constant(48+13),
+                C1_DSW_matrix_buffer[0],
+                AB_matrix_buffer[0],
+                CD_natural_impulse_matrix_buffer[0]
             )
 
 
