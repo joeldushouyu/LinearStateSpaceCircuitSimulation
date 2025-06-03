@@ -16,45 +16,6 @@ inline constexpr uint32_t custom_ceil(uint32_t x, uint32_t mult) {
 
 
 
-
-
-inline bool even_parity(uint32_t n) {
-    // Return true of even number of "1" bits, false otherwise
-    uint32_t p = 0;
-    while (n) {
-        p += n & 1;
-        n >>= 1;
-    }
-    return (p % 2) == 0;
-}
-inline uint32_t control_packet_gen(int32_t stream_id, int32_t operation, int32_t beats, int32_t address){
-  //operation: 0 read, 1 write
-  uint32_t control_packet =
-        stream_id << 24 | operation << 22 | beats << 20 | address;
-  control_packet |= (0x1 & even_parity(control_packet)) << 31;
-
-  return control_packet;
-}
-
-
-inline uint32_t source_core_id_gen(uint32_t source_col, uint32_t source_row){
-  return   (source_col <<5)|source_row;
-}
-
-inline uint32_t packet_flow_gen(uint32_t packet_type, uint32_t stream_id, uint32_t source_core_id ){
-
-    //TODO: put a check on the packet_type? core=0, memtile=1, shimtile=2???
-    uint32_t packet_header = (source_core_id << 16) | (packet_type<<12) | (stream_id);
-
-    bool odd_parity  = (even_parity(packet_header)) ;
-    packet_header |= (0x1 & odd_parity) << 31;
-
-    return packet_header;
-}
-
-
-
-
 template <typename T>
 T min(T a, T b) {
   return (a < b) ? a : b;

@@ -81,9 +81,6 @@ int main(int argc, const char *argv[]) {
     CircuitData dataFromFile = CircuitData();
     float    *C1_DSW_buffer = new float   [C1_DSW_BUFFER_SIZE];
     float    *ABCD_buffer   =  new float   [A_B_C_D_BUFFER_SIZE];
-    float    *AB_buffer     =   new float [AB_BUFFER_SIZE];
-    float    *CD_natural_impulse_buffer = new float[CD_NATURAL_IMPULSE_BUFFER_SIZE];
-    static_assert(AB_BUFFER_SIZE + CD_NATURAL_IMPULSE_BUFFER_SIZE == A_B_C_D_BUFFER_SIZE);
     float    *input_buffers = new float   [ITERATION_STEP_NUMBER*INPUT_SIZE_PER_ITERATION];
     uint32_t *switch_diode_status_buffer_after_iteration = new uint32_t[ITERATION_STEP_NUMBER];
 
@@ -94,16 +91,15 @@ int main(int argc, const char *argv[]) {
          switch_diode_status_buffer_after_iteration,false);
     
     
-    // Something different in this host implementation
-    //Given ABCD_buffer is store in the following order
-    // AB matrix, CD_natural matrix, CD_impulse_matrix, AB_matrix, CD_natural matrix, CD_imnpulse_matrix and repeat this pattern for TOTAL_SWITCH_DIODE_STATE
-
-    // Goal is to separate two buffer of
-    // AB_matrix, AB_matrix, AB_matrix, AB_matrix,
-    // CD_natural_matrix, CD_impulse_matrix, CD_natural_matrix, CD_impulse_matrix, CD_natural_matrix, CD_impulse_matrix ... 
-
+    // // copy of matrix
+    // for(uint32_t i = 0; i <C1_DSW_BUFFER_SIZE; i++ ){
+    //     matrix_in[i] = C1_DSW_buffer[i];
+    // }
+    // for(uint32_t  i = 0; i < A_B_C_D_BUFFER_SIZE; i++){
+    //     matrix_in[i+C1_DSW_BUFFER_SIZE ] = ABCD_buffer[i];
+    // }
     // do data rearrangement at the host, so Shimtile does not have to do the reordering?
-    constexpr  uint32_t kernel_mat_v_size = 16;
+    uint32_t kernel_mat_v_size = 16;
     uint32_t matrix_in_ind = 0;
     for(uint32_t i = 0; i < TOTAL_SWITCH_DIODE_STATE;  i++){
         for(uint32_t j = 0; j <  C1_DSW_ROW_SIZE/kernel_mat_v_size;  j++ ){
@@ -121,87 +117,23 @@ int main(int argc, const char *argv[]) {
         }
     }
     assert(matrix_in_ind == C1_DSW_BUFFER_SIZE);
-    
-    // //Recall A_B_C_D_ is store in row major order, now store in column major order with strie of kernel_mat_v_size
-    // for(uint32_t i = 0; i < TOTAL_SWITCH_DIODE_STATE; i++ ){
 
-    //     //AB_matrix
-    //     for(uint32_t j = 0; j <  AB_ROWS/kernel_mat_v_size; j++){
-    //         for(uint32_t k = 0; k < A_B_C_D_COL_SIZE; k++){
-    //             for(uint32_t l = 0; l <kernel_mat_v_size; l++ ){
+    for(uint32_t i = 0; i < TOTAL_SWITCH_DIODE_STATE; i++ ){
+        for(uint32_t j = 0; j <  A_B_C_D_ROW_SIZE/kernel_mat_v_size; j++){
+            for(uint32_t k = 0; k < A_B_C_D_COL_SIZE; k++){
+                for(uint32_t l = 0; l <kernel_mat_v_size; l++ ){
 
-    //                 matrix_in[matrix_in_ind +    k*kernel_mat_v_size + l   ] = ABCD_buffer[
-    //                     A_B_C_D_COL_SIZE*A_B_C_D_ROW_SIZE*i +
-    //                     j*kernel_mat_v_size*A_B_C_D_COL_SIZE+
-    //                     1*k+
-    //                     A_B_C_D_COL_SIZE*l
+                    matrix_in[matrix_in_ind++] = ABCD_buffer[
+                        A_B_C_D_COL_SIZE*A_B_C_D_ROW_SIZE*i +
+                        j*kernel_mat_v_size*A_B_C_D_COL_SIZE+
+                        1*k+
+                        A_B_C_D_COL_SIZE*l
 
-    //                 ];
-            
-    //             }
-    //         }
-    //         matrix_in_ind += AB_MAT_SIZE;
-    //     }
-
-    //     //CD_natural
-        
-    //     for(uint32_t j = AB_ROWS/kernel_mat_v_size; j <     (AB_ROWS+2*CD_NAT_OR_IMP_ROWS)/kernel_mat_v_size; j++){
-    //         for(uint32_t k = 0; k < A_B_C_D_COL_SIZE; k++){
-    //             for(uint32_t l = 0; l <kernel_mat_v_size; l++ ){
-
-    //                 matrix_in[matrix_in_ind +    k*kernel_mat_v_size + l   ] = ABCD_buffer[
-    //                     A_B_C_D_COL_SIZE*A_B_C_D_ROW_SIZE*i +
-    //                     j*kernel_mat_v_size*A_B_C_D_COL_SIZE+
-    //                     1*k+
-    //                     A_B_C_D_COL_SIZE*l
-
-    //                 ];
-            
-    //             }
-    //         }
-    //         matrix_in_ind += CD_NAT_OR_IMP_MAT_SIZE;
-    //     }
-
-    // }
-
-    static_assert( (AB_COLS == CD_NAT_OR_IMP_COLS) && ( CD_NAT_OR_IMP_COLS== A_B_C_D_COL_SIZE));
-
-    // First store all AB blocks for all switch-diode states
-    for (uint32_t i = 0; i < TOTAL_SWITCH_DIODE_STATE; i++) {
-        for (uint32_t j = 0; j < AB_ROWS / kernel_mat_v_size; j++) {
-            for (uint32_t k = 0; k < A_B_C_D_COL_SIZE; k++) {
-                for (uint32_t l = 0; l < kernel_mat_v_size; l++) {
-                    matrix_in[matrix_in_ind + k * kernel_mat_v_size + l] =
-                        ABCD_buffer[
-                            A_B_C_D_COL_SIZE * A_B_C_D_ROW_SIZE * i +
-                            j * kernel_mat_v_size * A_B_C_D_COL_SIZE +
-                            k +
-                            A_B_C_D_COL_SIZE * l
-                        ];
+                    ];
                 }
             }
-            matrix_in_ind += AB_MAT_SIZE;
         }
-    }
 
-    // Then store all CDnatural and CDimpulse blocks for all switch-diode states
-    for (uint32_t i = 0; i < TOTAL_SWITCH_DIODE_STATE; i++) {
-        for (uint32_t j = AB_ROWS / kernel_mat_v_size;
-                    j < (AB_ROWS + 2 * CD_NAT_OR_IMP_ROWS) / kernel_mat_v_size;
-            j++) {
-            for (uint32_t k = 0; k < A_B_C_D_COL_SIZE; k++) {
-                for (uint32_t l = 0; l < kernel_mat_v_size; l++) {
-                    matrix_in[matrix_in_ind + k * kernel_mat_v_size + l] =
-                        ABCD_buffer[
-                            A_B_C_D_COL_SIZE * A_B_C_D_ROW_SIZE * i +
-                            j * kernel_mat_v_size * A_B_C_D_COL_SIZE +
-                            k +
-                            A_B_C_D_COL_SIZE * l
-                        ];
-                }
-            }
-            matrix_in_ind += CD_NAT_OR_IMP_MAT_SIZE;
-        }
     }
 
 
@@ -223,6 +155,48 @@ int main(int argc, const char *argv[]) {
         memset(bufTrace, 0, TRACE_SIZE);
         trace_res.sync_to_device();
     }
+
+
+    // // only check partial result for now
+    // buffer<dtype_out> out_ref_0(output_iteration_size);    
+    // float* input_ptr = in_0.data();
+    // float* ref_res = out_ref_0.data();
+    
+
+    // for(int i = 0; i < TOTAL_SWITCH_DIODE_STATE; i++){
+
+    //     float x[C1_DSW_COL_SIZE] = {0}; // for now
+        
+    //     for(int l = 0; l < U_SIZE; l++){
+    //         x[STATE_SIZE + l] = *input_ptr++;
+    //     }
+    //     input_ptr++; // the external switch bit that is not used for now
+
+    //     std::vector<float>res  = matvec_mul_row_major(
+    //         C1_DSW_buffer + (i*C1_DSW_MATRIX_SIZE),x, 
+    //         C1_DSW_ROW_SIZE,
+    //         C1_DSW_COL_SIZE 
+    //     );
+
+    //     // STORE the reference result
+    //     for(auto v :res){
+    //         *ref_res++= v;
+    //     }
+
+    //     // A_B_C_D whole matrix
+    //     std::vector<float> abcd_res = matvec_mul_row_major(
+    //         ABCD_buffer +(i*A_B_C_D_MATRIX_SIZE),x,
+    //         A_B_C_D_ROW_SIZE,
+    //         A_B_C_D_COL_SIZE
+    //     );
+    //     // STORE the reference result
+    //     for(auto v :abcd_res){
+    //         *ref_res++= v;
+    //     }
+
+
+    // }
+
 
 
 
@@ -260,9 +234,67 @@ int main(int argc, const char *argv[]) {
 
     header_print("info", "Finished running kernel");
 
+
+
+
+
+    // bool pass =false;
+    // // // debug_inspect_all(
+    // // //     matrix_in, matrix_out_col_major, 
+    // // //     std::pow(2, SWITCH_SIZE + DIODE_SIZE)
+    // // // );
+
+    // if (pass ==false){
+    //     std::cout <<"Fail stage 1" << std::endl;
+    // }else{
+    //     printf("passed first stage input\n");
+    // }
+    // pass &= are_results_close( out_0, out_ref_0,1e-4f, 1e-3f,  TOTAL_SWITCH_DIODE_STATE*(C1_DSW_ROW_SIZE + A_B_C_D_ROW_SIZE)  );
+    // if(pass==false){
+    //     std::cout << "FAil stage2" <<std::endl;
+    // }
+    // for (size_t i = 0; i < 16; i++) {
+    //     std::cout << std::scientific      // Use exponential notation
+    //               << std::setprecision(6) // Show 2 digits after decimal
+    //               << "out_0[" << i << "] = " << out_0[i]
+    //               << " ?= out_ref_0[" << i << "] = " << out_ref_0[i]
+    //               << std::endl;
+    // }
+
+
+
+    // for(auto k = 0; k < 8000* OUTPUT_SIZE_PER_ITERATION; k++){
+
+    //     std::cout << out_0[k] << " ";
+    //     if( (k+1) % OUTPUT_SIZE_PER_ITERATION ==0  ){
+    //         std::cout << std::endl;
+    //     }
+    // }
+    // std::cout << std::endl;
+    // std::cout << std::endl;
+
+    // uint32_t offset = A_B_C_D_ROW_SIZE;
+    // std::cout << "Switch states reference: " 
+    // << std::bitset<sizeof(uint32_t) * 8>(std::bit_cast<uint32_t>(switch_diode_status_buffer_after_iteration[0]))
+    // << " result: " 
+    // << std::bitset<sizeof(float) * 8>(std::bit_cast<uint32_t>(out_0[offset]))
+    //  << "  with input switch of" << std::bitset<sizeof(float) * 8>(std::bit_cast<uint32_t>(in_0[1]))  <<std::endl;
+
+    // for(size_t i = 0; i< 6; i++ ){
+
+    //     std::cout << "C1_mask_result reference: " <<  std::bitset<sizeof(float) * 8>(std::bit_cast<uint32_t>(C1_RES_MASK_BUFFER[i])) <<
+    //     "  result fron NPU" <<std::bitset<sizeof(float) * 8>(std::bit_cast<uint32_t>(out_0[i+offset+1])) <<std::endl;
+
+    // }
     float *data_pt = out_0.data();
     writeDataToCsvFile("npuSim.csv",  dataFromFile, data_pt );
+    // if (pass){
+    //     header_print("info", "PASSED ");
+    // } else {
+    //     header_print("info", "FAILED!");
+    // }
 
+    // utils::print_npu_profile(npu_time, 2.0 * float(M) * float(K) * float(N), 1000);
     return 0;
 }
 
