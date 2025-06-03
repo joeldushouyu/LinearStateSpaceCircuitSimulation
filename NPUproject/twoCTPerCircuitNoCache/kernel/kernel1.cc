@@ -310,7 +310,8 @@ extern "C" {
 
         const uint32_t C1_DSW_matrix_prod_lock, const uint32_t C1_DSW_matrix_con_lock,
         const uint32_t AB_matrix_prod_lock, const uint32_t AB_matrix_con_lock,
-        const uint32_t CD_natural_impulse_matrix_prod_lock, const uint32_t CD_natural_impulse_matrix_con_lock,
+        const uint32_t CD_natural_matrix_prod_lock, const uint32_t CD_natural_matrix_con_lock,
+        const uint32_t CD_impulse_matrix_prod_lock, const uint32_t CD_impulse_matrix_con_lock,        
         float* C1_DSW_matrix_buffer,
         float* AB_matrix_buffer,
         float *CD_natural_impulse_matrix_buffer
@@ -385,9 +386,9 @@ extern "C" {
 
             uint32_t CD_rel_offset = state_ind*A_B_C_D_MATRIX_SIZE + C1_DSW_BUFFER_SIZE + AB_MAT_SIZE;
         //    // send 16 value of CD_natural matrix to me
-            acquire_greater_equal(CD_natural_impulse_matrix_con_lock, 1);
+            acquire_greater_equal(CD_natural_matrix_con_lock, 1);
             passThroughFunc(CD_natural_impulse_matrix_buffer,ABCD_buffer+ state_ind*A_B_C_D_MATRIX_SIZE+AB_MAT_SIZE, 16  );
-            release(CD_natural_impulse_matrix_prod_lock, 1);
+            release(CD_natural_matrix_prod_lock, 1);
 
 
 
@@ -399,12 +400,15 @@ extern "C" {
 
 
 
-            // // send rest of CD_natural, and CD_impulse matrix to me
-            acquire_greater_equal(CD_natural_impulse_matrix_con_lock, 1);
-            passThroughFunc(CD_natural_impulse_matrix_buffer+16,ABCD_buffer+ state_ind*A_B_C_D_MATRIX_SIZE+AB_MAT_SIZE+16, 2*CD_NAT_OR_IMP_MAT_SIZE-16  );
-            release(CD_natural_impulse_matrix_prod_lock, 1);            
+            // // send rest of CD_natural
+            acquire_greater_equal(CD_natural_matrix_con_lock, 1);
+            passThroughFunc(CD_natural_impulse_matrix_buffer+16,ABCD_buffer+ state_ind*A_B_C_D_MATRIX_SIZE+AB_MAT_SIZE+16, CD_NAT_OR_IMP_MAT_SIZE-16  );
+            release(CD_natural_matrix_prod_lock, 1);            
 
-
+            // receive CD_impulse
+            acquire_greater_equal(CD_impulse_matrix_con_lock, 1);
+            passThroughFunc( CD_natural_impulse_matrix_buffer+CD_NAT_OR_IMP_MAT_SIZE,ABCD_buffer+ state_ind*A_B_C_D_MATRIX_SIZE+AB_MAT_SIZE+CD_NAT_OR_IMP_MAT_SIZE, CD_NAT_OR_IMP_MAT_SIZE   );
+            release(CD_impulse_matrix_prod_lock, 1);
         }   
 
         static_assert(PING_PONG_BUFFER_ITERATION%2 == 0);

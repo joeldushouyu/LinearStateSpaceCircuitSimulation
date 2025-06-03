@@ -197,9 +197,10 @@ def single_mat_vect_mult():
                        sym_name="CD_natural_impulse_matrix_buffer", address=offset
                        )
         ]
-        CD_natural_impulse_matrix_prod_lock = lock(ComputeTile_0_3, lock_id=12, init=1, sym_name="CD_natural_impulse_matrix_prod_lock")
-        CD_natural_impulse_matrix_con_lock = lock(ComputeTile_0_3, lock_id=13, init=0, sym_name="CD_natural_impulse_matrix_con_lock")
-        
+        CD_natural_matrix_prod_lock = lock(ComputeTile_0_3, lock_id=12, init=1, sym_name="CD_natural_impulse_matrix_prod_lock")
+        CD_natural_matrix_con_lock = lock(ComputeTile_0_3, lock_id=13, init=0, sym_name="CD_natural_impulse_matrix_con_lock")
+        CD_impulse_matrix_prod_lock = lock(ComputeTile_0_3, lock_id=14, init=1, sym_name="CD_impulse_matrix_prod_lock")
+        CD_impulse_matrix_con_lock = lock(ComputeTile_0_3, lock_id=15, init=0, sym_name="CD_impulse_matrix_con_lock")
         offset += 4*(2*CD_nat_or_imp_matrix_size)
         assert offset%64 == 0        
         assert offset <= (64*1024)  # total of less than 64kB
@@ -312,7 +313,7 @@ def single_mat_vect_mult():
                 use_lock(control_packet_CT_in_con_lock, LockAction.Release, value=1)
                 next_bd(block[3])
             with block[4]:
-                s2  = dma_start(DMAChannelDir.S2MM, 0, dest=block[5], chain=block[11]) 
+                s2  = dma_start(DMAChannelDir.S2MM, 0, dest=block[5], chain=block[12]) 
             with block[5]:
                 use_lock(C1_DSW_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
                 dma_bd(C1_DSW_matrix_buffer[0], offset=0, len = kernel_mat_v_size) # first transfer 16
@@ -329,9 +330,9 @@ def single_mat_vect_mult():
                 use_lock(AB_matrix_con_lock, LockAction.Release, value=1)
                 next_bd(block[8])
             with block[8]:
-                use_lock(CD_natural_impulse_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
+                use_lock(CD_natural_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
                 dma_bd(CD_natural_impulse_matrix_buffer[0], offset=0, len=kernel_mat_v_size)
-                use_lock(CD_natural_impulse_matrix_con_lock, LockAction.Release, value=1)
+                use_lock(CD_natural_matrix_con_lock, LockAction.Release, value=1)
                 next_bd(block[9])
             with block[9]:
                 use_lock(AB_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
@@ -339,11 +340,16 @@ def single_mat_vect_mult():
                 use_lock(AB_matrix_con_lock, LockAction.Release, value=1)
                 next_bd(block[10])                
             with block[10]:
-                use_lock(CD_natural_impulse_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
-                dma_bd(CD_natural_impulse_matrix_buffer[0], offset=kernel_mat_v_size, len= (2*CD_nat_or_imp_matrix_size)-kernel_mat_v_size)
-                use_lock(CD_natural_impulse_matrix_con_lock, LockAction.Release, value=1)
-                next_bd(block[5])
+                use_lock(CD_natural_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
+                dma_bd(CD_natural_impulse_matrix_buffer[0], offset=kernel_mat_v_size, len= (CD_nat_or_imp_matrix_size)-kernel_mat_v_size)
+                use_lock(CD_natural_matrix_con_lock, LockAction.Release, value=1)
+                next_bd(block[11])
             with block[11]:
+                use_lock(CD_impulse_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
+                dma_bd(CD_natural_impulse_matrix_buffer[0], offset=CD_nat_or_imp_matrix_size, len=CD_nat_or_imp_matrix_size)
+                use_lock(CD_impulse_matrix_con_lock, LockAction.Release, value=1)
+                next_bd(block[5])
+            with block[12]:
                 EndOp()
                 
         CT_0_3_main_func = external_func("CT_main", inputs=[
@@ -360,6 +366,7 @@ def single_mat_vect_mult():
             np.int32, np.int32,
             np.int32, np.int32,
             np.int32, np.int32,
+            np.int32, np.int32,            
             C1_DSW_matrix_ty,
             AB_matrix_ty,
             CD_natural_impulse_matrix_ty                                           
@@ -382,6 +389,7 @@ def single_mat_vect_mult():
                 constant(48+8), constant(48+9),
                 constant(48+10), constant(48+11),
                 constant(48+12), constant(48+13),
+                constant(48+14), constant(48+15),                
                 C1_DSW_matrix_buffer[0],
                 AB_matrix_buffer[0],
                 CD_natural_impulse_matrix_buffer[0]
