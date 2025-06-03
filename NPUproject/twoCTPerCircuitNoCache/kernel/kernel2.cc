@@ -99,7 +99,7 @@ extern "C" {
 
         // TODO: do not acquire/realse out buffer here, since don by CT_0_3
 
-        for (uint64_t l = 0; l < PING_PONG_BUFFER_ITERATION; l++) {
+        for (uint64_t l = 0; l < PING_PONG_BUFFER_ITERATION; l+=2) {
             acquire_greater_equal(buffer_out_prod_lock_id , 1);
             iterationOutput(out,ABCD_buffer,C_D_matrix_select_buffer); // ping
             release(buffer_out_con_lock_id , 1);

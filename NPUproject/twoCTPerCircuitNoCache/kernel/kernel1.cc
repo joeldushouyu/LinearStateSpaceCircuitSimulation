@@ -253,8 +253,8 @@ extern "C" {
         release(control_packet_out_con_lock, 1);
 
         acquire_greater_equal(ABCD_con_lock , 1);  // all matrix are ready     
-
-        for (uint64_t l = 0; l < PING_PONG_BUFFER_ITERATION; l++) {
+        static_assert(PING_PONG_BUFFER_ITERATION%2 == 0);
+        for (uint64_t l = 0; l < PING_PONG_BUFFER_ITERATION; l+=2) {
             acquire_greater_equal(buffer_in_con_loc_id , 1);
 
 
