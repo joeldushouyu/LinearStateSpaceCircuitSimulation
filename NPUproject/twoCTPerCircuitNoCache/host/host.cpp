@@ -122,87 +122,87 @@ int main(int argc, const char *argv[]) {
     }
     assert(matrix_in_ind == C1_DSW_BUFFER_SIZE);
     
-    // //Recall A_B_C_D_ is store in row major order, now store in column major order with strie of kernel_mat_v_size
-    // for(uint32_t i = 0; i < TOTAL_SWITCH_DIODE_STATE; i++ ){
+    //Recall A_B_C_D_ is store in row major order, now store in column major order with strie of kernel_mat_v_size
+    for(uint32_t i = 0; i < TOTAL_SWITCH_DIODE_STATE; i++ ){
 
-    //     //AB_matrix
-    //     for(uint32_t j = 0; j <  AB_ROWS/kernel_mat_v_size; j++){
-    //         for(uint32_t k = 0; k < A_B_C_D_COL_SIZE; k++){
-    //             for(uint32_t l = 0; l <kernel_mat_v_size; l++ ){
+        //AB_matrix
+        for(uint32_t j = 0; j <  AB_ROWS/kernel_mat_v_size; j++){
+            for(uint32_t k = 0; k < A_B_C_D_COL_SIZE; k++){
+                for(uint32_t l = 0; l <kernel_mat_v_size; l++ ){
 
-    //                 matrix_in[matrix_in_ind +    k*kernel_mat_v_size + l   ] = ABCD_buffer[
-    //                     A_B_C_D_COL_SIZE*A_B_C_D_ROW_SIZE*i +
-    //                     j*kernel_mat_v_size*A_B_C_D_COL_SIZE+
-    //                     1*k+
-    //                     A_B_C_D_COL_SIZE*l
+                    matrix_in[matrix_in_ind +    k*kernel_mat_v_size + l   ] = ABCD_buffer[
+                        A_B_C_D_COL_SIZE*A_B_C_D_ROW_SIZE*i +
+                        j*kernel_mat_v_size*A_B_C_D_COL_SIZE+
+                        1*k+
+                        A_B_C_D_COL_SIZE*l
 
-    //                 ];
+                    ];
             
-    //             }
-    //         }
-    //         matrix_in_ind += AB_MAT_SIZE;
-    //     }
-
-    //     //CD_natural
-        
-    //     for(uint32_t j = AB_ROWS/kernel_mat_v_size; j <     (AB_ROWS+2*CD_NAT_OR_IMP_ROWS)/kernel_mat_v_size; j++){
-    //         for(uint32_t k = 0; k < A_B_C_D_COL_SIZE; k++){
-    //             for(uint32_t l = 0; l <kernel_mat_v_size; l++ ){
-
-    //                 matrix_in[matrix_in_ind +    k*kernel_mat_v_size + l   ] = ABCD_buffer[
-    //                     A_B_C_D_COL_SIZE*A_B_C_D_ROW_SIZE*i +
-    //                     j*kernel_mat_v_size*A_B_C_D_COL_SIZE+
-    //                     1*k+
-    //                     A_B_C_D_COL_SIZE*l
-
-    //                 ];
-            
-    //             }
-    //         }
-    //         matrix_in_ind += CD_NAT_OR_IMP_MAT_SIZE;
-    //     }
-
-    // }
-
-    static_assert( (AB_COLS == CD_NAT_OR_IMP_COLS) && ( CD_NAT_OR_IMP_COLS== A_B_C_D_COL_SIZE));
-
-    // First store all AB blocks for all switch-diode states
-    for (uint32_t i = 0; i < TOTAL_SWITCH_DIODE_STATE; i++) {
-        for (uint32_t j = 0; j < AB_ROWS / kernel_mat_v_size; j++) {
-            for (uint32_t k = 0; k < A_B_C_D_COL_SIZE; k++) {
-                for (uint32_t l = 0; l < kernel_mat_v_size; l++) {
-                    matrix_in[matrix_in_ind + k * kernel_mat_v_size + l] =
-                        ABCD_buffer[
-                            A_B_C_D_COL_SIZE * A_B_C_D_ROW_SIZE * i +
-                            j * kernel_mat_v_size * A_B_C_D_COL_SIZE +
-                            k +
-                            A_B_C_D_COL_SIZE * l
-                        ];
                 }
             }
             matrix_in_ind += AB_MAT_SIZE;
         }
-    }
 
-    // Then store all CDnatural and CDimpulse blocks for all switch-diode states
-    for (uint32_t i = 0; i < TOTAL_SWITCH_DIODE_STATE; i++) {
-        for (uint32_t j = AB_ROWS / kernel_mat_v_size;
-                    j < (AB_ROWS + 2 * CD_NAT_OR_IMP_ROWS) / kernel_mat_v_size;
-            j++) {
-            for (uint32_t k = 0; k < A_B_C_D_COL_SIZE; k++) {
-                for (uint32_t l = 0; l < kernel_mat_v_size; l++) {
-                    matrix_in[matrix_in_ind + k * kernel_mat_v_size + l] =
-                        ABCD_buffer[
-                            A_B_C_D_COL_SIZE * A_B_C_D_ROW_SIZE * i +
-                            j * kernel_mat_v_size * A_B_C_D_COL_SIZE +
-                            k +
-                            A_B_C_D_COL_SIZE * l
-                        ];
+        //CD_natural CD impulse
+        
+        for(uint32_t j = AB_ROWS/kernel_mat_v_size; j <     (AB_ROWS+2*CD_NAT_OR_IMP_ROWS)/kernel_mat_v_size; j++){
+            for(uint32_t k = 0; k < A_B_C_D_COL_SIZE; k++){
+                for(uint32_t l = 0; l <kernel_mat_v_size; l++ ){
+
+                    matrix_in[matrix_in_ind +    k*kernel_mat_v_size + l   ] = ABCD_buffer[
+                        A_B_C_D_COL_SIZE*A_B_C_D_ROW_SIZE*i +
+                        j*kernel_mat_v_size*A_B_C_D_COL_SIZE+
+                        1*k+
+                        A_B_C_D_COL_SIZE*l
+
+                    ];
+            
                 }
             }
             matrix_in_ind += CD_NAT_OR_IMP_MAT_SIZE;
         }
+
     }
+
+    // static_assert( (AB_COLS == CD_NAT_OR_IMP_COLS) && ( CD_NAT_OR_IMP_COLS== A_B_C_D_COL_SIZE));
+
+    // // First store all AB blocks for all switch-diode states
+    // for (uint32_t i = 0; i < TOTAL_SWITCH_DIODE_STATE; i++) {
+    //     for (uint32_t j = 0; j < AB_ROWS / kernel_mat_v_size; j++) {
+    //         for (uint32_t k = 0; k < A_B_C_D_COL_SIZE; k++) {
+    //             for (uint32_t l = 0; l < kernel_mat_v_size; l++) {
+    //                 matrix_in[matrix_in_ind + k * kernel_mat_v_size + l] =
+    //                     ABCD_buffer[
+    //                         A_B_C_D_COL_SIZE * A_B_C_D_ROW_SIZE * i +
+    //                         j * kernel_mat_v_size * A_B_C_D_COL_SIZE +
+    //                         k +
+    //                         A_B_C_D_COL_SIZE * l
+    //                     ];
+    //             }
+    //         }
+    //         matrix_in_ind += AB_MAT_SIZE;
+    //     }
+    // }
+
+    // // Then store all CDnatural and CDimpulse blocks for all switch-diode states
+    // for (uint32_t i = 0; i < TOTAL_SWITCH_DIODE_STATE; i++) {
+    //     for (uint32_t j = AB_ROWS / kernel_mat_v_size;
+    //                 j < (AB_ROWS + 2 * CD_NAT_OR_IMP_ROWS) / kernel_mat_v_size;
+    //         j++) {
+    //         for (uint32_t k = 0; k < A_B_C_D_COL_SIZE; k++) {
+    //             for (uint32_t l = 0; l < kernel_mat_v_size; l++) {
+    //                 matrix_in[matrix_in_ind + k * kernel_mat_v_size + l] =
+    //                     ABCD_buffer[
+    //                         A_B_C_D_COL_SIZE * A_B_C_D_ROW_SIZE * i +
+    //                         j * kernel_mat_v_size * A_B_C_D_COL_SIZE +
+    //                         k +
+    //                         A_B_C_D_COL_SIZE * l
+    //                     ];
+    //             }
+    //         }
+    //         matrix_in_ind += CD_NAT_OR_IMP_MAT_SIZE;
+    //     }
+    // }
 
 
 
