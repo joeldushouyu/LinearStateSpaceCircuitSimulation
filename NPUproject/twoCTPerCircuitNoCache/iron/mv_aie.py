@@ -390,7 +390,7 @@ def single_mat_vect_mult():
             # version of DMA transmit data without doing data reordering(should be done by host already)
             
             # repalce npu_dam_memcpy_nd with manual setp
-            npu_write32(address=0x1d000, column=0, row=0, value= C1_DSW_buffer_size+A_B_C_D_buffer_size )
+            #npu_write32(address=0x1d000, column=0, row=0, value= C1_DSW_buffer_size+A_B_C_D_buffer_size )
             npu_write32(address=0x1d004, column=0, row=0, value=0)
             npu_write32(address=0x1d008, column=0, row=0, value= (1<<30) | (6<<19) | (0<<16))
             npu_write32(address=0x1d00C, column=0, row=0, value=0)
@@ -414,16 +414,16 @@ def single_mat_vect_mult():
             #     packet=(0,6)                  
             # )
             
-            
+            # enable core access to bus
+            npu_maskwrite32(address=0x32038, column=0, row=2, value=0x1, mask=0x1) # NOTE: the place of it is crucial
+            npu_maskwrite32(address=0x32038, column=0, row=3, value=0x1, mask=0x1)
+
             npu_dma_memcpy_nd(metadata="in_SHM_CT_0_3_1", bd_id=1, mem=in_buf, offsets=[0,0,0,0], 
                                      sizes=[1,1,1, data_flow_in_size ], strides=[0,0,0,1], packet=(0,10))
             
             npu_dma_memcpy_nd(metadata="out_CT_0_2_SHM", bd_id=3, mem=out_buf, offsets=[0,0,0,0], sizes=[1,1,1, data_flow_out_size], 
                                      strides=[0,0,0,1], issue_token=True)
 
-            # enable core access to bus
-            npu_maskwrite32(address=0x32038, column=0, row=2, value=0x1, mask=0x1) # NOTE: the place of it is crucial
-            npu_maskwrite32(address=0x32038, column=0, row=3, value=0x1, mask=0x1)
 
             npu_dma_wait("out_CT_0_2_SHM")
 

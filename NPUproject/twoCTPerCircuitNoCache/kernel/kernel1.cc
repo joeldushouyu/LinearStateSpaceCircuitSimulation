@@ -107,6 +107,31 @@ inline void configure_BD_x_MM2S_y_dma_bd_len(const uint32_t BD_x_0_addr, const u
 }
 
 
+void control_Shimtile_transfer(
+    uint32_t virtual_address_base,
+    uint32_t length, uint32_t address_offset,
+    uint32_t control_packet_out_prod_lock, uint32_t control_packet_out_con_lock,
+    uint32_t * control_packet_out_buf
+){
+
+        configure_BD_x_MM2S_y_dma_bd_len(0x000001D080,0, 3,0);//Configure MM2s-0 to send data
+        // Write BD_00 and BD_01
+        acquire_greater_equal(control_packet_out_prod_lock,1);
+        *control_packet_out_buf = control_packet_gen( 8, 0,1, 0x1d000);
+        *(control_packet_out_buf+1) = length;
+        *(control_packet_out_buf+2)  = (virtual_address_base + address_offset);         
+        release(control_packet_out_con_lock, 1);
+
+
+        //TODO: right now BD is fixed to be 4
+        configure_BD_x_MM2S_y_dma_bd_len(0x000001D080,0, 2,0);//Configure MM2s-0 to send data
+        // Send write message
+        acquire_greater_equal(control_packet_out_prod_lock,1);
+        *control_packet_out_buf = control_packet_gen( 8, 0,0, 0x1D214);
+        *(control_packet_out_buf+1) = 0x0;
+        release(control_packet_out_con_lock, 1);
+
+}
 
 
 
@@ -239,18 +264,26 @@ extern "C" {
             x_u_cur[i] = aie::zeros<float, 16>(); 
         }
 
+        
 
-        //TEST:
-        // trigger shimtile to send data to me
-        //BD_ID4
-        configure_BD_x_MM2S_y_dma_bd_len(0x000001D080,0, 2,0);//Configure MM2s-0 to send data
-        
-        
-        
+        configure_BD_x_MM2S_y_dma_bd_len(0x000001D080,0, 1,0);
         acquire_greater_equal(control_packet_out_prod_lock,1);
-        *control_packet_out_buf = control_packet_gen( 8, 0,0, 0x1D214);
-        *(control_packet_out_buf+1) = 0x0;
+        *control_packet_out_buf = control_packet_gen( 7, 1,0, 0x000001D004); // READBD_0_1
         release(control_packet_out_con_lock, 1);
+
+        acquire_greater_equal(control_packet_in_con_lock, 1);
+        uint32_t BD_0_1_val = *control_packet_in_buf;
+        release(control_packet_in_prod_lock, 1);
+
+
+        control_Shimtile_transfer(
+            BD_0_1_val, C1_DSW_BUFFER_SIZE + A_B_C_D_BUFFER_SIZE,
+            0, 
+            control_packet_out_prod_lock, control_packet_out_con_lock,
+            control_packet_out_buf
+
+        );
+
 
         acquire_greater_equal(ABCD_con_lock , 1);  // all matrix are ready     
         static_assert(PING_PONG_BUFFER_ITERATION%2 == 0);
