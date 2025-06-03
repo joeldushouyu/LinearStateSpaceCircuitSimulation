@@ -329,15 +329,15 @@ def single_mat_vect_mult():
                 use_lock(AB_matrix_con_lock, LockAction.Release, value=1)
                 next_bd(block[8])
             with block[8]:
-                use_lock(AB_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
-                dma_bd(AB_matrix_buffer[0], offset=kernel_mat_v_size, len = AB_matrix_size - kernel_mat_v_size)
-                use_lock(AB_matrix_con_lock, LockAction.Release, value=1)
-                next_bd(block[9])
-            with block[9]:
                 use_lock(CD_natural_impulse_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
                 dma_bd(CD_natural_impulse_matrix_buffer[0], offset=0, len=kernel_mat_v_size)
                 use_lock(CD_natural_impulse_matrix_con_lock, LockAction.Release, value=1)
-                next_bd(block[10])
+                next_bd(block[9])
+            with block[9]:
+                use_lock(AB_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
+                dma_bd(AB_matrix_buffer[0], offset=kernel_mat_v_size, len = AB_matrix_size - kernel_mat_v_size)
+                use_lock(AB_matrix_con_lock, LockAction.Release, value=1)
+                next_bd(block[10])                
             with block[10]:
                 use_lock(CD_natural_impulse_matrix_prod_lock, LockAction.AcquireGreaterEqual, value=1)
                 dma_bd(CD_natural_impulse_matrix_buffer[0], offset=kernel_mat_v_size, len= (2*CD_nat_or_imp_matrix_size)-kernel_mat_v_size)
