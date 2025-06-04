@@ -14,6 +14,14 @@
 #define MAX_SW_DIODE_SIZE 32
 
 
+
+void passThroughFunc(float *data_in, float *data_out, uint32_t len) {
+    for (uint32_t i = 0; i < len; i++) {
+        data_out[i] = data_in[i];
+    }
+}
+
+
 #define Vector_SIZE_OF_X_U_CUR (BUFFER_SIZE_OF_CUR_X_U / 16)
 inline float* retrieveMatrixOFfsetBaseOnState(const uint32_t state, const int32_t matrix_size, float* matrix_ptr) {
 
@@ -38,10 +46,46 @@ float* mv_16_row_with_STATE_U_SIZE_col(float * matrix,
         accum_temp = mac_elem_16_accuracy_safe(a, b, accum_temp, 0, 0, 0);
     }
 
-    // --- Main loop from index = 1, step += 2 ---
-    AIE_PREPARE_FOR_PIPELINING
-    AIE_LOOP_RANGE((loop_iter - 1) / 2, (loop_iter - 1) / 2)
-    for (uint32_t col = 1; col + 1 < loop_iter; col += 2) {
+    // // --- Main loop from index = 1, step += 2 ---
+    // AIE_PREPARE_FOR_PIPELINING
+    // AIE_LOOP_RANGE((loop_iter - 1) / 2, (loop_iter - 1) / 2)
+    // for (uint32_t col = 1; col + 1 < loop_iter; col += 2) {
+    //     const uint32_t col_div_16 = col / 16;
+    //     const uint32_t col_mod_16 = col % 16;
+
+    //     aie::vector<float, 16> a = aie::load_v<16>(matrix);
+    //     matrix += 16;
+    //     aie::vector<float, 16> b = aie::broadcast<float, 16>((x_u_cur + col_div_16)->get(col_mod_16));
+
+    //     const uint32_t col_div_16_2 = (col + 1) / 16;
+    //     const uint32_t col_mod_16_2 = (col + 1) % 16;
+    //     aie::vector<float, 16> a2 = aie::load_v<16>(matrix);
+    //     matrix += 16;
+    //     aie::vector<float, 16> b2 = aie::broadcast<float, 16>((x_u_cur + col_div_16_2)->get(col_mod_16_2));
+
+    //     accum_temp = mac_elem_16_accuracy_safe(
+    //         a2, b2,
+    //         mac_elem_16_accuracy_safe(a, b, accum_temp, 0, 0, 0),
+    //         0, 0, 0
+    //     );
+    // }
+
+    // // --- Tail case if loop_iter is even and last index wasn't processed ---
+    // #if (U_SIZE + STATE_SIZE) % 2 == 0
+
+    //     const uint32_t last = loop_iter - 1;
+    //     const uint32_t col_div_16 = last / 16;
+    //     const uint32_t col_mod_16 = last % 16;
+
+    //     aie::vector<float, 16> a = aie::load_v<16>(matrix);
+    //     matrix += 16;
+    //     aie::vector<float, 16> b = aie::broadcast<float, 16>((x_u_cur + col_div_16)->get(col_mod_16));
+
+    //     accum_temp = mac_elem_16_accuracy_safe(a, b, accum_temp, 0, 0, 0);
+
+    // #endif
+    for (uint32_t col = 1; col  < loop_iter; col ++) {
+
         const uint32_t col_div_16 = col / 16;
         const uint32_t col_mod_16 = col % 16;
 
@@ -49,33 +93,36 @@ float* mv_16_row_with_STATE_U_SIZE_col(float * matrix,
         matrix += 16;
         aie::vector<float, 16> b = aie::broadcast<float, 16>((x_u_cur + col_div_16)->get(col_mod_16));
 
-        const uint32_t col_div_16_2 = (col + 1) / 16;
-        const uint32_t col_mod_16_2 = (col + 1) % 16;
-        aie::vector<float, 16> a2 = aie::load_v<16>(matrix);
-        matrix += 16;
-        aie::vector<float, 16> b2 = aie::broadcast<float, 16>((x_u_cur + col_div_16_2)->get(col_mod_16_2));
-
-        accum_temp = mac_elem_16_accuracy_safe(
-            a2, b2,
-            mac_elem_16_accuracy_safe(a, b, accum_temp, 0, 0, 0),
-            0, 0, 0
-        );
+        accum_temp = mac_elem_16_accuracy_safe(a, b, accum_temp, 0, 0, 0);
+  
     }
 
-    // --- Tail case if loop_iter is even and last index wasn't processed ---
-    #if (U_SIZE + STATE_SIZE) % 2 == 0
 
-        const uint32_t last = loop_iter - 1;
-        const uint32_t col_div_16 = last / 16;
-        const uint32_t col_mod_16 = last % 16;
+
+    return matrix;
+}
+
+template<uint32_t start_col, uint32_t end_col>
+float* mv_16_row_with_STATE_U_SIZE_col_with_column_offset(float * matrix,
+    aie::vector<float, 16> *x_u_cur, aie::accum<accfloat, 16> &accum_temp
+){
+
+    AIE_PREPARE_FOR_PIPELINING
+    AIE_LOOP_RANGE( (end_col-start_col), (end_col-start_col))
+    for (uint32_t col = start_col; col  < end_col; col ++) {
+
+        const uint32_t col_div_16 = col / 16;
+        const uint32_t col_mod_16 = col % 16;
 
         aie::vector<float, 16> a = aie::load_v<16>(matrix);
         matrix += 16;
         aie::vector<float, 16> b = aie::broadcast<float, 16>((x_u_cur + col_div_16)->get(col_mod_16));
 
         accum_temp = mac_elem_16_accuracy_safe(a, b, accum_temp, 0, 0, 0);
+  
+    }
 
-    #endif
+
 
     return matrix;
 }
@@ -214,20 +261,58 @@ void mult_with_C1_DSW(float *C1_DSW_mat, aie::vector<float, 16> *x_u_cur, uint32
 
 
 void mult_with_C1_DSW_lock_aware(float *C1_DSW_mat, aie::vector<float, 16> *x_u_cur, uint32_t* c1_res_mask, 
-    float*out // for debug
+    float*out, // for debug
+    const uint32_t prod_lock,
+    const uint32_t con_lock
 ){
 
 
     
     constexpr uint32_t C1_DSW_ROW_SIZE_DIV_16 = C1_DSW_ROW_SIZE/16;
     static_assert (32 >= 5*C1_DSW_ROW_SIZE_DIV_16 ); // # only allow 32 switch/diode
+    uint32_t row = 0;
+    {
 
-    uint32_t c1_res_offset = 0;
+        aie::accum<accfloat, 16> C1_DSW_temp = aie::zeros<accfloat, 16>();
+        acquire_greater_equal(con_lock, 1);
+        C1_DSW_mat = mv_16_row_with_STATE_U_SIZE_col_with_column_offset<0,1>(
+            C1_DSW_mat, x_u_cur, C1_DSW_temp
+        );
+        release(prod_lock, 1);
+
+        acquire_greater_equal(con_lock, 1);
+        C1_DSW_mat = mv_16_row_with_STATE_U_SIZE_col_with_column_offset<1,  U_SIZE + STATE_SIZE>(
+            C1_DSW_mat, x_u_cur, C1_DSW_temp
+        );  
 
 
+        aie::mask<16> lt_res_mask = aie::lt< aie::vector<float, 16> , float>(  C1_DSW_temp ,0);
+        aie::mask<16> gt_res_mask = aie::gt< aie::vector<float, 16> , float>(  C1_DSW_temp ,0);
+
+
+        uint32_t impulse_mask = 0b11111;
+        uint32_t natural_mask = impulse_mask<<5;
+        uint32_t diode_next_mask  = natural_mask<< 5;
+        
+        uint32_t gt_res = gt_res_mask.to_uint32() & 0x0000FFFF;
+        uint32_t lt_res = lt_res_mask.to_uint32() & 0x0000FFFF;
+        uint32_t iteration_bit_shift = 5*row;
+
+        c1_res_mask[0] |=  (gt_res&impulse_mask)<< iteration_bit_shift;
+        c1_res_mask[1] |=  (lt_res&impulse_mask)<< iteration_bit_shift;
+
+        c1_res_mask[2] |=  (((gt_res&natural_mask) >> 5) &0x1F)  << iteration_bit_shift;
+        c1_res_mask[3] |=  (((lt_res&natural_mask) >> 5) &0x1F)<< iteration_bit_shift;
+
+        c1_res_mask[4] |= (((gt_res&diode_next_mask) >> 10) &0x1F) << iteration_bit_shift;
+        c1_res_mask[5] |= (((lt_res&diode_next_mask) >>10) & 0x1F) << iteration_bit_shift;
+
+    }
+
+    #if  C1_DSW_ROW_SIZE_DIV_16 > 1
     AIE_PREPARE_FOR_PIPELINING
-    AIE_LOOP_RANGE(C1_DSW_ROW_SIZE_DIV_16,C1_DSW_ROW_SIZE_DIV_16)    
-    for(uint32_t row = 0; row < C1_DSW_ROW_SIZE_DIV_16; row++){
+    AIE_LOOP_RANGE(C1_DSW_ROW_SIZE_DIV_16-1,C1_DSW_ROW_SIZE_DIV_16-1)    
+    for( row = 1; row < C1_DSW_ROW_SIZE_DIV_16; row++){
 
         aie::accum<accfloat, 16> C1_DSW_temp = aie::zeros<accfloat, 16>();
 
@@ -256,6 +341,8 @@ void mult_with_C1_DSW_lock_aware(float *C1_DSW_mat, aie::vector<float, 16> *x_u_
         c1_res_mask[4] |= (((gt_res&diode_next_mask) >> 10) &0x1F) << iteration_bit_shift;
         c1_res_mask[5] |= (((lt_res&diode_next_mask) >>10) & 0x1F) << iteration_bit_shift;
     }
+    #endif
+    release(prod_lock, 1);    
 
 }
 
@@ -331,12 +418,38 @@ void mult_with_A_B_To_Vector_Array(float *A_B_C_D_mat, aie::vector<float, 16> *x
 
 
 template<uint32_t X_NEXT_BUFFER_SIZE>
-void mult_with_A_B_To_Vector_Array_with_lock_aware(float *A_B_C_D_mat, aie::vector<float, 16> *x_u_cur,  aie::vector<float, 16> *x_next_res){
+void mult_with_A_B_To_Vector_Array_with_lock_aware(float *A_B_C_D_mat, aie::vector<float, 16> *x_u_cur,  aie::vector<float, 16> *x_next_res,
+    const uint32_t prod_lock, const uint32_t con_lock
+){
     static_assert(X_NEXT_BUFFER_SIZE == STATE_SIZE_CEIL_TO_16);
     constexpr uint32_t loop_iteration = STATE_SIZE_CEIL_TO_16/16;
+
+
+    uint32_t row = 0;
+    {
+    
+        aie::accum<accfloat, 16> ABtemp = aie::zeros<accfloat, 16>();
+        acquire_greater_equal(con_lock, 1);
+        A_B_C_D_mat = mv_16_row_with_STATE_U_SIZE_col_with_column_offset<0,1>(
+            A_B_C_D_mat, 
+            x_u_cur,
+            ABtemp
+        );
+        release(prod_lock, 1);
+        acquire_greater_equal(con_lock, 1);
+        A_B_C_D_mat = mv_16_row_with_STATE_U_SIZE_col_with_column_offset<1,  U_SIZE + STATE_SIZE>(
+            A_B_C_D_mat, 
+            x_u_cur,
+            ABtemp
+        );
+
+        *(x_next_res+row) = ABtemp.template to_vector<float>();  
+    }
+
+    #if loop_iteration > 1
     AIE_PREPARE_FOR_PIPELINING
-    AIE_LOOP_RANGE(loop_iteration, loop_iteration)
-    for(uint32_t row = 0; row < loop_iteration; row++){
+    AIE_LOOP_RANGE(loop_iteration-1, loop_iteration-1)
+    for(uint32_t row = 1; row < loop_iteration; row++){
         aie::accum<accfloat, 16> ABtemp = aie::zeros<accfloat, 16>();
         A_B_C_D_mat = mv_16_row_with_STATE_U_SIZE_col(
             A_B_C_D_mat, 
@@ -347,6 +460,8 @@ void mult_with_A_B_To_Vector_Array_with_lock_aware(float *A_B_C_D_mat, aie::vect
 
         *(x_next_res+row) = ABtemp.template to_vector<float>(); 
     }
+    #endif
+    release(prod_lock, 1);    
 }
 
 
@@ -461,14 +576,42 @@ void mult_with_C_D_aligned_nonimpulse_only(float *C_D_mat, aie::vector<float, 16
 
 }
 
-void mult_with_C_D_aligned_nonimpulse_only_lock_aware(float *C_D_mat, aie::vector<float, 16> *x_u_cur, float*out){
+void mult_with_C_D_aligned_nonimpulse_only_lock_aware(float *C_D_mat, aie::vector<float, 16> *x_u_cur, float*out,
+    const uint32_t prod_natural_matrix, const uint32_t con_natural_matrix,
+    const uint32_t prod_impulse_matrix, const uint32_t con_impulse_matrix
+){
 
     static_assert(Y_SIZE_CEIL_TO_16%16 == 0);
     constexpr uint32_t num_of_iteration = Y_SIZE_CEIL_TO_16/16;
 
+
+
+    uint32_t row = 0;
+
+    {
+        aie::accum<accfloat, 16> C_D_temp = aie::zeros<accfloat, 16>();
+        acquire_greater_equal(con_natural_matrix,1);
+        C_D_mat= mv_16_row_with_STATE_U_SIZE_col_with_column_offset<0,1>(
+            C_D_mat, 
+            x_u_cur,
+            C_D_temp
+        );
+        release(prod_natural_matrix,1);
+        acquire_greater_equal(con_natural_matrix,1);
+        C_D_mat= mv_16_row_with_STATE_U_SIZE_col_with_column_offset<1, U_SIZE+STATE_SIZE>(
+            C_D_mat, 
+            x_u_cur,
+            C_D_temp
+        );        
+        // now write the result back to out, since only consider the non-impulse response result
+        aie::store_v(out, C_D_temp.template to_vector<float>());    
+        out += 16;
+
+    }
+    #if num_of_iteration > 1
     AIE_PREPARE_FOR_PIPELINING
-    AIE_LOOP_RANGE( num_of_iteration, num_of_iteration)
-    for(uint32_t row = 0; row < num_of_iteration; row++){
+    AIE_LOOP_RANGE( num_of_iteration-1, num_of_iteration-1)
+    for(row=1; row < num_of_iteration; row++){
         aie::accum<accfloat, 16> C_D_temp = aie::zeros<accfloat, 16>();
            
         C_D_mat= mv_16_row_with_STATE_U_SIZE_col(
@@ -480,6 +623,12 @@ void mult_with_C_D_aligned_nonimpulse_only_lock_aware(float *C_D_mat, aie::vecto
         aie::store_v(out, C_D_temp.template to_vector<float>());    
         out += 16;
     }
+    #endif
+    release(prod_natural_matrix,1);
+    
+    acquire_greater_equal(con_impulse_matrix,1);
+
+    release(prod_impulse_matrix,1);
 
 
 }
@@ -605,7 +754,12 @@ void mult_with_C_D_aligned_nonimpulse_and_impulse_FULLY_UNROLL(float *C_D_mat, a
 }
 
 
-void mult_with_C_D_aligned_nonimpulse_and_impulse_lock_aware(float *C_D_mat, aie::vector<float, 16> *x_u_cur, float*out){
+void mult_with_C_D_aligned_nonimpulse_and_impulse_lock_aware(float *C_D_mat, aie::vector<float, 16> *x_u_cur, float*out,
+
+    const uint32_t prod_natural_matrix, const uint32_t con_natural_matrix,
+    const uint32_t prod_impulse_matrix, const uint32_t con_impulse_matrix
+
+){
 
     static_assert(Y_SIZE_CEIL_TO_16%16 == 0);
     constexpr uint32_t num_of_iteration = (2*Y_SIZE_CEIL_TO_16)/16;
@@ -614,10 +768,26 @@ void mult_with_C_D_aligned_nonimpulse_and_impulse_lock_aware(float *C_D_mat, aie
 
     aie::vector<float, 16> C_D_nonimp_res [Y_SIZE_CEIL_TO_16_DIV_16];
     
+
+    uint32_t row = 0;
+    {
+        aie::accum<accfloat, 16> C_D_temp = aie::zeros<accfloat, 16>();
+       
+        acquire_greater_equal(con_natural_matrix, 1);
+        C_D_mat = mv_16_row_with_STATE_U_SIZE_col_with_column_offset<0,1>(C_D_mat, x_u_cur, C_D_temp);
+        release(prod_natural_matrix, 1);
+
+        acquire_greater_equal(con_natural_matrix, 1);
+        C_D_mat = mv_16_row_with_STATE_U_SIZE_col_with_column_offset<1, U_SIZE+STATE_SIZE>(C_D_mat, x_u_cur, C_D_temp);
+
+        C_D_nonimp_res[row] = C_D_temp.template to_vector<float>();
+    }
+
+    #if (num_of_iteration/2) > 1
     // loop one, write the c_D_nonimpulse result to C_D_nonimp_res
     AIE_PREPARE_FOR_PIPELINING
-    AIE_LOOP_RANGE( num_of_iteration/2, num_of_iteration/2)
-    for(uint32_t row = 0; row < num_of_iteration/2; row++){
+    AIE_LOOP_RANGE( num_of_iteration/2-1, num_of_iteration/2-1)
+    for(uint32_t row = 1; row < num_of_iteration/2; row++){
         event0();
         aie::accum<accfloat, 16> C_D_temp = aie::zeros<accfloat, 16>();
        
@@ -627,12 +797,18 @@ void mult_with_C_D_aligned_nonimpulse_and_impulse_lock_aware(float *C_D_mat, aie
         C_D_nonimp_res[row] = C_D_temp.template to_vector<float>();
         event0();
     }
+    #endif
+    release(prod_natural_matrix, 1);
 
+
+
+
+    acquire_greater_equal(con_impulse_matrix, 1);
     // another loop that calculdate C_D_impulse result
     // loop one, write the c_D_nonimpulse result to C_D_nonimp_res
     AIE_PREPARE_FOR_PIPELINING
     AIE_LOOP_RANGE( num_of_iteration/2, num_of_iteration/2)
-    for(uint32_t row = 0; row < num_of_iteration/2; row++){
+    for( row = 0; row < num_of_iteration/2; row++){
         event0();
         aie::accum<accfloat, 16> C_D_temp = aie::zeros<accfloat, 16>();
         C_D_mat =  mv_16_row_with_STATE_U_SIZE_col(
@@ -647,6 +823,7 @@ void mult_with_C_D_aligned_nonimpulse_and_impulse_lock_aware(float *C_D_mat, aie
         out+=16;
         event0();
     }
+    release(prod_impulse_matrix,1);
 }
 
 
@@ -669,4 +846,26 @@ bool update_x_u_cur_with_input(aie::vector<float, 16> *x_u_cur, float*in, uint32
     in++;
     return toggled;
 }
+
+void settle_C1_DSW(uint32_t state_ind,
+    float*C1_DSW_Buffer,
+    uint32_t BD_0_1_val,
+    const uint32_t control_packet_out_prod_lock, const uint32_t control_packet_out_con_lock,
+    uint32_t* control_packet_out_buf,
+    const uint32_t C1_DSW_matrix_prod_lock, const uint32_t C1_DSW_matrix_con_lock,
+    float* C1_DSW_matrix_buffer
+);
+
+void settle_ABCD(uint32_t state_ind,
+    float*ABCD_buffer,
+    uint32_t BD_0_1_val,
+    const uint32_t control_packet_out_prod_lock, const uint32_t control_packet_out_con_lock,
+    uint32_t* control_packet_out_buf,
+    const uint32_t AB_matrix_prod_lock, const uint32_t AB_matrix_con_lock,
+    const uint32_t CD_natural_matrix_prod_lock, const uint32_t CD_natural_matrix_con_lock,
+    const uint32_t CD_impulse_matrix_prod_lock, const uint32_t CD_impulse_matrix_con_lock,
+    float* AB_matrix_buffer,
+    float *CD_natural_impulse_matrix_buffer
+);
+
 #endif

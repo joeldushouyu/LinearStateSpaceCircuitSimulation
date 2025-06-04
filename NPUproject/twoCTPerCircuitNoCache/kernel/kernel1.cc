@@ -228,19 +228,14 @@ void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur,
         request_C1DSW_matrix(externalSwitchDiodeState, control_packet_out_prod_lock, control_packet_out_con_lock, control_packet_out_buf,
             BD_0_1_val
         );
-
-        acquire_greater_equal(C1_DSW_matrix_con_lock, 1);
-        // passThroughFunc( C1_DSW_matrix_buffer,  C1_DSW_Buffer+  C1_offset, 16);
-        release(C1_DSW_matrix_prod_lock, 1);
-
-        acquire_greater_equal(C1_DSW_matrix_con_lock, 1);
         // passThroughFunc( C1_DSW_matrix_buffer+16,  C1_DSW_Buffer+  C1_offset+16, (C1_DSW_MATRIX_SIZE-16));
         // release(C1_DSW_matrix_prod_lock, 1);
         mult_with_C1_DSW_lock_aware(
             C1_DSW_matrix_buffer, //retrieveMatrixOFfsetBaseOnState(externalSwitchDiodeState,C1_DSW_MATRIX_SIZE  ,C1_DSW_Buffer),
             x_u_cur,
             C1_Mask_Res,
-            out // for debug, doe snot write back anymore
+            out, // for debug, doe snot write back anymore
+            C1_DSW_matrix_prod_lock, C1_DSW_matrix_con_lock
         );
         bool diode_change = diode_toggle_update2(
             external_switch_toggled, externalSwitchDiodeState, 
@@ -248,7 +243,7 @@ void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur,
             C1_Mask_Res[2], C1_Mask_Res[3],
             C1_Mask_Res[4], C1_Mask_Res[5]
         );
-        release(C1_DSW_matrix_prod_lock, 1);
+
         
 
         // write externalSwitchDiodeState_buf,
@@ -275,15 +270,6 @@ void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur,
         );
         // //Send 16 value of AB matrix to me
         uint32_t AB_rel_offset = externalSwitchDiodeState*A_B_C_D_MATRIX_SIZE + C1_DSW_BUFFER_SIZE;
-        acquire_greater_equal(AB_matrix_con_lock, 1);
-        //passThroughFunc(AB_matrix_buffer, ABCD_buffer+ externalSwitchDiodeState*A_B_C_D_MATRIX_SIZE, 16  );
-        release(AB_matrix_prod_lock, 1);
-
-        // // send rest of AB matrix to me
-        acquire_greater_equal(AB_matrix_con_lock, 1);
-        //passThroughFunc(AB_matrix_buffer+16, ABCD_buffer+ externalSwitchDiodeState*A_B_C_D_MATRIX_SIZE+16,  (AB_MAT_SIZE-16) );
-        // release(AB_matrix_prod_lock, 1);
-
 
         event0();
         float *AB_ptr = AB_matrix_buffer;
@@ -309,8 +295,9 @@ void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur,
         static_assert( STATE_SIZE_CEIL_TO_16<=   X_U_cur_vector_size*16);
         // aie::vector<float, 16> x_next_temp [STATE_SIZE_CEIL_TO_16/16];
         
-        mult_with_A_B_To_Vector_Array_with_lock_aware<STATE_SIZE_CEIL_TO_16>(AB_ptr, x_u_cur, x_u_cur);
-        release(AB_matrix_prod_lock, 1);
+        mult_with_A_B_To_Vector_Array_with_lock_aware<STATE_SIZE_CEIL_TO_16>(AB_ptr, x_u_cur, x_u_cur,
+            AB_matrix_prod_lock, AB_matrix_con_lock
+        );
         // mult_with_A_B_To_Vector_Array_with_lock_aware<STATE_SIZE_CEIL_TO_16>(ABCD_ptr, x_u_cur, x_u_cur);
         // mult_with_A_B_To_Vector_Array_FULLY_UNROLL<STATE_SIZE_CEIL_TO_16>(ABCD_ptr, x_u_cur, x_u_cur);
 

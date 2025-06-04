@@ -59,16 +59,16 @@ void iterationOutput(
 
         uint32_t CD_rel_offset = externalSwitchDiodeState*A_B_C_D_MATRIX_SIZE + C1_DSW_BUFFER_SIZE + AB_MAT_SIZE;
     //    // send 16 value of CD_natural matrix to me
-        acquire_greater_equal(CD_natural_matrix_con_lock, 1);
-        //passThroughFunc(CD_natural_impulse_matrix_buffer,ABCD_buffer+ externalSwitchDiodeState*A_B_C_D_MATRIX_SIZE+AB_MAT_SIZE, 16  );
-        release(CD_natural_matrix_prod_lock, 1);
-        // // send rest of CD_natural
-        acquire_greater_equal(CD_natural_matrix_con_lock, 1);
-        //passThroughFunc(CD_natural_impulse_matrix_buffer+16,ABCD_buffer+ externalSwitchDiodeState*A_B_C_D_MATRIX_SIZE+AB_MAT_SIZE+16, CD_NAT_OR_IMP_MAT_SIZE-16  );
-        release(CD_natural_matrix_prod_lock, 1);            
+        // acquire_greater_equal(CD_natural_matrix_con_lock, 1);
+        // //passThroughFunc(CD_natural_impulse_matrix_buffer,ABCD_buffer+ externalSwitchDiodeState*A_B_C_D_MATRIX_SIZE+AB_MAT_SIZE, 16  );
+        // release(CD_natural_matrix_prod_lock, 1);
+        // // // send rest of CD_natural
+        // acquire_greater_equal(CD_natural_matrix_con_lock, 1);
+        // //passThroughFunc(CD_natural_impulse_matrix_buffer+16,ABCD_buffer+ externalSwitchDiodeState*A_B_C_D_MATRIX_SIZE+AB_MAT_SIZE+16, CD_NAT_OR_IMP_MAT_SIZE-16  );
+        // release(CD_natural_matrix_prod_lock, 1);            
 
-        // receive CD_impulse
-        acquire_greater_equal(CD_impulse_matrix_con_lock, 1);
+        // // receive CD_impulse
+        // acquire_greater_equal(CD_impulse_matrix_con_lock, 1);
         //passThroughFunc( CD_natural_impulse_matrix_buffer+CD_NAT_OR_IMP_MAT_SIZE,ABCD_buffer+ externalSwitchDiodeState*A_B_C_D_MATRIX_SIZE+AB_MAT_SIZE+CD_NAT_OR_IMP_MAT_SIZE, CD_NAT_OR_IMP_MAT_SIZE   );
         // release(CD_impulse_matrix_prod_lock, 1);
 
@@ -79,7 +79,9 @@ void iterationOutput(
             mult_with_C_D_aligned_nonimpulse_and_impulse_lock_aware(
                 CD_natural_impulse_matrix_buffer,
                 x_u_cur,
-                out + k*OUTPUT_SIZE_PER_ITERATION
+                out + k*OUTPUT_SIZE_PER_ITERATION,
+                CD_natural_matrix_prod_lock, CD_natural_matrix_con_lock,
+                CD_impulse_matrix_prod_lock, CD_impulse_matrix_con_lock
             );
             // mult_with_C_D_aligned_nonimpulse_and_impulse_lock_aware(
             //     ABCD_ptr  +(STATE_SIZE+U_SIZE)*STATE_SIZE_CEIL_TO_16,
@@ -110,7 +112,9 @@ void iterationOutput(
             mult_with_C_D_aligned_nonimpulse_only_lock_aware(
                 CD_natural_impulse_matrix_buffer,
                 x_u_cur,
-                out + k*OUTPUT_SIZE_PER_ITERATION
+                out + k*OUTPUT_SIZE_PER_ITERATION,
+                CD_natural_matrix_prod_lock, CD_natural_matrix_con_lock,
+                CD_impulse_matrix_prod_lock, CD_impulse_matrix_con_lock                
             );
             // mult_with_C_D_aligned_nonimpulse_only_lock_aware(
             //     ABCD_ptr  +(STATE_SIZE+U_SIZE)*STATE_SIZE_CEIL_TO_16,
@@ -141,7 +145,7 @@ void iterationOutput(
 
 
         event1();
-        release(CD_impulse_matrix_prod_lock, 1);
+        // release(CD_impulse_matrix_prod_lock, 1);
     }
 
 }
