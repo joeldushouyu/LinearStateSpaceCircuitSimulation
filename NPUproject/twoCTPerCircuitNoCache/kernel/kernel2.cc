@@ -27,7 +27,12 @@
 void iterationOutput(
     float*out, 
     float*ABCD_buffer, 
-    uint32_t *C_D_matrix_select_buffer
+    uint32_t *C_D_matrix_select_buffer,
+
+    const uint32_t CD_natural_matrix_prod_lock, const uint32_t CD_natural_matrix_con_lock,
+    const uint32_t CD_impulse_matrix_prod_lock, const uint32_t CD_impulse_matrix_con_lock,     
+    float *CD_natural_impulse_matrix_buffer
+
 ){
     aie::vector<float, 16> x_u_cur [Vector_SIZE_OF_X_U_CUR];
 
@@ -52,15 +57,35 @@ void iterationOutput(
         uint32_t externalSwitchDiodeState = *C_D_matrix_select_buffer;
 
 
+        uint32_t CD_rel_offset = externalSwitchDiodeState*A_B_C_D_MATRIX_SIZE + C1_DSW_BUFFER_SIZE + AB_MAT_SIZE;
+    //    // send 16 value of CD_natural matrix to me
+        acquire_greater_equal(CD_natural_matrix_con_lock, 1);
+        //passThroughFunc(CD_natural_impulse_matrix_buffer,ABCD_buffer+ externalSwitchDiodeState*A_B_C_D_MATRIX_SIZE+AB_MAT_SIZE, 16  );
+        release(CD_natural_matrix_prod_lock, 1);
+        // // send rest of CD_natural
+        acquire_greater_equal(CD_natural_matrix_con_lock, 1);
+        //passThroughFunc(CD_natural_impulse_matrix_buffer+16,ABCD_buffer+ externalSwitchDiodeState*A_B_C_D_MATRIX_SIZE+AB_MAT_SIZE+16, CD_NAT_OR_IMP_MAT_SIZE-16  );
+        release(CD_natural_matrix_prod_lock, 1);            
+
+        // receive CD_impulse
+        acquire_greater_equal(CD_impulse_matrix_con_lock, 1);
+        //passThroughFunc( CD_natural_impulse_matrix_buffer+CD_NAT_OR_IMP_MAT_SIZE,ABCD_buffer+ externalSwitchDiodeState*A_B_C_D_MATRIX_SIZE+AB_MAT_SIZE+CD_NAT_OR_IMP_MAT_SIZE, CD_NAT_OR_IMP_MAT_SIZE   );
+        // release(CD_impulse_matrix_prod_lock, 1);
+
         event0();
         float *ABCD_ptr = retrieveMatrixOFfsetBaseOnState(externalSwitchDiodeState,A_B_C_D_MATRIX_SIZE  ,ABCD_buffer);
         //float *CD_ptr = retrieveMatrixOFfsetBaseOnState(externalSwitchDiodeState,2*CD_NAT_OR_IMP_MAT_SIZE ,ABCD_buffer+AB_BUFFER_SIZE);
         if(*(C_D_matrix_select_buffer+1) == 1){
             mult_with_C_D_aligned_nonimpulse_and_impulse_lock_aware(
-                ABCD_ptr  +(STATE_SIZE+U_SIZE)*STATE_SIZE_CEIL_TO_16,
+                CD_natural_impulse_matrix_buffer,
                 x_u_cur,
                 out + k*OUTPUT_SIZE_PER_ITERATION
             );
+            // mult_with_C_D_aligned_nonimpulse_and_impulse_lock_aware(
+            //     ABCD_ptr  +(STATE_SIZE+U_SIZE)*STATE_SIZE_CEIL_TO_16,
+            //     x_u_cur,
+            //     out + k*OUTPUT_SIZE_PER_ITERATION
+            // );
             // mult_with_C_D_aligned_nonimpulse_and_impulse_FULLY_UNROLL(
             //     CD_ptr,
             //     x_u_cur,
@@ -82,12 +107,16 @@ void iterationOutput(
             //     out + k*OUTPUT_SIZE_PER_ITERATION
             // );              
         }else{
-
             mult_with_C_D_aligned_nonimpulse_only_lock_aware(
-                ABCD_ptr  +(STATE_SIZE+U_SIZE)*STATE_SIZE_CEIL_TO_16,
+                CD_natural_impulse_matrix_buffer,
                 x_u_cur,
                 out + k*OUTPUT_SIZE_PER_ITERATION
             );
+            // mult_with_C_D_aligned_nonimpulse_only_lock_aware(
+            //     ABCD_ptr  +(STATE_SIZE+U_SIZE)*STATE_SIZE_CEIL_TO_16,
+            //     x_u_cur,
+            //     out + k*OUTPUT_SIZE_PER_ITERATION
+            // );
             // mult_with_C_D_aligned_nonimpulse_only_FULLY_UNROLL(
             //     CD_ptr,
             //     x_u_cur,
@@ -112,7 +141,7 @@ void iterationOutput(
 
 
         event1();
-     
+        release(CD_impulse_matrix_prod_lock, 1);
     }
 
 }
@@ -122,20 +151,32 @@ extern "C" {
     void CT_0_2_main( float* out, float*out_1,
     float *ABCD_buffer,
     uint32_t *C_D_matrix_select_buffer,
-    const int32_t buffer_out_prod_lock_id, const int32_t buffer_out_con_lock_id
+    const int32_t buffer_out_prod_lock_id, const int32_t buffer_out_con_lock_id,
 
+    const uint32_t CD_natural_matrix_prod_lock, const uint32_t CD_natural_matrix_con_lock,
+    const uint32_t CD_impulse_matrix_prod_lock, const uint32_t CD_impulse_matrix_con_lock,     
+    float *CD_natural_impulse_matrix_buffer
     ) {
         
 
         // TODO: do not acquire/realse out buffer here, since don by CT_0_3
 
-        for (uint64_t l = 0; l < PING_PONG_BUFFER_ITERATION; l+=2) {
+        for (uint64_t l = 0; l < PING_PONG_BUFFER_ITERATION; l++) {
             acquire_greater_equal(buffer_out_prod_lock_id , 1);
-            iterationOutput(out,ABCD_buffer,C_D_matrix_select_buffer); // ping
+            iterationOutput(out,ABCD_buffer,C_D_matrix_select_buffer,
+            
+                CD_natural_matrix_prod_lock,CD_natural_matrix_con_lock,
+                CD_impulse_matrix_prod_lock,CD_impulse_matrix_con_lock,     
+                CD_natural_impulse_matrix_buffer            
+            ); // ping
             release(buffer_out_con_lock_id , 1);
 
             acquire_greater_equal(buffer_out_prod_lock_id , 1);
-            iterationOutput(out_1,ABCD_buffer, C_D_matrix_select_buffer ); //pong
+            iterationOutput(out_1,ABCD_buffer, C_D_matrix_select_buffer,
+                CD_natural_matrix_prod_lock,CD_natural_matrix_con_lock,
+                CD_impulse_matrix_prod_lock,CD_impulse_matrix_con_lock,     
+                CD_natural_impulse_matrix_buffer                
+            ); //pong
             release(buffer_out_con_lock_id , 1);
         }
     }

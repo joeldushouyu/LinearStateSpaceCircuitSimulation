@@ -26,13 +26,6 @@
 
 
 
-void passThroughFunc(float *data_in, float *data_out, uint32_t len) {
-    for (uint32_t i = 0; i < len; i++) {
-        data_out[i] = data_in[i];
-    }
-}
-
-
 
 constexpr uint32_t tm_start_addr = 0x80000;
 static volatile uint32_t chess_storage(TM : tm_start_addr) addr_space_start;
@@ -201,8 +194,16 @@ void request_AB_CD_nat_impulse(uint32_t externalSwitchDiodeState,const uint32_t 
 template<uint32_t X_U_cur_vector_size>
 void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur, 
     float*C1_DSW_Buffer, float*ABCD_buffer, uint32_t &externalSwitchDiodeState,
-    uint32_t* C_D_matrix_select_buffer
+    uint32_t* C_D_matrix_select_buffer,
 
+    const uint32_t control_packet_out_prod_lock, const uint32_t control_packet_out_con_lock,
+    uint32_t* control_packet_out_buf,
+
+    const uint32_t BD_0_1_val,
+    const uint32_t C1_DSW_matrix_prod_lock, const uint32_t C1_DSW_matrix_con_lock,
+    const uint32_t AB_matrix_prod_lock, const uint32_t AB_matrix_con_lock,
+    float* C1_DSW_matrix_buffer,
+    float* AB_matrix_buffer
 ){
     
 
@@ -223,8 +224,20 @@ void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur,
         //     C1_Mask_Res,
         //     out // for debug, doe snot write back anymore
         // );
+        uint32_t C1_offset = externalSwitchDiodeState*C1_DSW_MATRIX_SIZE;
+        request_C1DSW_matrix(externalSwitchDiodeState, control_packet_out_prod_lock, control_packet_out_con_lock, control_packet_out_buf,
+            BD_0_1_val
+        );
+
+        acquire_greater_equal(C1_DSW_matrix_con_lock, 1);
+        // passThroughFunc( C1_DSW_matrix_buffer,  C1_DSW_Buffer+  C1_offset, 16);
+        release(C1_DSW_matrix_prod_lock, 1);
+
+        acquire_greater_equal(C1_DSW_matrix_con_lock, 1);
+        // passThroughFunc( C1_DSW_matrix_buffer+16,  C1_DSW_Buffer+  C1_offset+16, (C1_DSW_MATRIX_SIZE-16));
+        // release(C1_DSW_matrix_prod_lock, 1);
         mult_with_C1_DSW_lock_aware(
-            retrieveMatrixOFfsetBaseOnState(externalSwitchDiodeState,C1_DSW_MATRIX_SIZE  ,C1_DSW_Buffer),
+            C1_DSW_matrix_buffer, //retrieveMatrixOFfsetBaseOnState(externalSwitchDiodeState,C1_DSW_MATRIX_SIZE  ,C1_DSW_Buffer),
             x_u_cur,
             C1_Mask_Res,
             out // for debug, doe snot write back anymore
@@ -235,7 +248,7 @@ void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur,
             C1_Mask_Res[2], C1_Mask_Res[3],
             C1_Mask_Res[4], C1_Mask_Res[5]
         );
-      
+        release(C1_DSW_matrix_prod_lock, 1);
         
 
         // write externalSwitchDiodeState_buf,
@@ -256,10 +269,24 @@ void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur,
         }
 
 
+        request_AB_CD_nat_impulse(externalSwitchDiodeState, 
+            control_packet_out_prod_lock, control_packet_out_con_lock,
+            control_packet_out_buf, BD_0_1_val
+        );
+        // //Send 16 value of AB matrix to me
+        uint32_t AB_rel_offset = externalSwitchDiodeState*A_B_C_D_MATRIX_SIZE + C1_DSW_BUFFER_SIZE;
+        acquire_greater_equal(AB_matrix_con_lock, 1);
+        //passThroughFunc(AB_matrix_buffer, ABCD_buffer+ externalSwitchDiodeState*A_B_C_D_MATRIX_SIZE, 16  );
+        release(AB_matrix_prod_lock, 1);
 
+        // // send rest of AB matrix to me
+        acquire_greater_equal(AB_matrix_con_lock, 1);
+        //passThroughFunc(AB_matrix_buffer+16, ABCD_buffer+ externalSwitchDiodeState*A_B_C_D_MATRIX_SIZE+16,  (AB_MAT_SIZE-16) );
+        // release(AB_matrix_prod_lock, 1);
 
 
         event0();
+        float *AB_ptr = AB_matrix_buffer;
         float *ABCD_ptr = retrieveMatrixOFfsetBaseOnState(externalSwitchDiodeState,A_B_C_D_MATRIX_SIZE  ,ABCD_buffer);
         // float *ABCD_ptr = retrieveMatrixOFfsetBaseOnState(externalSwitchDiodeState,AB_MAT_SIZE  ,ABCD_buffer);
         // if( external_switch_toggled || !diode_change){
@@ -281,8 +308,10 @@ void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur,
 
         static_assert( STATE_SIZE_CEIL_TO_16<=   X_U_cur_vector_size*16);
         // aie::vector<float, 16> x_next_temp [STATE_SIZE_CEIL_TO_16/16];
-
-        mult_with_A_B_To_Vector_Array_with_lock_aware<STATE_SIZE_CEIL_TO_16>(ABCD_ptr, x_u_cur, x_u_cur);
+        
+        mult_with_A_B_To_Vector_Array_with_lock_aware<STATE_SIZE_CEIL_TO_16>(AB_ptr, x_u_cur, x_u_cur);
+        release(AB_matrix_prod_lock, 1);
+        // mult_with_A_B_To_Vector_Array_with_lock_aware<STATE_SIZE_CEIL_TO_16>(ABCD_ptr, x_u_cur, x_u_cur);
         // mult_with_A_B_To_Vector_Array_FULLY_UNROLL<STATE_SIZE_CEIL_TO_16>(ABCD_ptr, x_u_cur, x_u_cur);
 
    
@@ -355,6 +384,65 @@ extern "C" {
         // );
         // acquire_greater_equal(ABCD_con_lock , 1);  // all matrix are ready     
 
+        // // Now, Test to send command for shimtile to bring me data
+        // for(uint32_t state_ind = 0; state_ind < TOTAL_SWITCH_DIODE_STATE; state_ind++){
+        //     // // first request C1_DSW matrix
+
+        //     uint32_t C1_offset = state_ind*C1_DSW_MATRIX_SIZE;
+        //     request_C1DSW_matrix(state_ind, control_packet_out_prod_lock, control_packet_out_con_lock, control_packet_out_buf,
+        //         BD_0_1_val
+        //     );
+
+        //     acquire_greater_equal(C1_DSW_matrix_con_lock, 1);
+        //     passThroughFunc( C1_DSW_matrix_buffer,  C1_DSW_Buffer+  C1_offset, 16);
+        //     release(C1_DSW_matrix_prod_lock, 1);
+
+        //     acquire_greater_equal(C1_DSW_matrix_con_lock, 1);
+        //     passThroughFunc( C1_DSW_matrix_buffer+16,  C1_DSW_Buffer+  C1_offset+16, (C1_DSW_MATRIX_SIZE-16));
+        //     release(C1_DSW_matrix_prod_lock, 1);
+
+
+        //     request_AB_CD_nat_impulse(state_ind, 
+        //         control_packet_out_prod_lock, control_packet_out_con_lock,
+        //         control_packet_out_buf, BD_0_1_val
+        //     );
+        //     // //Send 16 value of AB matrix to me
+        //     uint32_t AB_rel_offset = state_ind*A_B_C_D_MATRIX_SIZE + C1_DSW_BUFFER_SIZE;
+        //     acquire_greater_equal(AB_matrix_con_lock, 1);
+        //     passThroughFunc(AB_matrix_buffer, ABCD_buffer+ state_ind*A_B_C_D_MATRIX_SIZE, 16  );
+        //     release(AB_matrix_prod_lock, 1);
+
+
+        //     uint32_t CD_rel_offset = state_ind*A_B_C_D_MATRIX_SIZE + C1_DSW_BUFFER_SIZE + AB_MAT_SIZE;
+        // //    // send 16 value of CD_natural matrix to me
+        //     acquire_greater_equal(CD_natural_matrix_con_lock, 1);
+        //     passThroughFunc(CD_natural_impulse_matrix_buffer,ABCD_buffer+ state_ind*A_B_C_D_MATRIX_SIZE+AB_MAT_SIZE, 16  );
+        //     release(CD_natural_matrix_prod_lock, 1);
+
+
+
+
+        //     // // send rest of AB matrix to me
+        //     acquire_greater_equal(AB_matrix_con_lock, 1);
+        //     passThroughFunc(AB_matrix_buffer+16, ABCD_buffer+ state_ind*A_B_C_D_MATRIX_SIZE+16,  (AB_MAT_SIZE-16) );
+        //     release(AB_matrix_prod_lock, 1);
+
+
+
+        //     // // send rest of CD_natural
+        //     acquire_greater_equal(CD_natural_matrix_con_lock, 1);
+        //     passThroughFunc(CD_natural_impulse_matrix_buffer+16,ABCD_buffer+ state_ind*A_B_C_D_MATRIX_SIZE+AB_MAT_SIZE+16, CD_NAT_OR_IMP_MAT_SIZE-16  );
+        //     release(CD_natural_matrix_prod_lock, 1);            
+
+        //     // receive CD_impulse
+        //     acquire_greater_equal(CD_impulse_matrix_con_lock, 1);
+        //     passThroughFunc( CD_natural_impulse_matrix_buffer+CD_NAT_OR_IMP_MAT_SIZE,ABCD_buffer+ state_ind*A_B_C_D_MATRIX_SIZE+AB_MAT_SIZE+CD_NAT_OR_IMP_MAT_SIZE, CD_NAT_OR_IMP_MAT_SIZE   );
+        //     release(CD_impulse_matrix_prod_lock, 1);
+        // }   
+
+        static_assert(PING_PONG_BUFFER_ITERATION%2 == 0);
+        for (uint64_t l = 0; l < PING_PONG_BUFFER_ITERATION; l++) {
+        /*
         // Now, Test to send command for shimtile to bring me data
         for(uint32_t state_ind = 0; state_ind < TOTAL_SWITCH_DIODE_STATE; state_ind++){
             // // first request C1_DSW matrix
@@ -409,17 +497,25 @@ extern "C" {
             acquire_greater_equal(CD_impulse_matrix_con_lock, 1);
             passThroughFunc( CD_natural_impulse_matrix_buffer+CD_NAT_OR_IMP_MAT_SIZE,ABCD_buffer+ state_ind*A_B_C_D_MATRIX_SIZE+AB_MAT_SIZE+CD_NAT_OR_IMP_MAT_SIZE, CD_NAT_OR_IMP_MAT_SIZE   );
             release(CD_impulse_matrix_prod_lock, 1);
-        }   
+        }   */
 
-        static_assert(PING_PONG_BUFFER_ITERATION%2 == 0);
-        for (uint64_t l = 0; l < PING_PONG_BUFFER_ITERATION; l+=2) {
             acquire_greater_equal(buffer_in_con_loc_id , 1);
 
 
 
       
             iteration_core<Vector_SIZE_OF_X_U_CUR>(
-                in,out, x_u_cur, C1_DSW_Buffer, ABCD_buffer, externalSwitchDiodeStates, C_D_matrix_select_buffer
+                in,out, x_u_cur, C1_DSW_Buffer, ABCD_buffer, externalSwitchDiodeStates, C_D_matrix_select_buffer,
+
+                control_packet_out_prod_lock, control_packet_out_con_lock,
+                control_packet_out_buf,
+
+                BD_0_1_val,
+                C1_DSW_matrix_prod_lock, C1_DSW_matrix_con_lock,
+                AB_matrix_prod_lock, AB_matrix_con_lock,
+                C1_DSW_matrix_buffer,
+                AB_matrix_buffer
+
             );
             
             release(buffer_in_prod_lock_id , 1);
@@ -428,7 +524,16 @@ extern "C" {
             acquire_greater_equal(buffer_in_con_loc_id , 1);
         
             iteration_core<Vector_SIZE_OF_X_U_CUR>(
-                in_1,out_1 , x_u_cur, C1_DSW_Buffer, ABCD_buffer, externalSwitchDiodeStates, C_D_matrix_select_buffer
+                in_1,out_1 , x_u_cur, C1_DSW_Buffer, ABCD_buffer, externalSwitchDiodeStates, C_D_matrix_select_buffer,
+
+                control_packet_out_prod_lock, control_packet_out_con_lock,
+                control_packet_out_buf,
+                
+                BD_0_1_val,
+                C1_DSW_matrix_prod_lock, C1_DSW_matrix_con_lock,
+                AB_matrix_prod_lock, AB_matrix_con_lock,
+                C1_DSW_matrix_buffer,
+                AB_matrix_buffer                
             );
 
             release(buffer_in_prod_lock_id , 1);
