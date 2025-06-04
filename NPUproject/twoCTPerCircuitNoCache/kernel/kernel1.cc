@@ -193,7 +193,7 @@ void request_AB_CD_nat_impulse(uint32_t externalSwitchDiodeState,const uint32_t 
 
 template<uint32_t X_U_cur_vector_size>
 void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur, 
-    float*C1_DSW_Buffer, float*ABCD_buffer, uint32_t &externalSwitchDiodeState,
+    uint32_t &externalSwitchDiodeState,
     uint32_t* C_D_matrix_select_buffer,
 
     const uint32_t control_packet_out_prod_lock, const uint32_t control_packet_out_con_lock,
@@ -265,7 +265,6 @@ void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur,
 
         event0();
         float *AB_ptr = AB_matrix_buffer;
-        float *ABCD_ptr = retrieveMatrixOFfsetBaseOnState(externalSwitchDiodeState,A_B_C_D_MATRIX_SIZE  ,ABCD_buffer);
 
 
 
@@ -291,9 +290,6 @@ extern "C" {
     void CT_main(float* in, float* out,
         float *in_1, float*out_1,
         const int32_t buffer_in_prod_lock_id, const int32_t buffer_in_con_loc_id,
-
-        const int32_t ABCD_con_lock,
-        float* C1_DSW_Buffer, float *ABCD_buffer,
         uint32_t* C_D_matrix_select_buffer, // Buffer for communication with CT_0_2
         
         const uint32_t control_packet_out_prod_lock, const uint32_t control_packet_out_con_lock,
@@ -343,7 +339,8 @@ extern "C" {
 
             acquire_greater_equal(buffer_in_con_loc_id , 1);
             iteration_core<Vector_SIZE_OF_X_U_CUR>(
-                in,out, x_u_cur, C1_DSW_Buffer, ABCD_buffer, externalSwitchDiodeStates, C_D_matrix_select_buffer,
+                in,out, x_u_cur, 
+                externalSwitchDiodeStates, C_D_matrix_select_buffer,
 
                 control_packet_out_prod_lock, control_packet_out_con_lock,
                 control_packet_out_buf,
@@ -362,7 +359,8 @@ extern "C" {
             acquire_greater_equal(buffer_in_con_loc_id , 1);
         
             iteration_core<Vector_SIZE_OF_X_U_CUR>(
-                in_1,out_1 , x_u_cur, C1_DSW_Buffer, ABCD_buffer, externalSwitchDiodeStates, C_D_matrix_select_buffer,
+                in_1,out_1 , x_u_cur, 
+                externalSwitchDiodeStates, C_D_matrix_select_buffer,
 
                 control_packet_out_prod_lock, control_packet_out_con_lock,
                 control_packet_out_buf,

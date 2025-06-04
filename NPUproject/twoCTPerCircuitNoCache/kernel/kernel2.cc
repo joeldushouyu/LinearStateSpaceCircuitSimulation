@@ -26,7 +26,6 @@
 
 void iterationOutput(
     float*out, 
-    float*ABCD_buffer, 
     uint32_t *C_D_matrix_select_buffer,
 
     const uint32_t CD_natural_matrix_prod_lock, const uint32_t CD_natural_matrix_con_lock,
@@ -59,8 +58,7 @@ void iterationOutput(
 
         uint32_t CD_rel_offset = externalSwitchDiodeState*A_B_C_D_MATRIX_SIZE + C1_DSW_BUFFER_SIZE + AB_MAT_SIZE;
         event0();
-        float *ABCD_ptr = retrieveMatrixOFfsetBaseOnState(externalSwitchDiodeState,A_B_C_D_MATRIX_SIZE  ,ABCD_buffer);
-        //float *CD_ptr = retrieveMatrixOFfsetBaseOnState(externalSwitchDiodeState,2*CD_NAT_OR_IMP_MAT_SIZE ,ABCD_buffer+AB_BUFFER_SIZE);
+
         if(*(C_D_matrix_select_buffer+1) == 1){
             mult_with_C_D_aligned_nonimpulse_and_impulse_lock_aware(
                 CD_natural_impulse_matrix_buffer,
@@ -91,7 +89,6 @@ void iterationOutput(
 
 extern "C" {
     void CT_0_2_main( float* out, float*out_1,
-    float *ABCD_buffer,
     uint32_t *C_D_matrix_select_buffer,
     const int32_t buffer_out_prod_lock_id, const int32_t buffer_out_con_lock_id,
 
@@ -105,7 +102,7 @@ extern "C" {
 
         for (uint64_t l = 0; l < PING_PONG_BUFFER_ITERATION; l++) {
             acquire_greater_equal(buffer_out_prod_lock_id , 1);
-            iterationOutput(out,ABCD_buffer,C_D_matrix_select_buffer,
+            iterationOutput(out,C_D_matrix_select_buffer,
             
                 CD_natural_matrix_prod_lock,CD_natural_matrix_con_lock,
                 CD_impulse_matrix_prod_lock,CD_impulse_matrix_con_lock,     
@@ -114,7 +111,7 @@ extern "C" {
             release(buffer_out_con_lock_id , 1);
 
             acquire_greater_equal(buffer_out_prod_lock_id , 1);
-            iterationOutput(out_1,ABCD_buffer, C_D_matrix_select_buffer,
+            iterationOutput(out_1, C_D_matrix_select_buffer,
                 CD_natural_matrix_prod_lock,CD_natural_matrix_con_lock,
                 CD_impulse_matrix_prod_lock,CD_impulse_matrix_con_lock,     
                 CD_natural_impulse_matrix_buffer                

@@ -114,56 +114,21 @@ def single_mat_vect_mult():
         # Tile declarations
         ShimTile_0 = tile(0,0)
         ShimTile_0.attributes["controlled_id"] = generate_packet_attribute(0,SHIMTILE_0_CONTROL_ID)
-        ShimTile_1 = tile(1, 0)
-        # ComputeTile_0_2 = tile(0,2)        
-        # ComputeTile_0_2 = tile(0,2, allocation_scheme="bank-aware")        
+        ShimTile_1 = tile(1, 0)        
         ComputeTile_0_2 = tile(0, 2,allocation_scheme="bank-aware") # round robin allocation bank allocation        
-        ComputeTile_0_3 = tile(0,3, allocation_scheme="basic-sequential")
+        ComputeTile_0_3 = tile(0,3, allocation_scheme="bank-aware")
 
-
-        
-        #NOTE: mem_bank flag seem not working anymore after Tile() is configure to basic-sequential address mode
-        offset = stack_size_in_byte
-        assert stack_size_in_byte %64 == 0
-
-        switch_diode_matrix_ty = np.ndarray[ (C1_DSW_buffer_size, ), dtype_in]
-        switch_diode_buffer = [
-            buffer_raw(tile=ComputeTile_0_3, buffer=try_convert_np_type_to_mlir_type(switch_diode_matrix_ty), sym_name=f"switch_diode_buffer", address=offset) 
-        ]
-        switch_diode_prod_lock =  lock(ComputeTile_0_3, lock_id=0, init=1, sym_name="switch_diode_prod_lock")
-        switch_diode_con_lock = lock(ComputeTile_0_3, lock_id=1, init=0, sym_name="switch_diode_con_lock")
-        offset+= C1_DSW_buffer_size*4
-        assert offset %64 == 0
-        
-
-        A_B_C_D_ty = np.ndarray[(A_B_C_D_buffer_size,  ), dtype_in]
-        A_B_C_D_buffer = [
-            buffer_raw(tile=ComputeTile_0_3, buffer=try_convert_np_type_to_mlir_type(A_B_C_D_ty), sym_name="A_B_C_D_buffer", address=offset)
-        ]
-        A_B_C_D_prod_lock = lock(ComputeTile_0_3, lock_id=2, init=2, sym_name="A_B_C_D_prod_lock")
-        A_B_C_D_con_lock = lock(ComputeTile_0_3, lock_id=3, init=0, sym_name="A_B_C_D_con_lock")
-        offset += A_B_C_D_buffer_size*4
-        assert offset %64 == 0
-        
         control_packet_ty = np.ndarray[ (16,),dtype_npuint32  ]
         control_packet_CT_out = [
-            buffer_raw(tile=ComputeTile_0_3, buffer = try_convert_np_type_to_mlir_type(control_packet_ty), 
-                       sym_name="control_packet_CT_out", address=offset
-                       )
-            
+            buffer(tile=ComputeTile_0_3, datatype=control_packet_ty, name="control_packet_CT_out" )
         ]
-        offset += 64
-        assert offset%64 == 0
+
         control_packet_CT_out_prod_lock = lock(ComputeTile_0_3, lock_id=4, init=1, sym_name="control_packet_CT_out_prod_lock")
         control_packet_CT_out_con_lock = lock(ComputeTile_0_3, lock_id=5, init=0, sym_name="control_packet_CT_out_con_lock")
 
         control_packet_CT_in = [
-            buffer_raw(tile=ComputeTile_0_3, buffer=try_convert_np_type_to_mlir_type(control_packet_ty),
-                       sym_name="control_packet_CT_in", address=offset
-                       )
+            buffer(tile=ComputeTile_0_3,datatype=control_packet_ty, name="control_packet_CT_in"   )
         ]
-        offset += 64        
-        assert offset%64 == 0
         control_packet_CT_in_prod_lock = lock(ComputeTile_0_3, lock_id=6, init=1, sym_name="control_packet_CT_in_prod_lock")
         control_packet_CT_in_con_lock = lock(ComputeTile_0_3, lock_id=7, init=0, sym_name="control_packet_CT_in_con_lock")
         
@@ -172,38 +137,28 @@ def single_mat_vect_mult():
         CD_natural_impulse_matrix_ty = np.ndarray[(CD_nat_or_imp_matrix_size*2, ), dtype_in]
         
         C1_DSW_matrix_buffer= [
-            buffer_raw(tile=ComputeTile_0_3, buffer=try_convert_np_type_to_mlir_type(C1_DSW_matrix_ty),
-                       sym_name="C1_DSW_matrix_buffer", address=offset
-                       )
+            buffer(tile=ComputeTile_0_3, datatype= C1_DSW_matrix_ty, name="C1_DSW_matrix_buffer")
         ]
         C1_DSW_matrix_prod_lock = lock(ComputeTile_0_3, lock_id=8, init=1, sym_name="C1_DSW_matrix_prod_lock")
         C1_DSW_matrix_con_lock = lock(ComputeTile_0_3, lock_id=9, init=0, sym_name="C1_DSW_matrix_con_lock")
-        offset += 4*C1_DSW_matrix_size
-        assert offset %64 == 0
+
         
         AB_matrix_buffer = [
-            buffer_raw(tile=ComputeTile_0_3, buffer=try_convert_np_type_to_mlir_type(AB_matrix_ty),
-                       sym_name="AB_matrix_buffer", address=offset
-                       )
+            buffer(tile=ComputeTile_0_3, datatype=AB_matrix_ty, name="AB_matrix_buffer")
             
         ]
         AB_matrix_prod_lock = lock(ComputeTile_0_3, lock_id=10, init=1, sym_name="AB_matrix_prod_lock")
         AB_matrix_con_lock = lock(ComputeTile_0_3, lock_id=11, init=0, sym_name="AB_matrix_con_lock")
-        offset += 4*AB_matrix_size
-        assert offset%64 == 0
+
         
         CD_natural_impulse_matrix_buffer = [
-            buffer_raw(tile=ComputeTile_0_3, buffer=try_convert_np_type_to_mlir_type(CD_natural_impulse_matrix_ty),
-                       sym_name="CD_natural_impulse_matrix_buffer", address=offset
-                       )
+            buffer(tile=ComputeTile_0_3, datatype=CD_natural_impulse_matrix_ty, name="CD_natural_impulse_matrix_buffer")
         ]
         CD_natural_matrix_prod_lock = lock(ComputeTile_0_3, lock_id=12, init=1, sym_name="CD_natural_impulse_matrix_prod_lock")
         CD_natural_matrix_con_lock = lock(ComputeTile_0_3, lock_id=13, init=0, sym_name="CD_natural_impulse_matrix_con_lock")
         CD_impulse_matrix_prod_lock = lock(ComputeTile_0_3, lock_id=14, init=1, sym_name="CD_impulse_matrix_prod_lock")
         CD_impulse_matrix_con_lock = lock(ComputeTile_0_3, lock_id=15, init=0, sym_name="CD_impulse_matrix_con_lock")
-        offset += 4*(2*CD_nat_or_imp_matrix_size)
-        assert offset%64 == 0        
-        assert offset <= (64*1024)  # total of less than 64kB
+
         
         
     
@@ -229,10 +184,6 @@ def single_mat_vect_mult():
         # then external_switch_toggled(uint32 0==false, else is true)
         # then diode_change  (uint32 0== false, else is true)
         C_D_matrix_select_ty = np.ndarray[ (3, ), np.dtype[np.uint32]]
-        # test_buf = [
-        #     buffer(tile=ComputeTile_0_2, datatype=C_D_matrix_select_ty, name="test_buf")   
-        # ]
-        
         C_D_matrix_select_buffer = [
             buffer(tile=ComputeTile_0_2, datatype=C_D_matrix_select_ty, name="C_D_matrix_select_buffer")   
         ]
@@ -356,8 +307,6 @@ def single_mat_vect_mult():
             in_data_ty, out_data_ty,
             in_data_ty, out_data_ty,            
             np.int32, np.int32,
-            np.int32,
-            switch_diode_matrix_ty, A_B_C_D_ty,
             C_D_matrix_select_ty,
             np.int32, np.int32,
             np.int32, np.int32,
@@ -379,8 +328,6 @@ def single_mat_vect_mult():
                 in_buffer[0], out_buffer[0],
                 in_buffer[1], out_buffer[1],                
                 constant(8),constant(9),
-                constant(48 +3 ),
-                switch_diode_buffer[0], A_B_C_D_buffer[0],
                 C_D_matrix_select_buffer[0],
                 constant(48+4), constant(48+5),
                 constant(48+6), constant(48+7),
@@ -398,7 +345,6 @@ def single_mat_vect_mult():
 
         CT_0_2_main_func = external_func("CT_0_2_main", inputs=[
             out_data_ty, out_data_ty,
-            A_B_C_D_ty,
             C_D_matrix_select_ty,
             np.int32, np.int32,
             np.int32, np.int32,
@@ -409,7 +355,6 @@ def single_mat_vect_mult():
         def core_body():
             CT_0_2_main_func(
                 out_buffer[0],out_buffer[1],
-                A_B_C_D_buffer[0],
                 C_D_matrix_select_buffer[0],
                 constant(10+48),constant(11+48),
                 constant(32+12), constant(32+13),
