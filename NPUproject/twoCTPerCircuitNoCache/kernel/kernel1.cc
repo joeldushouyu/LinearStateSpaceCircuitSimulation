@@ -167,23 +167,29 @@ void request_AB_CD_nat_impulse(uint32_t externalSwitchDiodeState,const uint32_t 
     uint32_t AB_rel_offset = externalSwitchDiodeState*A_B_C_D_MATRIX_SIZE + C1_DSW_BUFFER_SIZE;
     uint32_t CD_rel_offset = externalSwitchDiodeState*A_B_C_D_MATRIX_SIZE + C1_DSW_BUFFER_SIZE + AB_MAT_SIZE;
 
-    //Send 16 value of AB matrix to me
-    control_Shimtile_transfer(BD_0_1_val, 16, AB_rel_offset*4,
+    // //Send 16 value of AB matrix to me
+    // control_Shimtile_transfer(BD_0_1_val, 16, AB_rel_offset*4,
+    // control_packet_out_prod_lock, control_packet_out_con_lock, control_packet_out_buf
+    // );
+
+    // // send 16 value of CD_natural matrix to me
+    // control_Shimtile_transfer(BD_0_1_val, 16, CD_rel_offset*4,
+    // control_packet_out_prod_lock, control_packet_out_con_lock, control_packet_out_buf
+    // );
+    // // send rest of AB matrix to me
+    // control_Shimtile_transfer(BD_0_1_val, (AB_MAT_SIZE-16), (AB_rel_offset+16)*4,
+    // control_packet_out_prod_lock, control_packet_out_con_lock, control_packet_out_buf
+    // );        
+    // // send rest of CD_natural, and CD_impulse matrix to me
+    // control_Shimtile_transfer(BD_0_1_val, 2*CD_NAT_OR_IMP_MAT_SIZE-16, (CD_rel_offset+16)*4,
+    // control_packet_out_prod_lock, control_packet_out_con_lock, control_packet_out_buf
+    // );
+
+    //Send 
+    control_Shimtile_transfer(BD_0_1_val, AB_MAT_SIZE + 2*CD_NAT_OR_IMP_MAT_SIZE, AB_rel_offset*4,
     control_packet_out_prod_lock, control_packet_out_con_lock, control_packet_out_buf
     );
 
-    // send 16 value of CD_natural matrix to me
-    control_Shimtile_transfer(BD_0_1_val, 16, CD_rel_offset*4,
-    control_packet_out_prod_lock, control_packet_out_con_lock, control_packet_out_buf
-    );
-    // send rest of AB matrix to me
-    control_Shimtile_transfer(BD_0_1_val, (AB_MAT_SIZE-16), (AB_rel_offset+16)*4,
-    control_packet_out_prod_lock, control_packet_out_con_lock, control_packet_out_buf
-    );        
-    // send rest of CD_natural, and CD_impulse matrix to me
-    control_Shimtile_transfer(BD_0_1_val, 2*CD_NAT_OR_IMP_MAT_SIZE-16, (CD_rel_offset+16)*4,
-    control_packet_out_prod_lock, control_packet_out_con_lock, control_packet_out_buf
-    );
 
 }
 

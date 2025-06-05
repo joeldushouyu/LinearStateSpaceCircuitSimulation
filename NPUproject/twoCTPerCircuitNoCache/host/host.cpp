@@ -35,6 +35,32 @@ using int32 = std::int32_t;
 
 
 
+#include <iostream>
+#include <vector>
+#include <algorithm> // for std::rotate
+
+void move_subrange(std::vector<float>& arr, size_t start, size_t end, size_t dest_index) {
+    // Sanity checks
+    if (start >= end || end > arr.size() || dest_index > arr.size()) {
+        std::cerr << "Invalid indices.\n";
+        return;
+    }
+
+    if (dest_index >= start && dest_index <= end) {
+        std::cerr << "Destination cannot be within the range to move.\n";
+        return;
+    }
+
+    if (dest_index < start) {
+        // Move to earlier position
+        std::rotate(arr.begin() + dest_index, arr.begin() + start, arr.begin() + end);
+    } else {
+        // Move to later position
+        std::rotate(arr.begin() + start, arr.begin() + end, arr.begin() + dest_index);
+    }
+}
+
+
 
 int main(int argc, const char *argv[]) {
     // Fix the seed to ensure reproducibility in CI.
@@ -129,47 +155,51 @@ int main(int argc, const char *argv[]) {
 
     assert(matrix_in_ind == C1_DSW_BUFFER_SIZE);
     
+    uint32_t ABCD_offset = matrix_in_ind;
     //Recall A_B_C_D_ is store in row major order, now store in column major order with strie of kernel_mat_v_size
+    
     for(uint32_t i = 0; i < TOTAL_SWITCH_DIODE_STATE; i++ ){
 
-        //AB_matrix
-        for(uint32_t j = 0; j <  AB_ROWS/kernel_mat_v_size; j++){
+        // Store frist 16 of AB, CD_natural matrix first, then 
+        for(uint32_t j = 0; j <  A_B_C_D_ROW_SIZE/kernel_mat_v_size; j++){
             for(uint32_t k = 0; k < A_B_C_D_COL_SIZE; k++){
                 for(uint32_t l = 0; l <kernel_mat_v_size; l++ ){
 
-                    matrix_in[matrix_in_ind +    k*kernel_mat_v_size + l   ] = ABCD_buffer[
+                    matrix_in[matrix_in_ind  + A_B_C_D_MATRIX_SIZE*i
+                        + l + k*kernel_mat_v_size + j*A_B_C_D_COL_SIZE*kernel_mat_v_size
+                    ] = ABCD_buffer[
                         A_B_C_D_COL_SIZE*A_B_C_D_ROW_SIZE*i +
                         j*kernel_mat_v_size*A_B_C_D_COL_SIZE+
                         1*k+
                         A_B_C_D_COL_SIZE*l
 
                     ];
-            
                 }
             }
-            matrix_in_ind += AB_MAT_SIZE;
         }
-
-        //CD_natural CD impulse
-        
-        for(uint32_t j = AB_ROWS/kernel_mat_v_size; j <     (AB_ROWS+2*CD_NAT_OR_IMP_ROWS)/kernel_mat_v_size; j++){
-            for(uint32_t k = 0; k < A_B_C_D_COL_SIZE; k++){
-                for(uint32_t l = 0; l <kernel_mat_v_size; l++ ){
-
-                    matrix_in[matrix_in_ind +    k*kernel_mat_v_size + l   ] = ABCD_buffer[
-                        A_B_C_D_COL_SIZE*A_B_C_D_ROW_SIZE*i +
-                        j*kernel_mat_v_size*A_B_C_D_COL_SIZE+
-                        1*k+
-                        A_B_C_D_COL_SIZE*l
-
-                    ];
-            
-                }
-            }
-            matrix_in_ind += CD_NAT_OR_IMP_MAT_SIZE;
-        }
-
+    
     }
+    // At this point, matrix_in is stored as C1_DSW, C1_DSW .... (repeats for all case)  then (AB, CD_natural, CD_impulse) .... for all case
+    // want to do some reorder here
+    std::vector<float> ABCD_temp;
+
+    for(uint32_t i = 0; i < TOTAL_SWITCH_DIODE_STATE*A_B_C_D_MATRIX_SIZE; i++){
+        ABCD_temp.push_back(matrix_in[i + matrix_in_ind]  );
+    }
+
+    // Do some reordering: I want to move first 16 of AB, CD_natural to infront o
+    // Before, it was AB, CD_natural, CD_impulse in column order with stride of 1t
+    //After:  AB_first column, CD_natural_first column, rest of AB, rest of CD_natural, CD_impulse
+    for(uint32_t i = 0; i < TOTAL_SWITCH_DIODE_STATE; i++){
+        uint32_t start_index = i*A_B_C_D_MATRIX_SIZE;
+        move_subrange(ABCD_temp, start_index+AB_MAT_SIZE,start_index+AB_MAT_SIZE+16  , start_index+16);
+        
+    }
+    // now write back to matrix_in
+    for(uint32_t i = 0; i < TOTAL_SWITCH_DIODE_STATE*A_B_C_D_MATRIX_SIZE; i++){
+        matrix_in[matrix_in_ind + i] = ABCD_temp.at(i);
+    }
+
 
     // static_assert( (AB_COLS == CD_NAT_OR_IMP_COLS) && ( CD_NAT_OR_IMP_COLS== A_B_C_D_COL_SIZE));
 
