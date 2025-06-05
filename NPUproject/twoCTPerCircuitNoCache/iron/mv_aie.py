@@ -52,6 +52,39 @@ import json
 import json
 
 
+
+
+from aie._mlir_libs._mlir.ir import Attribute
+from aie.dialects._aiex_ops_gen import _Dialect
+from aie._mlir_libs._mlir.ir import Block
+
+
+
+
+# Create a packet flow between source and destination tile ports.
+class packetflow_modify(PacketFlowOp):
+    """Specialize PacketFlowOp class constructor to take python integers"""
+
+    def __init__(
+        self,
+        pkt_id,
+        source,
+        source_port,
+        source_channel,
+        dest,
+        dest_port,
+        dest_channel,
+        priority_route=False,       
+        keep_pkt_header: bool | None = None,
+    ):
+        super().__init__(ID=pkt_id, keep_pkt_header=keep_pkt_header, priority_route=priority_route)
+        bb = Block.create_at_start(self.ports)
+        with InsertionPoint(bb):
+            src = PacketSourceOp(source, source_port, source_channel)
+            dest = PacketDestOp(dest, dest_port, dest_channel)      
+            end = EndOp()
+
+
 def custom_ceil(x, multiplier):
   return math.ceil(x / multiplier) * multiplier
 
@@ -380,12 +413,14 @@ def single_mat_vect_mult():
                    dest = ComputeTile_0_3, dest_port=WireBundle.DMA, dest_channel=1
                    )
         #CT_0_3 -> Shimtile Tilecontrol
-        packetflow(pkt_id=8, source=ComputeTile_0_3, source_port=WireBundle.DMA, source_channel=0,
-                   dest=ShimTile_0, dest_port=WireBundle.TileControl, dest_channel=0
+        packetflow_modify(pkt_id=8, source=ComputeTile_0_3, source_port=WireBundle.DMA, source_channel=0,
+                   dest=ShimTile_0, dest_port=WireBundle.TileControl, dest_channel=0,
+                   priority_route = True
                    )
         # output ping-pong form CT_0_2
-        packetflow(pkt_id=9, source=ComputeTile_0_2, source_port=WireBundle.DMA, source_channel=0,
-                    dest = ShimTile_0, dest_port= WireBundle.DMA, dest_channel=1
+        packetflow_modify(pkt_id=9, source=ComputeTile_0_2, source_port=WireBundle.DMA, source_channel=0,
+                    dest = ShimTile_0, dest_port= WireBundle.DMA, dest_channel=1,
+                   priority_route = True
                    ) 
         # only one should be sufficient for now?TODO, since we are compute Bound anyway 
         packetflow( 10, source=ShimTile_0, source_port=WireBundle.DMA, source_channel=1, 
@@ -421,8 +456,9 @@ def single_mat_vect_mult():
             #             # CoreEvent.INSTR_CASCADE_PUT,
             #             # CoreEvent.INSTR_CASCADE_GET,
             #             # CoreEvent.INSTR_STORE,
-            #             CoreEvent.LOCK_STALL,
-            #             CoreEvent.STREAM_STALL,
+            #             CoreEvent.INSTR_LOCK_RELEASE_REQ,
+            #             CoreEvent.INSTR_LOCK_ACQUIRE_REQ
+            #             # CoreEvent.STREAM_STALL,
             #         ],
             #         coremem_events=[
             #                 MemEvent.CONFLICT_DM_BANK_0,
@@ -438,6 +474,7 @@ def single_mat_vect_mult():
             #             ShimTileEvent.DMA_MM2S_0_START_TASK,
             #             ShimTileEvent.DMA_MM2S_0_FINISHED_BD,
             #             ShimTileEvent.DMA_MM2S_0_MEMORY_STARVATION,
+            #             ShimTileEvent.DMA_MM2S_0_STREAM_BACKPRESSURE,
             #             ShimTileEvent.DMA_MM2S_0_FINISHED_TASK,
             #             ShimTileEvent.DMA_MM2S_ERROR,
             #             ShimTileEvent.CONTROL_PKT_ERROR
