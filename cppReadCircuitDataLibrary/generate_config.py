@@ -331,7 +331,7 @@ def main_two_CT_no_matrix_cache(json_config_file:str, output_json_file:str, outp
     buffer_size_of_C1_DSW_mat_res = common_conf.C1_DSW_row  
     buffer_size_of_A_B_C_D_mat_res =common_conf.ABCD_rows  
     
-    stack_size = 1024 # default value
+    stack_size = 8*1024 # default value
     stack_size += (buffer_size_of_cur_X_U +buffer_size_of_C1_DSW_mat_res  + buffer_size_of_A_B_C_D_mat_res )*4 # 4 byte for float
 
     # note: because load 16 float at a time for vector instruction, need to ensure the address are aligned to 64byte(4*16)
