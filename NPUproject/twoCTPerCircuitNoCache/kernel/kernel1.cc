@@ -186,7 +186,7 @@ void request_AB_CD_nat_impulse(uint32_t externalSwitchDiodeState,const uint32_t 
     // );
 
     //Send 
-    control_Shimtile_transfer(BD_0_1_val, AB_MAT_SIZE + 2*CD_NAT_OR_IMP_MAT_SIZE, AB_rel_offset*4,
+    control_Shimtile_transfer(BD_0_1_val, AB_MAT_SIZE + 2*CD_NAT_OR_IMP_MAT_SIZE, AB_rel_offset*4,// multiply by 4, because is float, and we are giving the actual byte address offset
     control_packet_out_prod_lock, control_packet_out_con_lock, control_packet_out_buf
     );
 
