@@ -401,7 +401,7 @@ def single_mat_vect_mult():
 
         
         if(trace_size > 0):
-            tiles_to_trace = [ComputeTile_0_2] #TODO: also shimtile?
+            tiles_to_trace = [ComputeTile_0_3, ComputeTile_0_2, ComputeTile_0_3] #TODO: also shimtile?
             trace_utils.configure_packet_tracing_flow(tiles_to_trace, ShimTile_1)
 
         # leave first 6(0-5) packet id for tracing
@@ -440,50 +440,60 @@ def single_mat_vect_mult():
         @runtime_sequence(np.ndarray[(matrix_size, ), dtype_in], np.ndarray[(matrix_size, ), dtype_out], np.ndarray[(data_flow_in_size,), dtype_in], np.ndarray[(data_flow_out_size,), dtype_out]  )
         def sequence(A,B, in_buf, out_buf):
             # # work balance module
-            # if(trace_size > 0):
-            #     trace_utils.configure_packet_tracing_aie2(
-            #         tiles_to_trace=tiles_to_trace,
-            #         ddr_id=4,   # last in/out parameter(not just need to pass in host, did not define in sequence)
-            #         shim =ShimTile_1,
-            #         trace_size=trace_size, # beacuse have 2 tile to,
-            #             coretile_events=[
-            #             CoreEvent.INSTR_EVENT_0,
-            #             CoreEvent.INSTR_EVENT_1,
-            #             CoreEvent.INSTR_VECTOR,
-            #             PortEvent(CoreEvent.PORT_RUNNING_0, 1, True),  # master(1)
-            #             PortEvent(CoreEvent.PORT_RUNNING_1, 1, False),  # slave(1)
-            #             PortEvent(CoreEvent.PORT_RUNNING_2, 7, False),  # slave(1)                        
-            #             # CoreEvent.INSTR_CASCADE_PUT,
-            #             # CoreEvent.INSTR_CASCADE_GET,
-            #             # CoreEvent.INSTR_STORE,
-            #             CoreEvent.INSTR_LOCK_RELEASE_REQ,
-            #             CoreEvent.INSTR_LOCK_ACQUIRE_REQ
-            #             # CoreEvent.STREAM_STALL,
-            #         ],
-            #         coremem_events=[
-            #                 MemEvent.CONFLICT_DM_BANK_0,
-            #                 MemEvent.CONFLICT_DM_BANK_1,
-            #                 MemEvent.CONFLICT_DM_BANK_2,
-            #                 MemEvent.CONFLICT_DM_BANK_3,
-            #                 MemEvent.CONFLICT_DM_BANK_4,
-            #                 MemEvent.CONFLICT_DM_BANK_5,
-            #                 MemEvent.CONFLICT_DM_BANK_6,
-            #                 MemEvent.CONFLICT_DM_BANK_7,
-            #         ],         
-            #        shimtile_events=[
-            #             ShimTileEvent.DMA_MM2S_0_START_TASK,
-            #             ShimTileEvent.DMA_MM2S_0_FINISHED_BD,
-            #             ShimTileEvent.DMA_MM2S_0_MEMORY_STARVATION,
-            #             ShimTileEvent.DMA_MM2S_0_STREAM_BACKPRESSURE,
-            #             ShimTileEvent.DMA_MM2S_0_FINISHED_TASK,
-            #             ShimTileEvent.DMA_MM2S_ERROR,
-            #             ShimTileEvent.CONTROL_PKT_ERROR
+            # npu_maskwrite32(address=0x0000032000, column=0, row=2, value=0, mask=1) # NOTE: the place of it is crucial
+            # npu_maskwrite32(address=0x0000032000, column=0, row=3, value=0, mask=1)            
+            # # # set the enable events
+            # npu_maskwrite32(address=0x0000032008, column=0, row=2, value=122, mask=0x7F) # NOTE: the place of it is crucial
+            # npu_maskwrite32(address=0x0000032008, column=0, row=3, value=122, mask=0x7F)
+
+            if(trace_size > 0):
+                trace_utils.configure_packet_tracing_aie2(
+                    tiles_to_trace=tiles_to_trace,
+                    ddr_id=4,   # last in/out parameter(not just need to pass in host, did not define in sequence)
+                    shim =ShimTile_1,
+                    trace_size=trace_size//4, # beacuse have 2 tile to,
+                        coretile_events=[
+                        CoreEvent.INSTR_EVENT_0,
+                        CoreEvent.INSTR_EVENT_1,
+                        CoreEvent.INSTR_VECTOR,
+                        PortEvent(CoreEvent.PORT_RUNNING_0, 1, True),  # master(1)
+                        PortEvent(CoreEvent.PORT_RUNNING_1, 1, False),  # slave(1)
+                        PortEvent(CoreEvent.PORT_RUNNING_2, 7, False),  # slave(1)                        
+                        # CoreEvent.INSTR_CASCADE_PUT,
+                        # CoreEvent.INSTR_CASCADE_GET,
+                        # CoreEvent.INSTR_STORE,
+                        CoreEvent.INSTR_LOCK_RELEASE_REQ,
+                        CoreEvent.INSTR_LOCK_ACQUIRE_REQ
+                        # CoreEvent.STREAM_STALL,
+                        # CoreEvent.TIMER_SYNC,
+                        # CoreEvent.TIMER_VALUE_REACHED,
+                        # CoreEvent.BROADCAST_15,
+                        # CoreEvent.PROCESSOR_BUS_ERROR,
+                        # CoreEvent.DM_ACCESS_TO_UNAVAILABLE,
+                        # CoreEvent.PM_ADDRESS_OUT_OF_RANGE,
+                        # CoreEvent.DM_ADDRESS_OUT_OF_RANGE
+                    ],
+                    coremem_events=[
+                            MemEvent.CONFLICT_DM_BANK_0,
+                            MemEvent.CONFLICT_DM_BANK_1,
+                            MemEvent.CONFLICT_DM_BANK_2,
+                            MemEvent.CONFLICT_DM_BANK_3,
+                            MemEvent.CONFLICT_DM_BANK_4,
+                            MemEvent.CONFLICT_DM_BANK_5,
+                            MemEvent.CONFLICT_DM_BANK_6,
+                            MemEvent.CONFLICT_DM_BANK_7,
+                    ],         
+                   shimtile_events=[
+                        ShimTileEvent.DMA_MM2S_0_START_TASK,
+                        ShimTileEvent.DMA_MM2S_0_FINISHED_BD,
+                        ShimTileEvent.DMA_MM2S_0_MEMORY_STARVATION,
+                        ShimTileEvent.DMA_MM2S_0_STREAM_BACKPRESSURE,
+                        ShimTileEvent.DMA_MM2S_0_FINISHED_TASK,
+                        ShimTileEvent.DMA_MM2S_ERROR,
+                        ShimTileEvent.CONTROL_PKT_ERROR
    
-            #         ],                                      
-            #     )
-    
-
-
+                    ],                                      
+                )
             # changes 
             # MM2S 0 sending input iteration data only
             
@@ -524,7 +534,6 @@ def single_mat_vect_mult():
             
             npu_dma_memcpy_nd(metadata="out_CT_0_2_SHM", bd_id=3, mem=out_buf, offsets=[0,0,0,0], sizes=[1,1,1, data_flow_out_size], 
                                      strides=[0,0,0,1], issue_token=True)
-
 
             npu_dma_wait("out_CT_0_2_SHM")
 
