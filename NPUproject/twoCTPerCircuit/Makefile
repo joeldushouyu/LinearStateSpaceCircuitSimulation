@@ -89,7 +89,6 @@ LIBS += -lhdf5_cpp -lhdf5
 
 include $(TemplateRepoDir)/makefiles/host.mk
 
-CIRCUT_H5PY ?= Metadata_half_bridge_llc.h5
 
 CXX_HOST_TEST = g++
 CXXFLAGS_HOST_TEST = -std=c++17 -Wall -O2
@@ -123,26 +122,35 @@ clean:clean_test
 	-@rm -rf generated.txt
 	-@rm -rf route*.txt
 	-@rm -f $(TARGET_HOST_TEST)
+	-@rm -f ./npuSim.csv
+	
+clean_config:
 	-@rm -f ./iron/final_config.json
-	-@rm -f  ./Metadata.h5 	 
+	-@rm -f  ./Metadata_half_bridge_llc_2.h5
+	-@rm -f  ./Metadata_half_bridge_llc_0.4.h5
+	-@rm -f  ./Metadata_half_bridge_llc_0.04.h5
+	-@rm -f  ./Metadata_half_bridge_llc_0.004.h5
 	-@rm -f ./host/circuitConfig.hpp
 	-@rm -f ./kernel/circuitConfig.hpp
 	-@rm -f ${COPIED_HEADERS_IN_HOST}
 	-@rm -f ${COPIED_SRCS_IN_HOST}
 	-@rm -f ./kernel/circuitSimCore.hpp
 	-@rm -f ./kernel/common_macro.hpp
-	-@rm -f ./npuSim.csv
 
 config_stage:
 	${clean}
-	cp -f ${CPP_REFERENCE_DIR}/final_config.json ./iron/final_config.json
-	cp -f ${PYTHO_DIR}/$(CIRCUT_H5PY) 	     ./Metadata.h5 	  
-	cp -f ${CPP_REFERENCE_DIR}/circuitConfig.hpp  ./host/circuitConfig.hpp
-	cp -f ${CPP_REFERENCE_DIR}/circuitConfig.hpp  ./kernel/circuitConfig.hpp
-	cp -f ${CPP_FILES_TO_COPY} ./host/
-	cp -f ${CPP_REFERENCE_DIR}/*.hpp ./host/
-	cp -f ./host/circuitSimCore.hpp ./kernel/circuitSimCore.hpp
-	cp -f ${CPP_REFERENCE_DIR}/common_macro.hpp ./kernel/common_macro.hpp
+	${clean_config}
+	ln -sf ${CPP_REFERENCE_DIR}/final_config.json ./iron/final_config.json
+	ln -sf ${PYTHO_DIR}/Metadata_half_bridge_llc_2.h5         ./Metadata_half_bridge_llc_2.h5
+	ln -sf ${PYTHO_DIR}/Metadata_half_bridge_llc_0.4.h5        ./Metadata_half_bridge_llc_0.4.h5
+	ln -sf ${PYTHO_DIR}/Metadata_half_bridge_llc_0.04.h5       ./Metadata_half_bridge_llc_0.04.h5
+	ln -sf ${PYTHO_DIR}/Metadata_half_bridge_llc_0.004.h5      ./Metadata_half_bridge_llc_0.004.h5   
+	ln -sf ${CPP_REFERENCE_DIR}/circuitConfig.hpp  ./host/circuitConfig.hpp
+	ln -sf ${CPP_REFERENCE_DIR}/circuitConfig.hpp  ./kernel/circuitConfig.hpp
+	for f in ${CPP_FILES_TO_COPY}; do ln -sf $$f ./host/; done
+	for f in ${CPP_REFERENCE_DIR}/*.hpp; do ln -sf $$f ./host/; done
+	ln -sf  ${CPP_REFERENCE_DIR}/circuitSimCore.hpp ./kernel/circuitSimCore.hpp
+	ln -sf ${CPP_REFERENCE_DIR}/common_macro.hpp ./kernel/common_macro.hpp
 
 
 
@@ -164,8 +172,9 @@ host: ${HOST_C_TARGET}
 clean_host:
 	-@rm -rf build/host
 
-run: ${HOST_C_TARGET} ${XCLBIN_TARGETS} ${INSTS_TARGETS} 
-	./${HOST_C_TARGET} | tee out.log
+ARGS ?= Metadata_half_bridge_llc_0.004.h5 ${HOME_DIR}/build/xclbins/mv.xclbin ${HOME_DIR}/build/insts/mv.txt
+run: ${HOST_C_TARGET} ${XCLBIN_TARGETS} ${INSTS_TARGETS}
+	./${HOST_C_TARGET} $(ARGS) | tee out.log
 	
 	-@rm -f  ${CPP_REFERENCE_DIR}/npuSim.csv
 	cp -f ./npuSim.csv ${CPP_REFERENCE_DIR}/npuSim.csv

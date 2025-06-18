@@ -7,6 +7,75 @@
 #include <iostream>
 #include <iomanip>
 
+
+// Add this function to your file (e.g., above main())
+// filepath: /home/shouyud/LinearStateSpaceCircuitSimulation/NPUproject/twoCTPerCircuit/host/host.cpp
+#include <fstream>
+#include <sstream>
+#include <map>
+// Appends duration to the column named by column_key in ../result.csv
+void append_duration_to_csv(const std::string& filename, const std::string& column_key, float duration) {
+    std::ifstream infile(filename);
+    std::map<std::string, std::vector<float>> data;
+    std::vector<std::string> columns;
+
+    // Read existing data if file exists
+    if (infile.good()) {
+        std::string header, line;
+        std::getline(infile, header);
+        std::stringstream ss(header);
+        std::string col;
+        while (std::getline(ss, col, ',')) {
+            columns.push_back(col);
+        }
+        // Read rows
+        while (std::getline(infile, line)) {
+            std::stringstream lss(line);
+            size_t i = 0;
+            while (lss.good() && i < columns.size()) {
+                std::string val;
+                std::getline(lss, val, ',');
+                if (!val.empty())
+                    data[columns[i]].push_back(std::stof(val));
+                i++;
+            }
+        }
+    }
+
+    // Add new column if needed
+    if (std::find(columns.begin(), columns.end(), column_key) == columns.end()) {
+        columns.push_back(column_key);
+    }
+
+    // Append new duration
+    data[column_key].push_back(duration);
+
+    // Write back to file
+    std::ofstream outfile(filename, std::ios::trunc);
+    // Write header
+    for (size_t i = 0; i < columns.size(); ++i) {
+        outfile << columns[i];
+        if (i + 1 < columns.size()) outfile << ",";
+    }
+    outfile << "\n";
+    // Find max row count
+    size_t max_rows = 0;
+    for (const auto& c : columns) max_rows = std::max(max_rows, data[c].size());
+    // Write rows
+    for (size_t row = 0; row < max_rows; ++row) {
+        for (size_t col = 0; col < columns.size(); ++col) {
+            const std::string& key = columns[col];
+            if (row < data[key].size())
+                outfile << std::fixed << std::setprecision(10) << data[key][row];
+            if (col + 1 < columns.size()) outfile << ",";
+        }
+        outfile << "\n";
+    }
+}
+
+
+
+
 // // Computes y = A * x (A is column-major matrix of size rows x cols)
 // void matvec_column_major(const float* A, const float* x, float* y, int rows, int cols) {
 //     // Initialize output to 0
@@ -193,13 +262,17 @@ void iteration(   float* C1_DSW_buffer, float*ABCD_buffer, float*input_buffers, 
             if(   (externalSwitchToggled &&   impulse_is_positive) // only when actual external switch toggleds
                   || ( !diode_is_on && diode_natural_is_positive && diode_next_is_positive  )   ){
                 setBit( switch_diode_state_debug, diode_state_bit_ind, 1);
-                std::cout << "turn on diode :" << k << std::endl;
+                if (printDebug){
+                    std::cout << "turn on diode :" << k << std::endl;
+                }
                 debug_diode_change=true;
             }
             else if(    (externalSwitchToggled && impulse_is_negative) 
                 || (diode_is_on && diode_natural_is_negative && diode_next_is_negative)  ){
                 setBit( switch_diode_state_debug, diode_state_bit_ind, 0);
-                std::cout << "turn off diode : " << k <<std::endl;
+                if(printDebug){
+                    std::cout << "turn off diode : " << k <<std::endl;
+                }
                 debug_diode_change=true;
             }
         }

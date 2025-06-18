@@ -8,28 +8,65 @@ import os
 from typing import NamedTuple, Tuple
 import math
 
-from visualize_data import plot_csv_ncolumns
+from visualize_data import plot_csv_ncolumns,plot_csv_ncolumns_ieee
 
 
+
+
+def half_brdige_llc_visualize_for_research_paper():
+    y_labels: dict[str, list[int]] = {
+    "Vout (Voltage)": [   2, 14, 14, 14],
+    "Vp":    [   7,  9,  9,  9],
+    "Vs1":   [   8, 11, 11, 11],
+    "Vs2":   [   9, 13, 13, 13],
+    "VD1":   [  10, 10, 10, 10],
+    "VD2":   [  11, 12, 12, 12],
+    "AM_D1": [  12,  2,  2,  2],
+    "AM_D2": [  13,  3,  3,  3],
+    "IL1 (Current)":  [  14,  1,  1,  1],
+    "VC1":   [   6,  8,  8,  8],
+    "VL1":   [   5,  7,  7,  7],
+    "Vsw1":  [   3,  5,  5,  5],
+    "Vsw2":  [   4,  6,  6,  6],
+    "IRout":  [   1,  4,  4,  4]
+}
+    sim_20 = "../csv_data/Half-bridge-llcx20.csv"
+    host_sim = "hostSim.csv"
+    npu_sim_two_CT_cached = "npuTwoCTCached.csv"
+    npu_sim_two_CT_no_cached = "npuTwoCTNoCached.csv"
+
+    plec_x20 = "../csv_data/half-bridge-llc-plec-x20.csv"
+    plec_x30 = "csv_data/half-bridge-llc-plec-x30.csv"
+
+    plec_hil_x20 = "../csv_data/half-bridge-llc-plec-hilx20.csv"
+    for lab, index_list in y_labels.items():
+        
+        plot_csv_ncolumns_ieee( csv_files=[ plec_hil_x20,host_sim,npu_sim_two_CT_cached, npu_sim_two_CT_no_cached],
+                        x_cols= [0,0,0,0,0],
+                        y_cols= index_list,
+                        labels= [  "plec_hil", "c++",  "TWO_CT_cached", "TWO_CT_Runtime_Fetch"],
+                        y_label= lab,
+                        save_path="figures/half-bridge-llc-plec-hilx20-" + lab + ".png"
+                        )
 
 
 def half_brdige_llc_visualize():
-    y_labels:dict[str, list[int]]= {
-    "Vmout": [14, 1, 2,14,14],
-    "Vp": [9, 2, 7,9,9],
-    "Vs1": [11, 3, 8,11,11],
-    "Vs2": [13, 4, 9,13,13],
-    "VD1": [10, 5, 10,10,10],
-    "VD2": [12, 6, 11,12,12],
-    "AM_D1": [2, 7, 12,2,2],
-    "AM_D2": [3, 8, 13,3,3],
-    "AML1": [1, 10, 14,1,1],
-    "VC1": [8, 9, 6,8,8],
-    "VL1": [7, 14, 5,7,7],
-    "Vsw1": [5, 12, 3,5,5],
-    "Vsw2": [6, 13, 4,6,6],
-    "AMI0": [4, 11, 1,4,4]
-    }
+    y_labels: dict[str, list[int]] = {
+    "Vmout": [14,  1,  2, 14, 14],
+    "Vp":    [ 9,  2,  7,  9,  9],
+    "Vs1":   [11,  3,  8, 11, 11],
+    "Vs2":   [13,  4,  9, 13, 13],
+    "VD1":   [10,  5, 10, 10, 10],
+    "VD2":   [12,  6, 11, 12, 12],
+    "AM_D1": [ 2,  7, 12,  2,  2],
+    "AM_D2": [ 3,  8, 13,  3,  3],
+    "AML1":  [ 1, 10, 14,  1,  1],
+    "VC1":   [ 8,  9,  6,  8,  8],
+    "VL1":   [ 7, 14,  5,  7,  7],
+    "Vsw1":  [ 5, 12,  3,  5,  5],
+    "Vsw2":  [ 6, 13,  4,  6,  6],
+    "AMI0":  [ 4, 11,  1,  4,  4]
+}
     sim_20 = "../csv_data/Half-bridge-llcx20.csv"
     host_sim = "hostSim.csv"
     npu_sim = "npuSim.csv"
@@ -99,4 +136,5 @@ def boost_pfc_half_llc_visualize():
 #boost_pfc_half_llc_visualize()
 
 
-half_brdige_llc_visualize()
+# half_brdige_llc_visualize()
+half_brdige_llc_visualize_for_research_paper()

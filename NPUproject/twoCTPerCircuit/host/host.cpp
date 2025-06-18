@@ -39,7 +39,23 @@ using int32 = std::int32_t;
 int main(int argc, const char *argv[]) {
     // Fix the seed to ensure reproducibility in CI.
     srand(0);
-
+    std::string metadataFileName;
+    std::string bitstreamFileName;
+    std::string runtimeSequenceFileName;
+    std::string csvDataFileName;
+    if (argc < 4) {
+        std::cout << "Argc" << argc << std::endl;
+        std::cerr << "Error: Not enough arguments provided." << std::endl;
+        std::cerr << "Usage arg[1] Metadata arg[2] bitstream arg[3] runtime_sequence" << std::endl;
+        return -1;
+    } else {
+        metadataFileName = argv[1];
+        bitstreamFileName = argv[2];
+        runtimeSequenceFileName = argv[3];
+        if (argc > 4) {
+            csvDataFileName = argv[4];
+        }
+    }
 
     int in_size = C1_DSW_BUFFER_SIZE  +A_B_C_D_BUFFER_SIZE;
     int Iterations = 1; // NOTE: only can run one time due to matrix balance transfer on s2mm
@@ -53,15 +69,15 @@ int main(int argc, const char *argv[]) {
     }
 
     accel_user_desc accel_desc_0 = {
-        .xclbin_name = "build/xclbins/mv.xclbin",
-        .instr_seq = npu_sequence("build/insts/mv.txt", true),
+        .xclbin_name = bitstreamFileName,
+        .instr_seq = npu_sequence(runtimeSequenceFileName, true),
     };
 
 
     int app_id_0 = npu_instance.register_accel_app(accel_desc_0);
 
-    npu_instance.interperate_bd(0);
-    // npu_instance.interperate_bd(1);
+    // npu_instance.interperate_bd(0);
+    // // npu_instance.interperate_bd(1);
 
     // compare the two sequences
     int input_iteration_size = BUFFER_SIZE_OF_IN_PING_POING * PING_PONG_BUFFER_ITERATION ;
@@ -85,20 +101,12 @@ int main(int argc, const char *argv[]) {
     uint32_t *switch_diode_status_buffer_after_iteration = new uint32_t[ITERATION_STEP_NUMBER];
 
 
-    prepareDataForIteration("Metadata.h5", dataFromFile, C1_DSW_buffer, ABCD_buffer, input_buffers);
+    prepareDataForIteration(metadataFileName.data(), dataFromFile, C1_DSW_buffer, ABCD_buffer, input_buffers);
     float output_simulation_buffer_reference[OUTPUT_SIZE_PER_ITERATION *ITERATION_STEP_NUMBER ];
     iteration(C1_DSW_buffer, ABCD_buffer, input_buffers, output_simulation_buffer_reference,  dataFromFile.switch_diode_status_record, 
          switch_diode_status_buffer_after_iteration,false);
     
     
-    // // copy of matrix
-    // for(uint32_t i = 0; i <C1_DSW_BUFFER_SIZE; i++ ){
-    //     matrix_in[i] = C1_DSW_buffer[i];
-    // }
-    // for(uint32_t  i = 0; i < A_B_C_D_BUFFER_SIZE; i++){
-    //     matrix_in[i+C1_DSW_BUFFER_SIZE ] = ABCD_buffer[i];
-    // }
-    // do data rearrangement at the host, so Shimtile does not have to do the reordering?
     uint32_t kernel_mat_v_size = 16;
     uint32_t matrix_in_ind = 0;
     for(uint32_t i = 0; i < TOTAL_SWITCH_DIODE_STATE;  i++){
@@ -142,9 +150,6 @@ int main(int argc, const char *argv[]) {
     // copy of input
     for(uint32_t i = 0; i <ITERATION_STEP_NUMBER*INPUT_SIZE_PER_ITERATION; i++  ){
         in_0[i] = input_buffers[i];
-        if(i < 20){
-            std::cout << "in at i" << i << " " << in_0[i] << std::endl;
-        }
     }
 
 
@@ -155,49 +160,6 @@ int main(int argc, const char *argv[]) {
         memset(bufTrace, 0, TRACE_SIZE);
         trace_res.sync_to_device();
     }
-
-
-    // // only check partial result for now
-    // buffer<dtype_out> out_ref_0(output_iteration_size);    
-    // float* input_ptr = in_0.data();
-    // float* ref_res = out_ref_0.data();
-    
-
-    // for(int i = 0; i < TOTAL_SWITCH_DIODE_STATE; i++){
-
-    //     float x[C1_DSW_COL_SIZE] = {0}; // for now
-        
-    //     for(int l = 0; l < U_SIZE; l++){
-    //         x[STATE_SIZE + l] = *input_ptr++;
-    //     }
-    //     input_ptr++; // the external switch bit that is not used for now
-
-    //     std::vector<float>res  = matvec_mul_row_major(
-    //         C1_DSW_buffer + (i*C1_DSW_MATRIX_SIZE),x, 
-    //         C1_DSW_ROW_SIZE,
-    //         C1_DSW_COL_SIZE 
-    //     );
-
-    //     // STORE the reference result
-    //     for(auto v :res){
-    //         *ref_res++= v;
-    //     }
-
-    //     // A_B_C_D whole matrix
-    //     std::vector<float> abcd_res = matvec_mul_row_major(
-    //         ABCD_buffer +(i*A_B_C_D_MATRIX_SIZE),x,
-    //         A_B_C_D_ROW_SIZE,
-    //         A_B_C_D_COL_SIZE
-    //     );
-    //     // STORE the reference result
-    //     for(auto v :abcd_res){
-    //         *ref_res++= v;
-    //     }
-
-
-    // }
-
-
 
 
 
@@ -235,66 +197,25 @@ int main(int argc, const char *argv[]) {
     header_print("info", "Finished running kernel");
 
 
-
-
-
-    // bool pass =false;
-    // // // debug_inspect_all(
-    // // //     matrix_in, matrix_out_col_major, 
-    // // //     std::pow(2, SWITCH_SIZE + DIODE_SIZE)
-    // // // );
-
-    // if (pass ==false){
-    //     std::cout <<"Fail stage 1" << std::endl;
-    // }else{
-    //     printf("passed first stage input\n");
-    // }
-    // pass &= are_results_close( out_0, out_ref_0,1e-4f, 1e-3f,  TOTAL_SWITCH_DIODE_STATE*(C1_DSW_ROW_SIZE + A_B_C_D_ROW_SIZE)  );
-    // if(pass==false){
-    //     std::cout << "FAil stage2" <<std::endl;
-    // }
-    // for (size_t i = 0; i < 16; i++) {
-    //     std::cout << std::scientific      // Use exponential notation
-    //               << std::setprecision(6) // Show 2 digits after decimal
-    //               << "out_0[" << i << "] = " << out_0[i]
-    //               << " ?= out_ref_0[" << i << "] = " << out_ref_0[i]
-    //               << std::endl;
-    // }
-
-
-
-    // for(auto k = 0; k < 8000* OUTPUT_SIZE_PER_ITERATION; k++){
-
-    //     std::cout << out_0[k] << " ";
-    //     if( (k+1) % OUTPUT_SIZE_PER_ITERATION ==0  ){
-    //         std::cout << std::endl;
-    //     }
-    // }
-    // std::cout << std::endl;
-    // std::cout << std::endl;
-
-    // uint32_t offset = A_B_C_D_ROW_SIZE;
-    // std::cout << "Switch states reference: " 
-    // << std::bitset<sizeof(uint32_t) * 8>(std::bit_cast<uint32_t>(switch_diode_status_buffer_after_iteration[0]))
-    // << " result: " 
-    // << std::bitset<sizeof(float) * 8>(std::bit_cast<uint32_t>(out_0[offset]))
-    //  << "  with input switch of" << std::bitset<sizeof(float) * 8>(std::bit_cast<uint32_t>(in_0[1]))  <<std::endl;
-
-    // for(size_t i = 0; i< 6; i++ ){
-
-    //     std::cout << "C1_mask_result reference: " <<  std::bitset<sizeof(float) * 8>(std::bit_cast<uint32_t>(C1_RES_MASK_BUFFER[i])) <<
-    //     "  result fron NPU" <<std::bitset<sizeof(float) * 8>(std::bit_cast<uint32_t>(out_0[i+offset+1])) <<std::endl;
-
-    // }
     float *data_pt = out_0.data();
     writeDataToCsvFile("npuSim.csv",  dataFromFile, data_pt );
-    // if (pass){
-    //     header_print("info", "PASSED ");
-    // } else {
-    //     header_print("info", "FAILED!");
-    // }
 
-    // utils::print_npu_profile(npu_time, 2.0 * float(M) * float(K) * float(N), 1000);
+
+    //given metadataFileName is the Metadata_half_bridge_llc_times.h5 format
+    // for example :given metadataFileName is the Metadata_half_bridge_llc_0.004.h5 format
+    // extract the time from the metadata name
+    std::string time_str = metadataFileName.substr(metadataFileName.find_last_of('_') + 1); 
+    time_str = time_str.substr(0, time_str.find_last_of('.')); // remove the .h5 part
+    // convert the time_str to float
+    float time_float = std::stof(time_str);
+    // convert the time_float to string
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(3) << time_float;
+    time_str = oss.str(); // now time_str is the time in seconds with 3 decimal places
+
+    if(!csvDataFileName.empty()){
+        append_duration_to_csv(csvDataFileName, time_str, ((float)duration)/PING_PONG_BUFFER_ITERATION);
+    }
     return 0;
 }
 

@@ -23,6 +23,8 @@
 using MatrixRowMajor = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
 using MatrixColMajor = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>;
 
+void append_duration_to_csv(const std::string& filename,  const std::string& column_key,float duration);
+
 // // y= A * x (A is column-major matrix of size rows x cols)
 // void matvec_column_major(const float *A, const float *x, float *y, int rows, int cols);
 void matvec_row_major(const float* A, const float* x, float* y, int rows, int cols);

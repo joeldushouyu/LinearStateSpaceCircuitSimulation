@@ -275,11 +275,11 @@ void mult_with_C1_DSW_lock_aware(float *C1_DSW_mat, aie::vector<float, 16> *x_u_
 
         aie::accum<accfloat, 16> C1_DSW_temp = aie::zeros<accfloat, 16>();
         acquire_greater_equal(con_lock, 1);
+      
         C1_DSW_mat = mv_16_row_with_STATE_U_SIZE_col_with_column_offset<0,1>(
             C1_DSW_mat, x_u_cur, C1_DSW_temp
         );
         release(prod_lock, 1);
-
         acquire_greater_equal(con_lock, 1);
         C1_DSW_mat = mv_16_row_with_STATE_U_SIZE_col_with_column_offset<1,  U_SIZE + STATE_SIZE>(
             C1_DSW_mat, x_u_cur, C1_DSW_temp

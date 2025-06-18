@@ -42,7 +42,7 @@ void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur,
         // read the input
         bool external_switch_toggled = update_x_u_cur_with_input(x_u_cur, in, externalSwitchDiodeState );
         in += INPUT_SIZE_PER_ITERATION;  // ABOUT 20 cycle
-
+        event0();
 
         // mult_with_C1_DSW<6>(
         //     retrieveMatrixOFfsetBaseOnState(externalSwitchDiodeState,C1_DSW_MATRIX_SIZE  ,C1_DSW_Buffer),
@@ -56,13 +56,14 @@ void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur,
             C1_Mask_Res,
             out // for debug, doe snot write back anymore
         );
+        event0();
         bool diode_change = diode_toggle_update2(
             external_switch_toggled, externalSwitchDiodeState, 
             C1_Mask_Res[0], C1_Mask_Res[1],
             C1_Mask_Res[2], C1_Mask_Res[3],
             C1_Mask_Res[4], C1_Mask_Res[5]
         );
-      
+        event0();
         
 
         // write externalSwitchDiodeState_buf,

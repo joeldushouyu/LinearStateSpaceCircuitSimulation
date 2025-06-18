@@ -2,6 +2,106 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.widgets import CheckButtons
 
+
+import pandas as pd
+import matplotlib.pyplot as plt
+from cycler import cycler
+import numpy as np
+
+def plot_csv_ncolumns_ieee(
+    csv_files, x_cols, y_cols, labels=None,
+    title: str = "", y_label: str = "", save_path: str = None
+):
+    """Plot N columns from CSV files, optimized for IEEE double-column format."""
+    import matplotlib as mpl
+    # Use Times New Roman if available
+    mpl.rcParams['font.family'] = 'serif'
+    mpl.rcParams['font.serif'] = ['Times New Roman', 'Times', 'DejaVu Serif', 'serif']
+    mpl.rcParams['mathtext.fontset'] = 'dejavuserif'
+    mpl.rcParams['axes.unicode_minus'] = False
+
+    if labels is None:
+        labels = [f'Data {i+1}' for i in range(len(csv_files))]
+
+    dfs = [pd.read_csv(f) for f in csv_files]
+    x_data = [df.iloc[:, x_col].values for df, x_col in zip(dfs, x_cols)]
+    y_data = [df.iloc[:, y_col].values for df, y_col in zip(dfs, y_cols)]
+
+    ieee_colors = [
+        '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+        '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
+    ]
+    plt.rc('axes', prop_cycle=cycler(color=ieee_colors))
+
+    fig, ax = plt.subplots(figsize=(3.45, 2.5))
+
+    markers = ['o', 's', 'D', '^', 'v', 'X', 'P', '*']
+    for i, (x, y, label) in enumerate(zip(x_data, y_data, labels)):
+        ax.plot(
+            x, y,
+            label=label,
+            linewidth=0.9,
+            marker=markers[i % len(markers)],
+            markersize=2.5,
+            markevery=max(1, len(x) // 30),
+            markerfacecolor='white',
+            markeredgecolor=ieee_colors[i % len(ieee_colors)],
+            markeredgewidth=0.7
+        )
+
+    ax.set_xlabel('Time (Second)', fontsize=8)
+    ax.set_ylabel(y_label, fontsize=8)
+    # No title for IEEE double column
+
+    ax.grid(True, linestyle=':', alpha=0.5, linewidth=0.5, zorder=0)
+    ax.legend(
+        loc='upper center',
+        bbox_to_anchor=(0.5, 1.02),
+        fontsize=7,
+        frameon=False,
+        ncol=2 if len(labels) > 3 else 1,
+        labelspacing=0.2,
+        columnspacing=1.0,
+        handlelength=1.2,
+        handletextpad=0.4,
+        borderaxespad=0.2
+    )
+
+    ax.tick_params(axis='both', which='major', labelsize=8, width=0.7, length=2.5)
+    ax.tick_params(axis='both', which='minor', labelsize=8, width=0.5, length=1.5)
+    ax.minorticks_on()
+
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_linewidth(0.7)
+    ax.spines['bottom'].set_linewidth(0.7)
+
+    fig.tight_layout(pad=0.5)
+
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches='tight', transparent=True)
+        # Save a zoomed-in image from x=0.002 to x=0.0021
+        x_min, x_max =0.002, 0.0021  #0,0.0001# 0.002, 0.0021
+        ax.set_xlim(x_min, x_max)
+        zoom_path = save_path.replace('.png', '_zoom.png') if save_path.endswith('.png') else save_path + '_zoom.png'
+        # Save zoomed-in image at 1/4 size but with same font size
+        orig_size = fig.get_size_inches()
+        zoom_size = orig_size / 2.5  # 0.4 width and 0.4 height = 1/4 area
+        fig.set_size_inches(zoom_size, forward=True)
+        # Change x-axis to ms for zoomed-in image
+        x_ticks = ax.get_xticks()
+        ax.set_xticklabels([f"{(tick * 1e3):.2f}" for tick in x_ticks])
+        ax.set_xlabel('Time (ms)', fontsize=8)
+        # Remove legend for zoomed-in image
+        legend = ax.get_legend()
+        if legend is not None:
+            legend.remove()
+        plt.savefig(zoom_path, dpi=300, bbox_inches='tight', transparent=True)
+        fig.set_size_inches(orig_size, forward=True)  # Restore original size
+        ax.set_xlim(auto=True)  # Reset xlim for further use
+        ax.set_xlabel('Time (Second)', fontsize=8)  # Restore label
+    # plt.show()
+
 def plot_csv_ncolumns(csv_files, x_cols, y_cols, labels=None,
                       title: str = "", y_label: str = "", save_path: str = None):
     """Plot N columns from CSV files with interactive checkboxes to show/hide lines.

@@ -108,7 +108,18 @@
 			"variant": "cpp",
 			"syncstream": "cpp",
 			"spanstream": "cpp",
-			"string_span": "cpp"
+			"string_span": "cpp",
+			"any": "cpp",
+			"codecvt": "cpp",
+			"csetjmp": "cpp",
+			"cuchar": "cpp",
+			"forward_list": "cpp",
+			"future": "cpp",
+			"latch": "cpp",
+			"csignal": "cpp",
+			"barrier": "cpp",
+			"coroutine": "cpp",
+			"scoped_allocator": "cpp"
 		}
 	}
 }

@@ -222,12 +222,12 @@ void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur,
         // read the input
         bool external_switch_toggled = update_x_u_cur_with_input(x_u_cur, in, externalSwitchDiodeState );
         in += INPUT_SIZE_PER_ITERATION;  // ABOUT 20 cycle
-
+        event0();
         uint32_t C1_offset = externalSwitchDiodeState*C1_DSW_MATRIX_SIZE;
         request_C1DSW_matrix(externalSwitchDiodeState, control_packet_out_prod_lock, control_packet_out_con_lock, control_packet_out_buf,
             BD_0_1_val
         );
-
+        event0();
         mult_with_C1_DSW_lock_aware(
             C1_DSW_matrix_buffer, //retrieveMatrixOFfsetBaseOnState(externalSwitchDiodeState,C1_DSW_MATRIX_SIZE  ,C1_DSW_Buffer),
             x_u_cur,
@@ -261,15 +261,15 @@ void iteration_core(float *in, float*out, aie::vector<float, 16> *x_u_cur,
 
         }
 
-
+        event0();
         request_AB_CD_nat_impulse(externalSwitchDiodeState, 
             control_packet_out_prod_lock, control_packet_out_con_lock,
             control_packet_out_buf, BD_0_1_val
         );
+        event0();
         // //Send 16 value of AB matrix to me
         uint32_t AB_rel_offset = externalSwitchDiodeState*A_B_C_D_MATRIX_SIZE + C1_DSW_BUFFER_SIZE;
 
-        event0();
         float *AB_ptr = AB_matrix_buffer;
 
 
