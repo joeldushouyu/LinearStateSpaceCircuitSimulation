@@ -136,5 +136,5 @@ def boost_pfc_half_llc_visualize():
 #boost_pfc_half_llc_visualize()
 
 
-# half_brdige_llc_visualize()
-half_brdige_llc_visualize_for_research_paper()
+half_brdige_llc_visualize()
+# half_brdige_llc_visualize_for_research_paper()
