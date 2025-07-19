@@ -407,7 +407,7 @@ def buck():
     simulation_main(netList, end_sim_t, sim_20, switch_frequency, switch_frequency*20 )
 def half_brodge_llc():
     supress=False
-    end_sim_t  =1
+    end_sim_t  =0.004
     switch_frequency = 100e3
     duty_cycle = 0.5
     supress = True
