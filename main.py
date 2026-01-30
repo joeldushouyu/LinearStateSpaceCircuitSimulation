@@ -339,9 +339,15 @@ def simulation_main(netList:list[str], end_sim_t:float,  data_output_filename:st
 
 
     system_clock_module.update_list_of_node_module(   [state_space_module, oversample_module]  + voltage_current_modules + external_switch_modules)
-    state_space_module.cache_file = cache_file
+    
+    # check if the cachefile exist, only if file exist
+    if cache_file is not None:
+        state_space_module.cache_file = cache_file
     step_size = system_clock_module.start_simuation(end_sim_t)
-    state_space_module.save_iterative_matrix_to_file(h5_output_file, end_simulation_time=end_sim_t, iteration_step_number=step_size)
+    
+    if h5_output_file:
+        state_space_module.save_iterative_matrix_to_file(h5_output_file, end_simulation_time=end_sim_t, iteration_step_number=step_size)
+        
     state_space_module.plot_output_graph(outputfile_name= data_output_filename )
 
 
@@ -594,7 +600,7 @@ def full_bridge_llc():
         "AMD1, N3, N3AM",
         "VMD1, N3AM, ND1D2",
         "D1, N3AM, ND1D2, OFF, VMD1, AMD1",
-        #CD1, N3AM, ND1D2, 1e-9",  #TODO: add capacitor for better numerical stability?
+        "CD1, N3AM, ND1D2, 1e-9",  #TODO: add capacitor for better numerical stability?
         # "RCD1, N3AM, ND1D2, 100e3",
         # # "VMS1, N3, 0",
 
@@ -783,7 +789,7 @@ def boost_pfc_half_bridge_llc():
     # cache_file = "./LinearStateSpaceCircuitSimulation/Metadata.h5_cache"
     cache_file = "Metadata_boost_pfc_with_diode_02.h5"
     # cache_file = None
-    simulation_main(netList, end_sim_t, sim_20, switch_frequency, switch_frequency*20, cache_file )
+    simulation_main(netList, end_sim_t, sim_20, switch_frequency, switch_frequency*20, None, h5_output_file=cache_file )
     
 # boost_pfc_half_bridge_llc()
 # buck()    

@@ -483,6 +483,8 @@ class StateSpaceSimulationModule(SimulationModule):
 
                 
     def save_iterative_matrix_to_file(self, file_path, end_simulation_time:float, iteration_step_number:int):
+        if not file_path:
+            return
         
         
         current_switch_states = self.switch_state.copy()
