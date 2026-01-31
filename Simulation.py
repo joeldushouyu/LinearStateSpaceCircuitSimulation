@@ -607,10 +607,8 @@ class StateSpaceSimulationModule(SimulationModule):
         
     def get_diode_softswitch_interest_matrix(self, diode_ind_to_y_ind:dict[int, int],
                                             C1: Matrix, 
-                                            A:Matrix, B: Matrix, C: Matrix, D: Matrix, 
-                                            C_impulse_matrix:Matrix, C_nonimpulse_matrix:Matrix, 
-                                            D_impulse_matrix:Matrix, D_nonimpulse_matrix:Matrix
-                                       
+                                            A:Matrix, B: Matrix, C: Matrix, D: Matrix
+                                            
                                              ):
 
         
@@ -620,13 +618,7 @@ class StateSpaceSimulationModule(SimulationModule):
         C_diode_sw = sp.zeros(len(diode_ind_to_y_ind), self.network_matrix.x_hat_label_size )
         D_diode_sw= sp.zeros(len(diode_ind_to_y_ind), self.network_matrix.u_label_size)
         
-        C_impulse_sw=sp.zeros(len(diode_ind_to_y_ind), self.network_matrix.x_hat_label_size)
-        D_impulse_sw=sp.zeros(len(diode_ind_to_y_ind), self.network_matrix.u_label_size)
-        
-        
-        C_nonimpulse_sw=sp.zeros(len(diode_ind_to_y_ind), self.network_matrix.x_hat_label_size)
-        D_nonimpulse_sw = sp.zeros(len(diode_ind_to_y_ind), self.network_matrix.u_label_size)
-        
+
 
         
         Y_hat_A_sw = sp.zeros(len(diode_ind_to_y_ind),  self.network_matrix.x_hat_label_size)
@@ -636,11 +628,7 @@ class StateSpaceSimulationModule(SimulationModule):
             C1_diode_sw[diode_idx, :] = C1[y_lab_idx, :]
             C_diode_sw[diode_idx,:] = C[y_lab_idx, :]
             D_diode_sw[diode_idx, :] = D[y_lab_idx, :]
-            C_impulse_sw[diode_idx, :] = C_impulse_matrix[y_lab_idx, :]
-            D_impulse_sw[diode_idx, :] = D_impulse_matrix[y_lab_idx, :]
-            
-            C_nonimpulse_sw[diode_idx, :] = C_nonimpulse_matrix[y_lab_idx, :]
-            D_nonimpulse_sw[diode_idx, :] = D_nonimpulse_matrix[y_lab_idx, :]
+
             
             Y_hat_A_sw[diode_idx, :] = Y_hat_A[y_lab_idx, :]   
             Y_hat_B_sw[diode_idx, :] = Y_hat_B[y_lab_idx, :]
@@ -648,8 +636,6 @@ class StateSpaceSimulationModule(SimulationModule):
         
         return sp.matrix2numpy(C1_diode_sw, dtype=np.float32), \
             sp.matrix2numpy(C_diode_sw, dtype=np.float32), sp.matrix2numpy(D_diode_sw, dtype=np.float32),\
-                sp.matrix2numpy(C_impulse_sw,dtype=np.float32), sp.matrix2numpy(C_nonimpulse_sw, dtype=np.float32), \
-                    sp.matrix2numpy(D_impulse_sw, dtype=np.float32) , sp.matrix2numpy(D_nonimpulse_sw,dtype=np.float32),\
                         sp.matrix2numpy(Y_hat_A_sw,dtype=np.float32), sp.matrix2numpy(Y_hat_B_sw,dtype=np.float32)   
         
         
@@ -747,12 +733,11 @@ class StateSpaceSimulationModule(SimulationModule):
             
 
             # now, Cache all the matrix that relateds to swicth state changing
-            
+            # extract the y value that matters to the diode Either diode current/voltage  
+
             self.C1_diode_sw, self.C_diode_sw, self.D_diode_sw, \
-                _, _, _, _, self.C_mult_A, self.C_mult_B = self.get_diode_softswitch_interest_matrix(
+                self.C_mult_A, self.C_mult_B = self.get_diode_softswitch_interest_matrix(
                     C1 = Matrix(self.C1), A = Matrix(self.A), B= Matrix(self.B), C= Matrix(self.C), D= Matrix(self.D),
-                    C_impulse_matrix=Matrix(self.C_impulse), C_nonimpulse_matrix=Matrix(self.C_non_impulse),
-                    D_impulse_matrix=Matrix(self.D_impulse), D_nonimpulse_matrix=Matrix(self.D_non_impulse),
                     diode_ind_to_y_ind = self.diode_index_y_index_mapping
                 )
             
