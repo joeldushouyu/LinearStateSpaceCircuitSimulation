@@ -598,7 +598,7 @@ class StateSpaceSimulationModule(SimulationModule):
         # want to predict the voltage/current of diode in next step to reduce numerical oscillation scenario
         
         # recall Y = C_final *x+ D_final*u
-        # Y_hat = C_final *X_hat + D_final * u_hat
+        # Y_hat = C_final *X_hat + D_final * u_hat  # using linear approximation
         # If assume u_hat to be 0 for a very small iteration interval
         #Y_hat = C_final * X_hat = C_Final *(A*X + B*u)        
         Y_hat_A = C @A
@@ -697,7 +697,7 @@ class StateSpaceSimulationModule(SimulationModule):
             self.M0= M0_final[:,:]
             self.A = A_final[:,:]
             self.B = B_final[:,:]
-            self.C = C_final[:,:]
+            self.C = C_final[:,:] # both natural and impulse outpt
             self.D = D_final[:,:]
             self.A_dependent = A_dependent_final[:,:]
             self.B_dependent = B_dependent_final[:,:]
@@ -742,6 +742,9 @@ class StateSpaceSimulationModule(SimulationModule):
                 )
             
             I_A_dependent = np.identity(self.A_dependent.shape[0], dtype=np.float32)#  sp.eye( self.A_dependent.shape[0] )
+            
+            # The matrix for handling impulse response of the diode
+            # the impulse is the difference of (x_next-x)
             self.C_diode_impulse_sw = np.matmul(  self.C1_diode_sw, ( sp.matrix2numpy(self.A_dependent, dtype=np.float32) - I_A_dependent ))  # for finding C_impulse, just multiply x_cur with this matrix
             self.C_diode_natural_sw = self.C_diode_sw.copy()
             self.D_diode_natural_sw = self.D_diode_sw.copy()
@@ -757,9 +760,11 @@ class StateSpaceSimulationModule(SimulationModule):
             self.D = sp.matrix2numpy(self.D.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             self.C1 = sp.matrix2numpy(self.C1.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             if self.numberical_integrate_method == 0:
-                self.solver_zero_input_res, self.solver_zero_state_res = get_pade_03_integeration(self.A, self.B, 1/self.iteration_frequency)
+                self.solver_zero_input_res, self.solver_zero_state_res = get_pade_03_integeration(self.A , self.B, 1/self.iteration_frequency)
             elif self.numberical_integrate_method == 1:
                 self.solver_zero_input_res, self.solver_zero_state_res = get_pade_0_2_matrix(self.A, self.B, 1/self.iteration_frequency)
+            elif self.numberical_integrate_method == 2:
+                self.solver_zero_input_res, self.solver_zero_state_res = get_radau_integration(self.A, self.B, 1/self.iteration_frequency)                
             else:
                 raise ValueError("unknown integration method")
             #self.solver_zero_input_res, self.solver_zero_state_res = get_trapezoid_integration(self.A, self.B, 1/self.iteration_frequency)   
@@ -772,8 +777,8 @@ class StateSpaceSimulationModule(SimulationModule):
             self.C_non_impulse = sp.matrix2numpy(self.C_non_impulse.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             self.D_impulse = sp.matrix2numpy(self.D_impulse.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
             self.D_non_impulse = sp.matrix2numpy(self.D_non_impulse.subs(self.network_matrix.symbolic_to_value_map), dtype=np.float32)
-            self.x_next_with_dep_A  = np.matmul(self.A_dependent,  self.solver_zero_input_res)
-            self.X_next_with_dep_B = np.matmul(self.A_dependent, self.solver_zero_state_res)
+            self.x_next_with_dep_A  = np.matmul(self.A_dependent,  self.solver_zero_input_res) #TODO:FIXME: rename this variable, it should be solver_zero_input_res_mul_a_depenednt
+            self.X_next_with_dep_B = np.matmul(self.A_dependent, self.solver_zero_state_res) #TODO: rename this variable, it should be solver_zero_state_res_mul_a_depenednt
             
             self.form_AB_CD_nonimp_CD_imp_mat()
             self.form_C1DSW_mat()
@@ -1188,7 +1193,7 @@ class StateSpaceSimulationModule(SimulationModule):
         diode_number = self.diode_number()
         state_number = self.state_number()
         input_number = self.input_number()
-        
+        # for impulse response of diode, natural response of diode, and z_next of diode 
         self.C1_DSW = np.zeros( (diode_number*3, state_number + input_number ), dtype=np.float32  )
 
         self.C1_DSW[0:diode_number, 0:state_number] = self.C_diode_impulse_sw

@@ -643,10 +643,10 @@ def full_bridge_llc():
     #                     y_label= lab
     #                     )
 
-    sim_40  = "csv_data/Full-bridge-simplfied-llcx40.csv" # apply simplfiy technique from DSPACE 
+    sim_30  = "csv_data/Full-bridge-simplfied-llcx30.csv" # apply simplfiy technique from DSPACE 
     plec_30 = "csv_data/full-bridge-llc-plecx30.csv"
     plec_hil_30="csv_data/full-bridge-llc-plec-hilx30.csv"
-    simulation_main(netList, end_sim_t, sim_40, switch_frequency, switch_frequency*40 )
+    simulation_main(netList, end_sim_t, sim_30, switch_frequency, switch_frequency*30 )
     
     y_labels:dict[str, list[int]]= {
 
@@ -658,7 +658,7 @@ def full_bridge_llc():
     
     for lab, index_list in y_labels.items():
         
-        plot_csv_ncolumns( csv_files=[sim_40,plec_30, plec_hil_30],
+        plot_csv_ncolumns( csv_files=[sim_30,plec_30, plec_hil_30],
                         x_cols= [0,0,0],
                         y_cols= index_list,
                         labels= ["python", "plec", "plec_hil"],

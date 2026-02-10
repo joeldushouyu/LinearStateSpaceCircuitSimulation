@@ -503,7 +503,7 @@ def gen_incident_matrix(
     # reorganize a matrix to a, z, y, b form
     # a is the port in tree, z is nonport in tree
     # b is port in co-tree, y is nonport in cotree
-
+    # chua 6-5-2 section, and the "An efficient Algorithm for the fomulation on state equation and output Equation "
     # look at tree first
     tree_port = []
     cotree_port = []
@@ -600,7 +600,8 @@ def system_realization(netList: list[list[str]], supress_inconsistenc=False)->Ne
     A_tree_inverse = A_matrix[0 : len(row_names), 0 : len(row_names)].inv()
 
     D_matrix = A_tree_inverse * A_matrix  #(3-30) equation in Leo-chua's book
-
+    print("D Cutset Matrix")
+    print_matrix(D_matrix, column_names, row_names)
 
     a = len(tree_port)
     z = len(tree_nonport)
@@ -795,6 +796,8 @@ def system_realization(netList: list[list[str]], supress_inconsistenc=False)->Ne
 
     
     # At this point, M matrix is define exactly as (6-67) in the book by Leon-o-chu and pen-lin, and a (8) in Antonio Massarini and Ugo Reeggiani "An efficient Algorithm for the formulation of state equations ..."
+    print("F matrix before column reorder")
+    print_matrix(M, m_labels, ["" for i in range(M.shape[0])])
     # now reorder the m_label matrix
 
     # the order is w, u_tilt, s, y, x_hat, x, 0, u
@@ -927,8 +930,8 @@ def system_realization(netList: list[list[str]], supress_inconsistenc=False)->Ne
                 print("Warning: inconsistency system detected!")
             else:
                 raise ValueError("Network inconsistency detect for initial circuit topology")
-
-    # print_matrix(M, reordered_m_labels, ["" for x in range(M.shape[0])])
+    print("reorder M matrix")
+    print_matrix(M, reordered_m_labels, ["" for x in range(M.shape[0])])
 
     
     net =  NetworkMatrix(

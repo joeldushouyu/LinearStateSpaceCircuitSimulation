@@ -716,7 +716,7 @@ def update_system_matrix_to_reflect_dependency(M0: Matrix,
         3, A_dependent_final, B_dependent_final matrix describes how dependent state variable depend on independent state variable.
             x_value = A_dependent_final*x + B_dependent_final*u give both independent and dependent state value.
         4. C_impulse, C_non_impulse, D_impulse, D_non_impulse
-            C_impulse, D_impulse are matrix result from simplification of C1 
+            C_impulse, D_impulse are matrix result from simplification of C1_final 
             C_non_impulse and D_non_impulse are result from given C, D matrix.
             C_final = C_impulse + C_non_impulse
             D_final = D_impulse + D_non_impulse
@@ -856,7 +856,8 @@ def update_system_matrix_to_reflect_dependency(M0: Matrix,
     
     
 
-    return M0_final, A_final, B_final, C_final, D_final, A_dependent_final, B_dependent_final, C_impulse, C_non_impulse, D_impulse, D_non_impulse,independent_state_labels_list, dependent_state_labels_list, C1_final
+    return M0_final, A_final, B_final, C_final, D_final, A_dependent_final, B_dependent_final, C_impulse, C_non_impulse,\
+        D_impulse, D_non_impulse,independent_state_labels_list, dependent_state_labels_list, C1_final
 
 
 def retrieveSystemMatrix(
@@ -982,7 +983,9 @@ def retrieveSystemMatrix(
     A = -M[x_hat_row_col_offset:x_hat_row_col_offset+x_hat_labels_size, x_col_offset:zero_offset]
     B = -M[x_hat_row_col_offset:x_hat_row_col_offset+x_hat_labels_size, u_col_offset: u_col_offset+voltage_source_size+current_source_size]
       
-      
+    print("\n")
+    print_matrix(M, m_labels,["" for x in range(M.shape[0])])
+    
     # sanity check
     if len(inconsistent_labels) == 0:
         assert_matrix_equal( Q, sp.eye(  y_labels_size, y_labels_size ))
